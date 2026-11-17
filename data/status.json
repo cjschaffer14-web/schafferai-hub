@@ -1,6 +1,6 @@
 {
-  "version": "1.1.0",
-  "updated_utc": "2026-11-17T04:10:00Z",
+  "version": "1.2.0",
+  "updated_utc": "2026-11-17T04:55:00Z",
   "priorities": [
     {
       "id": "P1",
@@ -68,6 +68,11 @@
     }
   ],
   "iterations": [
+    {
+      "version": "1.2.0",
+      "date": "2026-11-16",
+      "summary": "Applied the minimalist Antigravity aesthetic (obsidian glass surfaces, hairline borders, monospace telemetry) and added an interactive kinetic Antigravity Orb with rotational inertia, voice-reactive pulse, and passkey/gateway connect."
+    },
     {
       "version": "1.1.0",
       "date": "2026-11-16",

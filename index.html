@@ -5,92 +5,142 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="theme-color" content="#0b1020" />
-  <title>SchafferAI Hub — Command, Voice, Simulator & Gesture</title>
+  <meta name="theme-color" content="#090b10" />
+  <title>SchafferAI — Antigravity Workspace Hub</title>
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <style>
     :root {
-      --bg: #0b1020; --card: #131b31; --border: #243050;
-      --text: #e2e8f0; --muted: #94a3b8; --accent: #38bdf8;
-      --ok: #34d399; --warn: #fbbf24; --danger: #f87171;
+      --bg: #090b10;
+      --surface: rgba(17, 22, 35, 0.78);
+      --surface-solid: #111623;
+      --border: rgba(255, 255, 255, 0.09);
+      --border-hi: rgba(96, 165, 250, 0.45);
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --blue: #60a5fa;
+      --violet: #a78bfa;
+      --emerald: #34d399;
+      --amber: #fbbf24;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
     * { box-sizing: border-box; }
     body {
-      margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: var(--bg); color: var(--text);
-      padding: env(safe-area-inset-top, 14px) 14px env(safe-area-inset-bottom, 24px);
-      line-height: 1.45;
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+      background: radial-gradient(circle at 50% -10%, rgba(96, 165, 250, 0.14), transparent 55%),
+                  radial-gradient(circle at 85% 20%, rgba(167, 139, 250, 0.10), transparent 45%),
+                  var(--bg);
+      color: var(--text);
+      padding: env(safe-area-inset-top, 16px) 16px env(safe-area-inset-bottom, 28px);
+      line-height: 1.5;
+      min-height: 100vh;
     }
     .shell { max-width: 1080px; margin: 0 auto; transition: all 0.25s ease; }
     .shell.iphone {
-      max-width: 393px; border: 10px solid #1e293b; border-radius: 42px;
-      padding: 14px; background: #090e1c; box-shadow: 0 24px 60px rgba(0,0,0,0.65);
+      max-width: 393px; border: 10px solid #1a2030; border-radius: 44px;
+      padding: 14px; background: #090b10; box-shadow: 0 30px 70px rgba(0,0,0,0.75);
     }
     .shell.android {
-      max-width: 412px; border: 8px solid #334155; border-radius: 28px;
-      padding: 14px; background: #090e1c; box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+      max-width: 412px; border: 8px solid #262f45; border-radius: 28px;
+      padding: 14px; background: #090b10; box-shadow: 0 24px 60px rgba(0,0,0,0.7);
     }
     header {
       display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center;
       gap: 10px; padding: 10px 0 14px; border-bottom: 1px solid var(--border);
     }
-    h1 { margin: 0; font-size: 1.25rem; display: flex; align-items: center; gap: 8px; }
+    h1 { margin: 0; font-size: 1.15rem; font-weight: 600; letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px; }
     .badge {
-      font-size: 0.72rem; padding: 2px 8px; border-radius: 999px;
-      background: rgba(56,189,248,0.15); color: var(--accent); border: 1px solid rgba(56,189,248,0.35);
+      font-family: var(--mono); font-size: 0.72rem; padding: 2px 8px; border-radius: 999px;
+      background: rgba(96, 165, 250, 0.12); color: var(--blue); border: 1px solid rgba(96, 165, 250, 0.3);
     }
     .bar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
     button {
-      background: var(--accent); color: #07101f; border: none; border-radius: 10px;
-      padding: 8px 12px; font-weight: 600; font-size: 0.85rem; cursor: pointer;
+      background: linear-gradient(135deg, var(--blue), var(--violet));
+      color: #060911; border: none; border-radius: 10px;
+      padding: 8px 13px; font-weight: 600; font-size: 0.84rem; cursor: pointer;
+      transition: transform 0.12s ease, opacity 0.12s ease;
     }
-    button.secondary { background: var(--card); color: var(--text); border: 1px solid var(--border); }
-    button.active { outline: 2px solid var(--ok); }
+    button:active { transform: scale(0.98); }
+    button.secondary {
+      background: var(--surface); color: var(--text); border: 1px solid var(--border);
+      backdrop-filter: blur(12px);
+    }
+    button.active { border-color: var(--emerald); box-shadow: 0 0 0 1px var(--emerald); }
+    .hero {
+      margin-top: 14px; padding: 16px; border-radius: 18px;
+      background: var(--surface); border: 1px solid var(--border);
+      backdrop-filter: blur(16px); display: flex; flex-wrap: wrap; align-items: center; gap: 18px;
+    }
+    #orbCanvas {
+      width: 170px; height: 170px; border-radius: 50%; cursor: grab;
+      border: 1px solid var(--border); background: radial-gradient(circle at 35% 35%, rgba(96,165,250,0.12), #06080f);
+      touch-action: none; flex-shrink: 0;
+    }
+    #orbCanvas:active { cursor: grabbing; }
+    .hero-meta { flex: 1; min-width: 220px; }
+    .hero-title { font-size: 1.05rem; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 4px; }
+    .mono { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); }
     .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
     .tab-btn { background: transparent; color: var(--muted); border: 1px solid var(--border); }
-    .tab-btn.active { background: rgba(56,189,248,0.15); color: var(--accent); border-color: var(--accent); outline: none; }
+    .tab-btn.active { background: rgba(96,165,250,0.14); color: var(--blue); border-color: var(--border-hi); box-shadow: none; }
     .voice-box {
-      margin-top: 12px; padding: 10px 12px; border-radius: 12px;
-      background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.25); font-size: 0.88rem;
+      margin-top: 10px; padding: 10px 12px; border-radius: 12px;
+      background: rgba(96,165,250,0.07); border: 1px solid rgba(96,165,250,0.22); font-size: 0.86rem;
     }
     .panel { display: none; margin-top: 14px; }
     .panel.active { display: block; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
-    .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
-    .card h2 { margin: 0 0 8px; font-size: 1rem; color: var(--accent); }
-    .item { padding: 8px 0; border-top: 1px solid var(--border); }
+    .card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+      padding: 15px; backdrop-filter: blur(14px);
+    }
+    .card h2 { margin: 0 0 10px; font-size: 0.96rem; font-weight: 600; color: var(--blue); letter-spacing: -0.01em; }
+    .item { padding: 9px 0; border-top: 1px solid var(--border); }
     .item:first-of-type { border-top: none; padding-top: 0; }
-    .item-title { font-weight: 600; display: flex; justify-content: space-between; gap: 8px; align-items: center; font-size: 0.92rem; }
-    .status { font-size: 0.7rem; text-transform: uppercase; padding: 2px 7px; border-radius: 6px; background: rgba(52,211,153,0.15); color: var(--ok); }
-    .status.pending_user_login, .status.in_progress { background: rgba(251,191,36,0.15); color: var(--warn); }
-    .detail { font-size: 0.84rem; color: var(--muted); margin-top: 3px; }
-    input { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: #090e1c; color: var(--text); margin: 6px 0; }
-    canvas, video { border-radius: 10px; border: 1px solid var(--border); background: #050814; max-width: 100%; }
-    footer { margin-top: 18px; font-size: 0.78rem; color: var(--muted); text-align: center; }
+    .item-title { font-weight: 600; display: flex; justify-content: space-between; gap: 8px; align-items: center; font-size: 0.9rem; }
+    .status {
+      font-family: var(--mono); font-size: 0.68rem; text-transform: uppercase;
+      padding: 2px 7px; border-radius: 6px; background: rgba(52,211,153,0.14); color: var(--emerald);
+    }
+    .status.pending_user_login, .status.in_progress { background: rgba(251,191,36,0.14); color: var(--amber); }
+    .detail { font-size: 0.83rem; color: var(--muted); margin-top: 3px; }
+    input {
+      width: 100%; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--border);
+      background: #070a12; color: var(--text); margin: 6px 0; font-size: 0.86rem;
+    }
+    #gameCanvas, video { border-radius: 12px; border: 1px solid var(--border); background: #06080f; max-width: 100%; }
+    footer { margin-top: 20px; font-family: var(--mono); font-size: 0.74rem; color: var(--muted); text-align: center; }
   </style>
 </head>
 <body>
   <div class="shell" id="shell">
     <header>
-      <h1>SchafferAI Hub <span class="badge" id="ver">v1.1.0</span></h1>
+      <h1>SchafferAI <span class="badge" id="ver">v1.2.0</span></h1>
       <div class="bar" style="margin-top:0">
         <button class="secondary active" id="sim-desktop" onclick="setDevice('desktop')">Desktop</button>
-        <button class="secondary" id="sim-iphone" onclick="setDevice('iphone')">📱 iPhone</button>
-        <button class="secondary" id="sim-android" onclick="setDevice('android')">🤖 Android</button>
+        <button class="secondary" id="sim-iphone" onclick="setDevice('iphone')">iPhone</button>
+        <button class="secondary" id="sim-android" onclick="setDevice('android')">Android</button>
       </div>
     </header>
 
-    <div class="bar">
-      <button onclick="speakBriefing()">🔊 Speak Briefing</button>
-      <button class="secondary" id="voice247Btn" onclick="toggleAlwaysOnVoice()">🎙️ 24/7 Voice: OFF</button>
-      <button class="secondary" id="camBtn" onclick="toggleCamera()">📷 Gesture Cam: OFF</button>
-      <button class="secondary" onclick="stopSpeaking()">⏹ Stop Audio</button>
-    </div>
-
-    <div class="voice-box" id="voiceOut">
-      <strong>v1.1.0 Ready:</strong> Click <em>24/7 Voice</em> for hands-free $0 Web Speech Q&amp;A ("priorities", "status", "reporting", "game", "changes"), or enable <em>Gesture Cam</em> to steer tabs &amp; the mini-game with hand motion.
+    <div class="hero">
+      <canvas id="orbCanvas" width="170" height="170" title="Drag or flick to spin"></canvas>
+      <div class="hero-meta">
+        <div class="hero-title">Antigravity Workspace Hub</div>
+        <div class="mono" id="orbTelemetry">spin: 0.00 rad/s · mode: public</div>
+        <div class="bar">
+          <button onclick="speakBriefing()">Speak Briefing</button>
+          <button class="secondary" id="voice247Btn" onclick="toggleAlwaysOnVoice()">24/7 Voice: OFF</button>
+          <button class="secondary" id="camBtn" onclick="toggleCamera()">Gesture Cam: OFF</button>
+          <button class="secondary" onclick="showTab('control', document.querySelectorAll('.tab-btn')[3])">Gateway Connect</button>
+          <button class="secondary" onclick="stopSpeaking()">Stop Audio</button>
+        </div>
+        <div class="voice-box" id="voiceOut">
+          Drag or flick the Antigravity orb to spin it. Enable <strong>24/7 Voice</strong> for hands-free $0 Q&amp;A or connect your authenticated gateway for live work-account execution.
+        </div>
+      </div>
     </div>
 
     <div class="tabs">
@@ -106,12 +156,12 @@
         <div class="card"><h2>Active Priorities</h2><div id="priorities"></div></div>
         <div class="card"><h2>Projects &amp; Reporting</h2><div id="projects"></div></div>
       </div>
-      <div class="card" style="margin-top:12px"><h2>Core Goals</h2><ul id="goals" style="margin:0;padding-left:18px"></ul></div>
+      <div class="card" style="margin-top:12px"><h2>Core Goals</h2><ul id="goals" style="margin:0;padding-left:18px;font-size:0.9rem"></ul></div>
     </section>
 
     <section class="panel" id="tab-qa">
       <div class="card">
-        <h2>Work Account Q&amp;A (Ask by Voice or Search)</h2>
+        <h2>Work Account Q&amp;A</h2>
         <input id="qaSearch" placeholder="Search work account facts (BTC address, leverage, tax, Cloud Run)..." oninput="renderQA()" />
         <div id="qaList"></div>
       </div>
@@ -121,31 +171,31 @@
       <div class="grid">
         <div class="card">
           <h2>Signal Catcher (Touch / Mouse / Gesture Cam)</h2>
-          <div class="detail" id="gameScore">Score: 0 | Move paddle with mouse, touch, or wave left/right in front of Gesture Cam.</div>
+          <div class="detail" id="gameScore">Score: 0</div>
           <canvas id="gameCanvas" width="340" height="220" style="margin-top:8px;width:100%"></canvas>
         </div>
         <div class="card">
           <h2>Webcam Motion Controller</h2>
           <video id="camVideo" width="220" height="165" autoplay muted playsinline style="display:block"></video>
-          <div class="detail" id="camStatus">Camera off. Uses local optical-flow motion tracking ($0, nothing leaves your device).</div>
+          <div class="detail" id="camStatus">Camera off. Client-side optical motion tracking ($0, stays local).</div>
         </div>
       </div>
     </section>
 
     <section class="panel" id="tab-control">
       <div class="card">
-        <h2>Authenticated Control Plane (Cloud Run / Hermes / Xcode / Android)</h2>
-        <div class="detail">Because this page is public ($0 GitHub Pages) and GCP Org Policy blocks unauthenticated Cloud Run access, enter your gateway URL + token locally (stored only in browser <code>localStorage</code>) to dispatch authenticated requests.</div>
-        <input id="gwUrl" placeholder="Gateway URL (e.g. Cloud Run proxy or Hermes CloudBridge)" />
-        <input id="gwTok" type="password" placeholder="Bearer Token (never committed to GitHub)" />
+        <h2>Authenticated Gateway (Cloud Run / Hermes / Xcode / Android)</h2>
+        <div class="detail">Stored only in browser <code>localStorage</code>. Connect your authenticated Cloud Run proxy or Hermes CloudBridge endpoint to query live ledger state or trigger builds.</div>
+        <input id="gwUrl" placeholder="Gateway URL" />
+        <input id="gwTok" type="password" placeholder="Bearer Token" />
         <div class="bar">
           <button onclick="saveGateway()">Save Local Config</button>
           <button class="secondary" onclick="callGateway('/agent/reconcile', {strategy_id:'default'})">Run /agent/reconcile</button>
-          <button class="secondary" onclick="callGateway('/treasury', {action:'status'})">Check Turnkey Status</button>
-          <button class="secondary" onclick="callGateway('/build', {target:'xcode'})">Trigger Xcode Build</button>
-          <button class="secondary" onclick="callGateway('/build', {target:'android'})">Trigger Android SDK Build</button>
+          <button class="secondary" onclick="callGateway('/treasury', {action:'status'})">Turnkey Status</button>
+          <button class="secondary" onclick="callGateway('/build', {target:'xcode'})">Xcode Build</button>
+          <button class="secondary" onclick="callGateway('/build', {target:'android'})">Android SDK Build</button>
         </div>
-        <pre id="gwOut" class="detail" style="white-space:pre-wrap;margin-top:10px"></pre>
+        <pre id="gwOut" class="detail mono" style="white-space:pre-wrap;margin-top:10px"></pre>
       </div>
     </section>
 
@@ -158,6 +208,43 @@
 
   <script>
     let state = null, voiceLoop = false, rec = null, camStream = null, prevFrame = null, paddleX = 140, score = 0;
+
+    // Kinetic Antigravity Orb with rotational inertia
+    const oc = document.getElementById('orbCanvas'), octx = oc.getContext('2d');
+    let orbAngle = 0, orbVel = 0.015, dragging = false, lastX = 0;
+    function ptrX(e) { return e.touches ? e.touches[0].clientX : e.clientX; }
+    oc.addEventListener('mousedown', e => { dragging = true; lastX = ptrX(e); });
+    oc.addEventListener('touchstart', e => { dragging = true; lastX = ptrX(e); }, { passive: true });
+    window.addEventListener('mouseup', () => dragging = false);
+    window.addEventListener('touchend', () => dragging = false);
+    window.addEventListener('mousemove', e => { if (!dragging) return; const dx = ptrX(e) - lastX; orbVel = dx * 0.025; lastX = ptrX(e); });
+    window.addEventListener('touchmove', e => { if (!dragging) return; const dx = ptrX(e) - lastX; orbVel = dx * 0.025; lastX = ptrX(e); }, { passive: true });
+
+    function drawOrb() {
+      orbAngle += orbVel;
+      orbVel *= 0.985;
+      if (Math.abs(orbVel) < 0.008) orbVel = 0.008 * Math.sign(orbVel || 1);
+      octx.clearRect(0, 0, 170, 170);
+      const cx = 85, cy = 85;
+      for (let i = 0; i < 3; i++) {
+        octx.save();
+        octx.translate(cx, cy);
+        octx.rotate(orbAngle * (i % 2 ? -1 : 1) + i * 0.9);
+        octx.scale(1, 0.42 + i * 0.16);
+        octx.beginPath();
+        octx.arc(0, 0, 56 - i * 9, 0, Math.PI * 2);
+        octx.strokeStyle = i === 0 ? 'rgba(96,165,250,0.85)' : (i === 1 ? 'rgba(167,139,250,0.75)' : 'rgba(52,211,153,0.7)');
+        octx.lineWidth = voiceLoop ? 2.6 : 1.6;
+        octx.stroke();
+        octx.restore();
+      }
+      const g = octx.createRadialGradient(cx - 6, cy - 6, 3, cx, cy, 22);
+      g.addColorStop(0, '#e2e8f0'); g.addColorStop(0.5, '#60a5fa'); g.addColorStop(1, 'rgba(96,165,250,0.05)');
+      octx.fillStyle = g; octx.beginPath(); octx.arc(cx, cy, 20 + (voiceLoop ? Math.sin(Date.now() / 120) * 3 : 0), 0, Math.PI * 2); octx.fill();
+      document.getElementById('orbTelemetry').textContent = `spin: ${(orbVel * 60).toFixed(2)} rad/s · voice: ${voiceLoop ? 'listening' : 'standby'}`;
+      requestAnimationFrame(drawOrb);
+    }
+    drawOrb();
 
     function setDevice(mode) {
       const sh = document.getElementById('shell');
@@ -176,7 +263,7 @@
       const res = await fetch('data/status.json?_=' + Date.now());
       state = await res.json();
       document.getElementById('ver').textContent = 'v' + state.version;
-      document.getElementById('updated').textContent = 'v' + state.version + ' · Updated ' + state.updated_utc + ' · $0 GitHub Pages PWA';
+      document.getElementById('updated').textContent = `v${state.version} · ${state.updated_utc} · $0 GitHub Pages`;
       document.getElementById('priorities').innerHTML = state.priorities.map(p =>
         `<div class="item"><div class="item-title"><span>${p.id}: ${p.title}</span><span class="status ${p.status}">${p.status.replace(/_/g,' ')}</span></div><div class="detail">${p.detail}</div></div>`).join('');
       document.getElementById('projects').innerHTML = state.projects.map(pr =>
@@ -203,7 +290,7 @@
     function stopSpeaking() { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); }
     function speakBriefing() {
       if (!state) return;
-      speakText(`SchafferAI Hub ${state.version}. Priorities: ${state.priorities.map(p => p.title).join('. ')}.`);
+      speakText(`SchafferAI ${state.version}. Priorities: ${state.priorities.map(p => p.title).join('. ')}.`);
     }
 
     function toggleAlwaysOnVoice() {
@@ -211,7 +298,7 @@
       if (!SR) { speakText('Browser SpeechRecognition unavailable here; use Speak Briefing.'); return; }
       voiceLoop = !voiceLoop;
       const btn = document.getElementById('voice247Btn');
-      btn.textContent = '🎙️ 24/7 Voice: ' + (voiceLoop ? 'ON' : 'OFF');
+      btn.textContent = '24/7 Voice: ' + (voiceLoop ? 'ON' : 'OFF');
       btn.classList.toggle('active', voiceLoop);
       if (!voiceLoop) { if (rec) rec.stop(); return; }
       rec = new SR(); rec.continuous = true; rec.lang = 'en-US';
@@ -233,15 +320,15 @@
       const btn = document.getElementById('camBtn');
       if (camStream) {
         camStream.getTracks().forEach(t => t.stop()); camStream = null;
-        btn.textContent = '📷 Gesture Cam: OFF'; btn.classList.remove('active');
+        btn.textContent = 'Gesture Cam: OFF'; btn.classList.remove('active');
         document.getElementById('camStatus').textContent = 'Camera stopped.';
         return;
       }
       try {
         camStream = await navigator.mediaDevices.getUserMedia({ video: { width: 160, height: 120 } });
         document.getElementById('camVideo').srcObject = camStream;
-        btn.textContent = '📷 Gesture Cam: ON'; btn.classList.add('active');
-        document.getElementById('camStatus').textContent = 'Tracking motion centroid -> paddle X.';
+        btn.textContent = 'Gesture Cam: ON'; btn.classList.add('active');
+        document.getElementById('camStatus').textContent = 'Tracking motion centroid -> paddle & orb.';
         trackMotion();
       } catch (e) { document.getElementById('camStatus').textContent = 'Camera permission denied: ' + e.message; }
     }
@@ -258,7 +345,11 @@
         for (let i = 0; i < cur.length; i += 4) {
           if (Math.abs(cur[i] - prevFrame[i]) > 35) { sumX += (i / 4) % 64; cnt++; }
         }
-        if (cnt > 25) paddleX = Math.max(0, Math.min(280, (1 - (sumX / cnt) / 64) * 280));
+        if (cnt > 25) {
+          const norm = 1 - (sumX / cnt) / 64;
+          paddleX = Math.max(0, Math.min(280, norm * 280));
+          orbVel = (norm - 0.5) * 0.25;
+        }
       }
       prevFrame = cur;
       requestAnimationFrame(trackMotion);
@@ -269,13 +360,13 @@
     gc.addEventListener('mousemove', e => { const r = gc.getBoundingClientRect(); paddleX = Math.max(0, Math.min(280, (e.clientX - r.left) * (340 / r.width) - 30)); });
     gc.addEventListener('touchmove', e => { const r = gc.getBoundingClientRect(); paddleX = Math.max(0, Math.min(280, (e.touches[0].clientX - r.left) * (340 / r.width) - 30)); e.preventDefault(); }, { passive: false });
     function loopGame() {
-      gctx.fillStyle = '#050814'; gctx.fillRect(0, 0, 340, 220);
+      gctx.fillStyle = '#06080f'; gctx.fillRect(0, 0, 340, 220);
       bx += bvx; by += bvy;
       if (bx < 8 || bx > 332) bvx *= -1;
       if (by < 8) bvy *= -1;
       if (by > 195 && bx >= paddleX && bx <= paddleX + 60) { bvy = -Math.abs(bvy); score++; document.getElementById('gameScore').textContent = 'Score: ' + score; }
       if (by > 220) { bx = 170; by = 30; score = 0; document.getElementById('gameScore').textContent = 'Score: 0 (missed)'; }
-      gctx.fillStyle = '#38bdf8'; gctx.fillRect(paddleX, 202, 60, 8);
+      gctx.fillStyle = '#60a5fa'; gctx.fillRect(paddleX, 202, 60, 8);
       gctx.fillStyle = '#34d399'; gctx.beginPath(); gctx.arc(bx, by, 7, 0, Math.PI * 2); gctx.fill();
       requestAnimationFrame(loopGame);
     }
