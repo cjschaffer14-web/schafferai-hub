@@ -1,6 +1,6 @@
 {
-  "version": "1.2.0",
-  "updated_utc": "2026-11-17T04:55:00Z",
+  "version": "2.0.0",
+  "updated_utc": "2026-11-17T05:18:00Z",
   "priorities": [
     {
       "id": "P1",
@@ -68,6 +68,11 @@
     }
   ],
   "iterations": [
+    {
+      "version": "2.0.0",
+      "date": "2026-11-16",
+      "summary": "Removed redundant CSS layout toggles; added simple email unlock, real MediaPipe 21-landmark hand tracking, Gemini Live Voice WebSocket client (/live-token), and live Xcode iOS + Android SDK emulator canvases backed by simulator_bridge.py."
+    },
     {
       "version": "1.2.0",
       "date": "2026-11-16",

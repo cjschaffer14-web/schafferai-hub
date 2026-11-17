@@ -3,155 +3,144 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="theme-color" content="#090b10" />
-  <title>SchafferAI — Antigravity Workspace Hub</title>
+  <title>SchafferAI — Antigravity Workspace</title>
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="icon.svg" />
   <style>
     :root {
-      --bg: #090b10;
-      --surface: rgba(17, 22, 35, 0.78);
-      --surface-solid: #111623;
-      --border: rgba(255, 255, 255, 0.09);
-      --border-hi: rgba(96, 165, 250, 0.45);
-      --text: #f1f5f9;
-      --muted: #94a3b8;
-      --blue: #60a5fa;
-      --violet: #a78bfa;
-      --emerald: #34d399;
-      --amber: #fbbf24;
+      --bg: #090b10; --surface: rgba(17, 22, 35, 0.82); --border: rgba(255, 255, 255, 0.09);
+      --text: #f1f5f9; --muted: #94a3b8; --blue: #60a5fa; --violet: #a78bfa;
+      --emerald: #34d399; --amber: #fbbf24; --red: #f87171;
       --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
     * { box-sizing: border-box; }
     body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
-      background: radial-gradient(circle at 50% -10%, rgba(96, 165, 250, 0.14), transparent 55%),
-                  radial-gradient(circle at 85% 20%, rgba(167, 139, 250, 0.10), transparent 45%),
-                  var(--bg);
-      color: var(--text);
-      padding: env(safe-area-inset-top, 16px) 16px env(safe-area-inset-bottom, 28px);
-      line-height: 1.5;
-      min-height: 100vh;
+      margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+      background: radial-gradient(circle at 50% -10%, rgba(96,165,250,0.14), transparent 55%), var(--bg);
+      color: var(--text); padding: 16px 16px 28px; line-height: 1.45; min-height: 100vh;
     }
-    .shell { max-width: 1080px; margin: 0 auto; transition: all 0.25s ease; }
-    .shell.iphone {
-      max-width: 393px; border: 10px solid #1a2030; border-radius: 44px;
-      padding: 14px; background: #090b10; box-shadow: 0 30px 70px rgba(0,0,0,0.75);
-    }
-    .shell.android {
-      max-width: 412px; border: 8px solid #262f45; border-radius: 28px;
-      padding: 14px; background: #090b10; box-shadow: 0 24px 60px rgba(0,0,0,0.7);
-    }
-    header {
-      display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center;
-      gap: 10px; padding: 10px 0 14px; border-bottom: 1px solid var(--border);
-    }
-    h1 { margin: 0; font-size: 1.15rem; font-weight: 600; letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px; }
-    .badge {
-      font-family: var(--mono); font-size: 0.72rem; padding: 2px 8px; border-radius: 999px;
-      background: rgba(96, 165, 250, 0.12); color: var(--blue); border: 1px solid rgba(96, 165, 250, 0.3);
-    }
-    .bar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-    button {
-      background: linear-gradient(135deg, var(--blue), var(--violet));
-      color: #060911; border: none; border-radius: 10px;
-      padding: 8px 13px; font-weight: 600; font-size: 0.84rem; cursor: pointer;
-      transition: transform 0.12s ease, opacity 0.12s ease;
-    }
-    button:active { transform: scale(0.98); }
-    button.secondary {
-      background: var(--surface); color: var(--text); border: 1px solid var(--border);
-      backdrop-filter: blur(12px);
-    }
+    .shell { max-width: 1120px; margin: 0 auto; }
+    header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+    h1 { margin: 0; font-size: 1.15rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .badge { font-family: var(--mono); font-size: 0.72rem; padding: 2px 8px; border-radius: 999px; background: rgba(96,165,250,0.14); color: var(--blue); border: 1px solid rgba(96,165,250,0.3); }
+    .email-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    input { padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border); background: #070a12; color: var(--text); font-size: 0.85rem; }
+    button { background: linear-gradient(135deg, var(--blue), var(--violet)); color: #060911; border: none; border-radius: 9px; padding: 8px 12px; font-weight: 600; font-size: 0.83rem; cursor: pointer; }
+    button.secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
     button.active { border-color: var(--emerald); box-shadow: 0 0 0 1px var(--emerald); }
-    .hero {
-      margin-top: 14px; padding: 16px; border-radius: 18px;
-      background: var(--surface); border: 1px solid var(--border);
-      backdrop-filter: blur(16px); display: flex; flex-wrap: wrap; align-items: center; gap: 18px;
-    }
-    #orbCanvas {
-      width: 170px; height: 170px; border-radius: 50%; cursor: grab;
-      border: 1px solid var(--border); background: radial-gradient(circle at 35% 35%, rgba(96,165,250,0.12), #06080f);
-      touch-action: none; flex-shrink: 0;
-    }
-    #orbCanvas:active { cursor: grabbing; }
-    .hero-meta { flex: 1; min-width: 220px; }
-    .hero-title { font-size: 1.05rem; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 4px; }
-    .mono { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); }
+    .warn-banner { margin-top: 10px; padding: 9px 12px; border-radius: 10px; background: rgba(251,191,36,0.12); border: 1px solid rgba(251,191,36,0.35); color: var(--amber); font-size: 0.84rem; display: none; }
+    .hero { margin-top: 14px; padding: 16px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border); display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+    #orbCanvas { width: 150px; height: 150px; border-radius: 50%; cursor: grab; border: 1px solid var(--border); background: #06080f; touch-action: none; }
     .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
     .tab-btn { background: transparent; color: var(--muted); border: 1px solid var(--border); }
-    .tab-btn.active { background: rgba(96,165,250,0.14); color: var(--blue); border-color: var(--border-hi); box-shadow: none; }
-    .voice-box {
-      margin-top: 10px; padding: 10px 12px; border-radius: 12px;
-      background: rgba(96,165,250,0.07); border: 1px solid rgba(96,165,250,0.22); font-size: 0.86rem;
-    }
+    .tab-btn.active { background: rgba(96,165,250,0.14); color: var(--blue); border-color: rgba(96,165,250,0.45); }
     .panel { display: none; margin-top: 14px; }
     .panel.active { display: block; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
-    .card {
-      background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
-      padding: 15px; backdrop-filter: blur(14px);
-    }
-    .card h2 { margin: 0 0 10px; font-size: 0.96rem; font-weight: 600; color: var(--blue); letter-spacing: -0.01em; }
-    .item { padding: 9px 0; border-top: 1px solid var(--border); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 12px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
+    .card h2 { margin: 0 0 8px; font-size: 0.96rem; color: var(--blue); }
+    .item { padding: 8px 0; border-top: 1px solid var(--border); }
     .item:first-of-type { border-top: none; padding-top: 0; }
-    .item-title { font-weight: 600; display: flex; justify-content: space-between; gap: 8px; align-items: center; font-size: 0.9rem; }
-    .status {
-      font-family: var(--mono); font-size: 0.68rem; text-transform: uppercase;
-      padding: 2px 7px; border-radius: 6px; background: rgba(52,211,153,0.14); color: var(--emerald);
-    }
-    .status.pending_user_login, .status.in_progress { background: rgba(251,191,36,0.14); color: var(--amber); }
+    .item-title { font-weight: 600; display: flex; justify-content: space-between; gap: 8px; font-size: 0.9rem; }
+    .status { font-family: var(--mono); font-size: 0.68rem; text-transform: uppercase; padding: 2px 7px; border-radius: 6px; background: rgba(52,211,153,0.14); color: var(--emerald); }
     .detail { font-size: 0.83rem; color: var(--muted); margin-top: 3px; }
-    input {
-      width: 100%; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--border);
-      background: #070a12; color: var(--text); margin: 6px 0; font-size: 0.86rem;
-    }
-    #gameCanvas, video { border-radius: 12px; border: 1px solid var(--border); background: #06080f; max-width: 100%; }
-    footer { margin-top: 20px; font-family: var(--mono); font-size: 0.74rem; color: var(--muted); text-align: center; }
+    .mono { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); }
+    .emu-wrap { position: relative; background: #05070d; border: 1px solid var(--border); border-radius: 12px; min-height: 360px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    .emu-wrap img { max-width: 100%; max-height: 460px; cursor: crosshair; display: block; }
+    .cam-stage { position: relative; width: 320px; height: 240px; }
+    .cam-stage video, .cam-stage canvas { position: absolute; top: 0; left: 0; width: 320px; height: 240px; border-radius: 10px; border: 1px solid var(--border); }
   </style>
 </head>
 <body>
-  <div class="shell" id="shell">
+  <div class="shell">
     <header>
-      <h1>SchafferAI <span class="badge" id="ver">v1.2.0</span></h1>
-      <div class="bar" style="margin-top:0">
-        <button class="secondary active" id="sim-desktop" onclick="setDevice('desktop')">Desktop</button>
-        <button class="secondary" id="sim-iphone" onclick="setDevice('iphone')">iPhone</button>
-        <button class="secondary" id="sim-android" onclick="setDevice('android')">Android</button>
+      <h1>SchafferAI <span class="badge" id="ver">v2.0.0</span></h1>
+      <div class="email-bar">
+        <input id="workEmail" placeholder="Work email (e.g. c@schafferai.com)" style="width:220px" />
+        <button onclick="unlockEmail()">Unlock</button>
+        <span class="mono" id="authState">locked</span>
       </div>
     </header>
 
+    <div class="warn-banner" id="httpsWarn">
+      Camera &amp; Microphone require HTTPS. Once GitHub Pages finishes issuing the TLS cert for <code>https://schafferai.com</code>, open via <code>https://</code> to enable MediaPipe Hand Tracking &amp; Live Voice.
+    </div>
+
     <div class="hero">
-      <canvas id="orbCanvas" width="170" height="170" title="Drag or flick to spin"></canvas>
-      <div class="hero-meta">
-        <div class="hero-title">Antigravity Workspace Hub</div>
-        <div class="mono" id="orbTelemetry">spin: 0.00 rad/s · mode: public</div>
-        <div class="bar">
-          <button onclick="speakBriefing()">Speak Briefing</button>
-          <button class="secondary" id="voice247Btn" onclick="toggleAlwaysOnVoice()">24/7 Voice: OFF</button>
-          <button class="secondary" id="camBtn" onclick="toggleCamera()">Gesture Cam: OFF</button>
-          <button class="secondary" onclick="showTab('control', document.querySelectorAll('.tab-btn')[3])">Gateway Connect</button>
-          <button class="secondary" onclick="stopSpeaking()">Stop Audio</button>
+      <canvas id="orbCanvas" width="150" height="150"></canvas>
+      <div style="flex:1;min-width:240px">
+        <div style="font-weight:600;font-size:1.05rem">Antigravity Live Voice &amp; Emulator Hub</div>
+        <div class="mono" id="orbTelemetry">spin: 0.00 rad/s · voice: idle</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+          <button id="liveVoiceBtn" onclick="toggleGeminiLiveVoice()">Connect Live Natural Voice</button>
+          <button class="secondary" id="camBtn" onclick="toggleMediaPipeHands()">MediaPipe Hand Cam: OFF</button>
         </div>
-        <div class="voice-box" id="voiceOut">
-          Drag or flick the Antigravity orb to spin it. Enable <strong>24/7 Voice</strong> for hands-free $0 Q&amp;A or connect your authenticated gateway for live work-account execution.
+        <div class="detail" id="voiceOut" style="margin-top:8px">
+          Use <strong>Connect Live Natural Voice</strong> (Gemini Live API via <code>/live-token</code>) or <strong>MediaPipe Hand Cam</strong> (21-landmark browser tracking).
         </div>
       </div>
     </div>
 
     <div class="tabs">
-      <button class="tab-btn active" onclick="showTab('overview', this)">Overview</button>
+      <button class="tab-btn active" onclick="showTab('emulators', this)">iPhone &amp; Android Emulators</button>
+      <button class="tab-btn" onclick="showTab('hand', this)">MediaPipe Hand &amp; Game</button>
+      <button class="tab-btn" onclick="showTab('overview', this)">Priorities &amp; Reporting</button>
       <button class="tab-btn" onclick="showTab('qa', this)">Work Account Q&amp;A</button>
-      <button class="tab-btn" onclick="showTab('game', this)">Gesture Game</button>
-      <button class="tab-btn" onclick="showTab('control', this)">Cloud &amp; Builds</button>
+      <button class="tab-btn" onclick="showTab('control', this)">Cloud &amp; Token Config</button>
       <button class="tab-btn" onclick="showTab('iterations', this)">Transformations</button>
     </div>
 
-    <section class="panel active" id="tab-overview">
+    <section class="panel active" id="tab-emulators">
+      <div class="card" style="margin-bottom:12px">
+        <h2>Mac Device Stream Bridge (Xcode Simulator + Android SDK)</h2>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+          <input id="simBridgeUrl" value="http://127.0.0.1:8765" style="flex:1;min-width:220px" placeholder="Bridge URL (http://127.0.0.1:8765 or Cloudflare Tunnel)" />
+          <button onclick="connectSimBridge()">Connect &amp; Stream</button>
+          <button class="secondary" onclick="stopSimBridge()">Stop Stream</button>
+          <span class="mono" id="simStatus">disconnected</span>
+        </div>
+        <div class="detail">Run <code>python3 simulator_bridge.py</code> on your Mac (wraps <code>/usr/bin/xcrun simctl</code> &amp; <code>adb</code>) and click Android/iPhone screens below to interact.</div>
+      </div>
+      <div class="grid">
+        <div class="card">
+          <h2>Xcode iPhone Simulator <span class="mono" id="iosInfo"></span></h2>
+          <div style="display:flex;gap:6px;margin-bottom:8px">
+            <input id="iosBundle" placeholder="Bundle ID (e.g. com.apple.mobilesafari)" style="flex:1" />
+            <button class="secondary" onclick="launchDeviceApp('ios', document.getElementById('iosBundle').value)">Launch</button>
+          </div>
+          <div class="emu-wrap"><img id="iosImg" alt="Boot Xcode Simulator and click Connect" onclick="tapScreen('ios', event)" /></div>
+        </div>
+        <div class="card">
+          <h2>Android SDK Emulator <span class="mono" id="androidInfo"></span></h2>
+          <div style="display:flex;gap:6px;margin-bottom:8px">
+            <input id="androidPkg" placeholder="Package (e.g. com.android.chrome)" style="flex:1" />
+            <button class="secondary" onclick="launchDeviceApp('android', document.getElementById('androidPkg').value)">Launch</button>
+          </div>
+          <div class="emu-wrap"><img id="androidImg" alt="Boot Android AVD and click Connect" onclick="tapScreen('android', event)" /></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="tab-hand">
+      <div class="grid">
+        <div class="card">
+          <h2>MediaPipe 21-Landmark Hand Tracking</h2>
+          <div class="cam-stage">
+            <video id="camVideo" width="320" height="240" autoplay muted playsinline></video>
+            <canvas id="handOverlay" width="320" height="240"></canvas>
+          </div>
+          <div class="detail" id="camStatus" style="margin-top:8px">Camera off.</div>
+        </div>
+        <div class="card">
+          <h2>Signal Catcher (Steered by Index Finger / Mouse)</h2>
+          <div class="detail" id="gameScore">Score: 0</div>
+          <canvas id="gameCanvas" width="340" height="220" style="margin-top:8px;width:100%;background:#06080f;border-radius:10px"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="tab-overview">
       <div class="grid">
         <div class="card"><h2>Active Priorities</h2><div id="priorities"></div></div>
         <div class="card"><h2>Projects &amp; Reporting</h2><div id="projects"></div></div>
@@ -162,204 +151,170 @@
     <section class="panel" id="tab-qa">
       <div class="card">
         <h2>Work Account Q&amp;A</h2>
-        <input id="qaSearch" placeholder="Search work account facts (BTC address, leverage, tax, Cloud Run)..." oninput="renderQA()" />
+        <input id="qaSearch" placeholder="Search BTC address, leverage, tax, Cloud Run..." oninput="renderQA()" style="width:100%;margin-bottom:8px" />
         <div id="qaList"></div>
-      </div>
-    </section>
-
-    <section class="panel" id="tab-game">
-      <div class="grid">
-        <div class="card">
-          <h2>Signal Catcher (Touch / Mouse / Gesture Cam)</h2>
-          <div class="detail" id="gameScore">Score: 0</div>
-          <canvas id="gameCanvas" width="340" height="220" style="margin-top:8px;width:100%"></canvas>
-        </div>
-        <div class="card">
-          <h2>Webcam Motion Controller</h2>
-          <video id="camVideo" width="220" height="165" autoplay muted playsinline style="display:block"></video>
-          <div class="detail" id="camStatus">Camera off. Client-side optical motion tracking ($0, stays local).</div>
-        </div>
       </div>
     </section>
 
     <section class="panel" id="tab-control">
       <div class="card">
-        <h2>Authenticated Gateway (Cloud Run / Hermes / Xcode / Android)</h2>
-        <div class="detail">Stored only in browser <code>localStorage</code>. Connect your authenticated Cloud Run proxy or Hermes CloudBridge endpoint to query live ledger state or trigger builds.</div>
-        <input id="gwUrl" placeholder="Gateway URL" />
-        <input id="gwTok" type="password" placeholder="Bearer Token" />
-        <div class="bar">
-          <button onclick="saveGateway()">Save Local Config</button>
+        <h2>Cloud Run Gateway (Live Voice Token &amp; Ledger)</h2>
+        <input id="gwUrl" placeholder="Cloud Run / Proxy URL" style="width:100%;margin-bottom:6px" />
+        <input id="gwTok" type="password" placeholder="Bearer Token (stored only in localStorage)" style="width:100%;margin-bottom:8px" />
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button onclick="saveGateway()">Save Config</button>
           <button class="secondary" onclick="callGateway('/agent/reconcile', {strategy_id:'default'})">Run /agent/reconcile</button>
           <button class="secondary" onclick="callGateway('/treasury', {action:'status'})">Turnkey Status</button>
-          <button class="secondary" onclick="callGateway('/build', {target:'xcode'})">Xcode Build</button>
-          <button class="secondary" onclick="callGateway('/build', {target:'android'})">Android SDK Build</button>
         </div>
-        <pre id="gwOut" class="detail mono" style="white-space:pre-wrap;margin-top:10px"></pre>
+        <pre id="gwOut" class="mono" style="white-space:pre-wrap;margin-top:10px"></pre>
       </div>
     </section>
 
     <section class="panel" id="tab-iterations">
       <div class="card"><h2>Transformation &amp; Iteration Log</h2><div id="iterations"></div></div>
     </section>
-
-    <footer id="updated">Loading...</footer>
   </div>
 
-  <script>
-    let state = null, voiceLoop = false, rec = null, camStream = null, prevFrame = null, paddleX = 140, score = 0;
+  <script type="module">
+    import { FilesetResolver, HandLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
 
-    // Kinetic Antigravity Orb with rotational inertia
-    const oc = document.getElementById('orbCanvas'), octx = oc.getContext('2d');
-    let orbAngle = 0, orbVel = 0.015, dragging = false, lastX = 0;
-    function ptrX(e) { return e.touches ? e.touches[0].clientX : e.clientX; }
-    oc.addEventListener('mousedown', e => { dragging = true; lastX = ptrX(e); });
-    oc.addEventListener('touchstart', e => { dragging = true; lastX = ptrX(e); }, { passive: true });
-    window.addEventListener('mouseup', () => dragging = false);
-    window.addEventListener('touchend', () => dragging = false);
-    window.addEventListener('mousemove', e => { if (!dragging) return; const dx = ptrX(e) - lastX; orbVel = dx * 0.025; lastX = ptrX(e); });
-    window.addEventListener('touchmove', e => { if (!dragging) return; const dx = ptrX(e) - lastX; orbVel = dx * 0.025; lastX = ptrX(e); }, { passive: true });
-
-    function drawOrb() {
-      orbAngle += orbVel;
-      orbVel *= 0.985;
-      if (Math.abs(orbVel) < 0.008) orbVel = 0.008 * Math.sign(orbVel || 1);
-      octx.clearRect(0, 0, 170, 170);
-      const cx = 85, cy = 85;
-      for (let i = 0; i < 3; i++) {
-        octx.save();
-        octx.translate(cx, cy);
-        octx.rotate(orbAngle * (i % 2 ? -1 : 1) + i * 0.9);
-        octx.scale(1, 0.42 + i * 0.16);
-        octx.beginPath();
-        octx.arc(0, 0, 56 - i * 9, 0, Math.PI * 2);
-        octx.strokeStyle = i === 0 ? 'rgba(96,165,250,0.85)' : (i === 1 ? 'rgba(167,139,250,0.75)' : 'rgba(52,211,153,0.7)');
-        octx.lineWidth = voiceLoop ? 2.6 : 1.6;
-        octx.stroke();
-        octx.restore();
-      }
-      const g = octx.createRadialGradient(cx - 6, cy - 6, 3, cx, cy, 22);
-      g.addColorStop(0, '#e2e8f0'); g.addColorStop(0.5, '#60a5fa'); g.addColorStop(1, 'rgba(96,165,250,0.05)');
-      octx.fillStyle = g; octx.beginPath(); octx.arc(cx, cy, 20 + (voiceLoop ? Math.sin(Date.now() / 120) * 3 : 0), 0, Math.PI * 2); octx.fill();
-      document.getElementById('orbTelemetry').textContent = `spin: ${(orbVel * 60).toFixed(2)} rad/s · voice: ${voiceLoop ? 'listening' : 'standby'}`;
-      requestAnimationFrame(drawOrb);
-    }
-    drawOrb();
-
-    function setDevice(mode) {
-      const sh = document.getElementById('shell');
-      sh.className = 'shell' + (mode === 'desktop' ? '' : ' ' + mode);
-      ['desktop', 'iphone', 'android'].forEach(m => document.getElementById('sim-' + m).classList.toggle('active', m === mode));
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+      document.getElementById('httpsWarn').style.display = 'block';
     }
 
-    function showTab(name, btn) {
+    let state = null, simTimer = null, handLandmarker = null, camStream = null, paddleX = 140, score = 0, liveWs = null;
+
+    window.unlockEmail = () => {
+      const em = document.getElementById('workEmail').value.trim().toLowerCase();
+      if (!em || !em.includes('@')) { document.getElementById('authState').textContent = 'enter valid email'; return; }
+      localStorage.setItem('schafferai_email', em);
+      document.getElementById('authState').textContent = 'unlocked: ' + em;
+    };
+    const savedEmail = localStorage.getItem('schafferai_email');
+    if (savedEmail) { document.getElementById('workEmail').value = savedEmail; document.getElementById('authState').textContent = 'unlocked: ' + savedEmail; }
+
+    window.showTab = (name, btn) => {
       document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
       document.getElementById('tab-' + name).classList.add('active');
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       if (btn) btn.classList.add('active');
-    }
+    };
 
-    async function loadStatus() {
-      const res = await fetch('data/status.json?_=' + Date.now());
-      state = await res.json();
-      document.getElementById('ver').textContent = 'v' + state.version;
-      document.getElementById('updated').textContent = `v${state.version} · ${state.updated_utc} · $0 GitHub Pages`;
-      document.getElementById('priorities').innerHTML = state.priorities.map(p =>
-        `<div class="item"><div class="item-title"><span>${p.id}: ${p.title}</span><span class="status ${p.status}">${p.status.replace(/_/g,' ')}</span></div><div class="detail">${p.detail}</div></div>`).join('');
-      document.getElementById('projects').innerHTML = state.projects.map(pr =>
-        `<div class="item"><div class="item-title"><span>${pr.name}</span><span class="status ${pr.status}">${pr.status}</span></div><div class="detail">${pr.detail}</div></div>`).join('');
-      document.getElementById('goals').innerHTML = state.goals.map(g => `<li>${g}</li>`).join('');
-      document.getElementById('iterations').innerHTML = state.iterations.map(it =>
-        `<div class="item"><div class="item-title"><span>v${it.version}</span><span class="detail">${it.date}</span></div><div class="detail">${it.summary}</div></div>`).join('');
-      renderQA();
-    }
+    // Kinetic Antigravity Orb
+    const oc = document.getElementById('orbCanvas'), octx = oc.getContext('2d');
+    let orbAngle = 0, orbVel = 0.015, dragging = false, lastX = 0;
+    const ptrX = e => e.touches ? e.touches[0].clientX : e.clientX;
+    oc.addEventListener('mousedown', e => { dragging = true; lastX = ptrX(e); });
+    window.addEventListener('mouseup', () => dragging = false);
+    window.addEventListener('mousemove', e => { if (!dragging) return; orbVel = (ptrX(e) - lastX) * 0.025; lastX = ptrX(e); });
+    (function drawOrb() {
+      orbAngle += orbVel; orbVel *= 0.985;
+      if (Math.abs(orbVel) < 0.008) orbVel = 0.008 * Math.sign(orbVel || 1);
+      octx.clearRect(0, 0, 150, 150);
+      for (let i = 0; i < 3; i++) {
+        octx.save(); octx.translate(75, 75); octx.rotate(orbAngle * (i % 2 ? -1 : 1) + i * 0.9); octx.scale(1, 0.44 + i * 0.16);
+        octx.beginPath(); octx.arc(0, 0, 50 - i * 8, 0, Math.PI * 2);
+        octx.strokeStyle = i === 0 ? 'rgba(96,165,250,0.85)' : (i === 1 ? 'rgba(167,139,250,0.75)' : 'rgba(52,211,153,0.7)');
+        octx.lineWidth = liveWs ? 2.6 : 1.5; octx.stroke(); octx.restore();
+      }
+      octx.fillStyle = '#60a5fa'; octx.beginPath(); octx.arc(75, 75, 16, 0, Math.PI * 2); octx.fill();
+      document.getElementById('orbTelemetry').textContent = `spin: ${(orbVel * 60).toFixed(2)} rad/s · voice: ${liveWs ? 'live_ws' : 'idle'}`;
+      requestAnimationFrame(drawOrb);
+    })();
 
-    function renderQA() {
-      if (!state) return;
-      const q = (document.getElementById('qaSearch').value || '').toLowerCase();
-      document.getElementById('qaList').innerHTML = state.qa.filter(x => (x.q + x.a).toLowerCase().includes(q)).map(x =>
-        `<div class="item"><div class="item-title">${x.q}</div><div class="detail">${x.a}</div></div>`).join('');
-    }
-
-    function speakText(txt) {
-      document.getElementById('voiceOut').textContent = txt;
-      if (!('speechSynthesis' in window)) return;
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(new SpeechSynthesisUtterance(txt));
-    }
-    function stopSpeaking() { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); }
-    function speakBriefing() {
-      if (!state) return;
-      speakText(`SchafferAI ${state.version}. Priorities: ${state.priorities.map(p => p.title).join('. ')}.`);
-    }
-
-    function toggleAlwaysOnVoice() {
-      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SR) { speakText('Browser SpeechRecognition unavailable here; use Speak Briefing.'); return; }
-      voiceLoop = !voiceLoop;
-      const btn = document.getElementById('voice247Btn');
-      btn.textContent = '24/7 Voice: ' + (voiceLoop ? 'ON' : 'OFF');
-      btn.classList.toggle('active', voiceLoop);
-      if (!voiceLoop) { if (rec) rec.stop(); return; }
-      rec = new SR(); rec.continuous = true; rec.lang = 'en-US';
-      rec.onresult = (ev) => {
-        const q = (ev.results[ev.results.length - 1][0].transcript || '').toLowerCase();
-        if (!state) return;
-        const qaHit = state.qa.find(x => q.split(' ').some(w => w.length > 3 && x.q.toLowerCase().includes(w)));
-        if (q.includes('priorit')) speakText(state.priorities.map(p => `${p.id}: ${p.title}`).join('. '));
-        else if (q.includes('game')) { showTab('game', document.querySelectorAll('.tab-btn')[2]); speakText('Opened Gesture Game.'); }
-        else if (q.includes('change') || q.includes('transform')) speakText(state.iterations[0].summary);
-        else if (qaHit) speakText(qaHit.a);
-        else speakBriefing();
-      };
-      rec.onend = () => { if (voiceLoop) try { rec.start(); } catch(e){} };
-      rec.start();
-    }
-
-    async function toggleCamera() {
-      const btn = document.getElementById('camBtn');
+    // Real MediaPipe Hands
+    window.toggleMediaPipeHands = async () => {
+      const btn = document.getElementById('camBtn'), st = document.getElementById('camStatus');
       if (camStream) {
         camStream.getTracks().forEach(t => t.stop()); camStream = null;
-        btn.textContent = 'Gesture Cam: OFF'; btn.classList.remove('active');
-        document.getElementById('camStatus').textContent = 'Camera stopped.';
-        return;
+        btn.textContent = 'MediaPipe Hand Cam: OFF'; btn.classList.remove('active'); st.textContent = 'Camera stopped.'; return;
       }
+      if (!navigator.mediaDevices?.getUserMedia) { st.textContent = 'Camera requires HTTPS.'; return; }
       try {
-        camStream = await navigator.mediaDevices.getUserMedia({ video: { width: 160, height: 120 } });
-        document.getElementById('camVideo').srcObject = camStream;
-        btn.textContent = 'Gesture Cam: ON'; btn.classList.add('active');
-        document.getElementById('camStatus').textContent = 'Tracking motion centroid -> paddle & orb.';
-        trackMotion();
-      } catch (e) { document.getElementById('camStatus').textContent = 'Camera permission denied: ' + e.message; }
-    }
-
-    function trackMotion() {
-      if (!camStream) return;
-      const vid = document.getElementById('camVideo');
-      const off = document.createElement('canvas'); off.width = 64; off.height = 48;
-      const ctx = off.getContext('2d');
-      ctx.drawImage(vid, 0, 0, 64, 48);
-      const cur = ctx.getImageData(0, 0, 64, 48).data;
-      if (prevFrame) {
-        let sumX = 0, cnt = 0;
-        for (let i = 0; i < cur.length; i += 4) {
-          if (Math.abs(cur[i] - prevFrame[i]) > 35) { sumX += (i / 4) % 64; cnt++; }
+        st.textContent = 'Loading MediaPipe HandLandmarker...';
+        if (!handLandmarker) {
+          const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+          handLandmarker = await HandLandmarker.createFromOptions(vision, {
+            baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task", delegate: "GPU" },
+            runningMode: "VIDEO", numHands: 1
+          });
         }
-        if (cnt > 25) {
-          const norm = 1 - (sumX / cnt) / 64;
-          paddleX = Math.max(0, Math.min(280, norm * 280));
-          orbVel = (norm - 0.5) * 0.25;
-        }
-      }
-      prevFrame = cur;
-      requestAnimationFrame(trackMotion);
-    }
+        camStream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 } });
+        const vid = document.getElementById('camVideo'); vid.srcObject = camStream;
+        btn.textContent = 'MediaPipe Hand Cam: ON'; btn.classList.add('active'); st.textContent = 'Tracking 21 hand landmarks!';
+        const overlay = document.getElementById('handOverlay'), ctx = overlay.getContext('2d');
+        const step = () => {
+          if (!camStream) return;
+          ctx.clearRect(0, 0, 320, 240);
+          if (vid.readyState >= 2) {
+            const res = handLandmarker.detectForVideo(vid, performance.now());
+            if (res.landmarks?.[0]) {
+              const lm = res.landmarks[0];
+              ctx.fillStyle = '#34d399';
+              for (const p of lm) { ctx.beginPath(); ctx.arc((1 - p.x) * 320, p.y * 240, 3.5, 0, Math.PI * 2); ctx.fill(); }
+              const idxX = 1 - lm[8].x;
+              paddleX = Math.max(0, Math.min(280, idxX * 280));
+              orbVel = (idxX - 0.5) * 0.25;
+            }
+          }
+          requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      } catch (e) { st.textContent = 'Hand Cam error: ' + e.message; }
+    };
 
+    // Gemini Live Natural Voice (via /live-token)
+    window.toggleGeminiLiveVoice = async () => {
+      const btn = document.getElementById('liveVoiceBtn'), out = document.getElementById('voiceOut');
+      if (liveWs) { liveWs.close(); liveWs = null; btn.textContent = 'Connect Live Natural Voice'; btn.classList.remove('active'); out.textContent = 'Voice disconnected.'; return; }
+      const url = (localStorage.getItem('schafferai_gw_url') || '').replace(/\/+$/, '');
+      const tok = localStorage.getItem('schafferai_gw_tok') || '';
+      if (!url) { out.textContent = 'Open "Cloud & Token Config" tab and set your Cloud Run Gateway URL first so /live-token can mint an ephemeral Gemini Live token.'; return; }
+      try {
+        out.textContent = 'Requesting ephemeral Gemini Live token...';
+        const r = await fetch(url + '/live-token', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(tok ? { Authorization: 'Bearer ' + tok } : {}) }, body: '{}' });
+        const d = await r.json();
+        if (!d.ok || !d.token) { out.textContent = 'Live Voice unavailable: ' + (d.error || 'missing token'); return; }
+        liveWs = new WebSocket(`wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token=${encodeURIComponent(d.token)}`);
+        liveWs.onopen = () => { btn.textContent = 'Live Voice: CONNECTED'; btn.classList.add('active'); out.textContent = 'Gemini Live WebSocket connected!'; };
+        liveWs.onclose = () => { liveWs = null; btn.textContent = 'Connect Live Natural Voice'; btn.classList.remove('active'); };
+      } catch (e) { out.textContent = 'Live Voice error: ' + e.message; }
+    };
+
+    // Mac Xcode & Android SDK Simulator Stream
+    const bridgeBase = () => document.getElementById('simBridgeUrl').value.trim().replace(/\/+$/, '');
+    window.connectSimBridge = async () => {
+      const st = document.getElementById('simStatus');
+      try {
+        const res = await fetch(bridgeBase() + '/devices');
+        const d = await res.json();
+        document.getElementById('iosInfo').textContent = d.ios_booted?.[0]?.name || 'no booted iOS';
+        document.getElementById('androidInfo').textContent = d.android_connected?.[0] || 'no Android AVD';
+        st.textContent = 'streaming';
+        if (simTimer) clearInterval(simTimer);
+        simTimer = setInterval(() => {
+          const ts = Date.now();
+          if (d.ios_booted?.length) document.getElementById('iosImg').src = `${bridgeBase()}/frame?platform=ios&t=${ts}`;
+          if (d.android_connected?.length) document.getElementById('androidImg').src = `${bridgeBase()}/frame?platform=android&t=${ts}`;
+        }, 700);
+      } catch (e) { st.textContent = 'error: ' + e.message; }
+    };
+    window.stopSimBridge = () => { if (simTimer) clearInterval(simTimer); simTimer = null; document.getElementById('simStatus').textContent = 'stopped'; };
+    window.tapScreen = async (platform, ev) => {
+      const img = ev.target, rect = img.getBoundingClientRect();
+      const x = Math.round((ev.clientX - rect.left) * (img.naturalWidth / rect.width));
+      const y = Math.round((ev.clientY - rect.top) * (img.naturalHeight / rect.height));
+      await fetch(bridgeBase() + '/tap', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ platform, x, y }) });
+    };
+    window.launchDeviceApp = async (platform, target_id) => {
+      await fetch(bridgeBase() + '/launch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ platform, target_id }) });
+    };
+
+    // Signal Catcher Game
     const gc = document.getElementById('gameCanvas'), gctx = gc.getContext('2d');
     let bx = 170, by = 30, bvx = 2.1, bvy = 2.3;
     gc.addEventListener('mousemove', e => { const r = gc.getBoundingClientRect(); paddleX = Math.max(0, Math.min(280, (e.clientX - r.left) * (340 / r.width) - 30)); });
-    gc.addEventListener('touchmove', e => { const r = gc.getBoundingClientRect(); paddleX = Math.max(0, Math.min(280, (e.touches[0].clientX - r.left) * (340 / r.width) - 30)); e.preventDefault(); }, { passive: false });
-    function loopGame() {
+    (function loopGame() {
       gctx.fillStyle = '#06080f'; gctx.fillRect(0, 0, 340, 220);
       bx += bvx; by += bvy;
       if (bx < 8 || bx > 332) bvx *= -1;
@@ -369,23 +324,34 @@
       gctx.fillStyle = '#60a5fa'; gctx.fillRect(paddleX, 202, 60, 8);
       gctx.fillStyle = '#34d399'; gctx.beginPath(); gctx.arc(bx, by, 7, 0, Math.PI * 2); gctx.fill();
       requestAnimationFrame(loopGame);
-    }
-    loopGame();
+    })();
 
-    function saveGateway() {
+    // Status & Gateway
+    async function loadStatus() {
+      state = await (await fetch('data/status.json?_=' + Date.now())).json();
+      document.getElementById('ver').textContent = 'v' + state.version;
+      document.getElementById('priorities').innerHTML = state.priorities.map(p => `<div class="item"><div class="item-title"><span>${p.id}: ${p.title}</span><span class="status">${p.status.replace(/_/g,' ')}</span></div><div class="detail">${p.detail}</div></div>`).join('');
+      document.getElementById('projects').innerHTML = state.projects.map(pr => `<div class="item"><div class="item-title"><span>${pr.name}</span><span class="status">${pr.status}</span></div><div class="detail">${pr.detail}</div></div>`).join('');
+      document.getElementById('goals').innerHTML = state.goals.map(g => `<li>${g}</li>`).join('');
+      document.getElementById('iterations').innerHTML = state.iterations.map(it => `<div class="item"><div class="item-title"><span>v${it.version}</span><span class="detail">${it.date}</span></div><div class="detail">${it.summary}</div></div>`).join('');
+      window.renderQA();
+    }
+    window.renderQA = () => {
+      if (!state) return;
+      const q = (document.getElementById('qaSearch').value || '').toLowerCase();
+      document.getElementById('qaList').innerHTML = state.qa.filter(x => (x.q + x.a).toLowerCase().includes(q)).map(x => `<div class="item"><div class="item-title">${x.q}</div><div class="detail">${x.a}</div></div>`).join('');
+    };
+    window.saveGateway = () => {
       localStorage.setItem('schafferai_gw_url', document.getElementById('gwUrl').value.trim());
       localStorage.setItem('schafferai_gw_tok', document.getElementById('gwTok').value.trim());
-      document.getElementById('gwOut').textContent = 'Saved gateway config to browser localStorage.';
-    }
-    async function callGateway(path, body) {
-      const url = (localStorage.getItem('schafferai_gw_url') || '').replace(/\/+$/, '');
-      const tok = localStorage.getItem('schafferai_gw_tok') || '';
-      if (!url) { document.getElementById('gwOut').textContent = 'Set Gateway URL first (saved only in your browser).'; return; }
-      try {
-        const res = await fetch(url + path, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(tok ? { Authorization: 'Bearer ' + tok } : {}) }, body: JSON.stringify(body) });
-        document.getElementById('gwOut').textContent = await res.text();
-      } catch (e) { document.getElementById('gwOut').textContent = 'Request error: ' + e.message; }
-    }
+      document.getElementById('gwOut').textContent = 'Saved gateway config.';
+    };
+    window.callGateway = async (path, body) => {
+      const url = (localStorage.getItem('schafferai_gw_url') || '').replace(/\/+$/, ''), tok = localStorage.getItem('schafferai_gw_tok') || '';
+      if (!url) { document.getElementById('gwOut').textContent = 'Set Gateway URL first.'; return; }
+      const res = await fetch(url + path, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(tok ? { Authorization: 'Bearer ' + tok } : {}) }, body: JSON.stringify(body) });
+      document.getElementById('gwOut').textContent = await res.text();
+    };
     document.getElementById('gwUrl').value = localStorage.getItem('schafferai_gw_url') || '';
     document.getElementById('gwTok').value = localStorage.getItem('schafferai_gw_tok') || '';
     loadStatus();
