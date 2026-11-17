@@ -3,81 +3,127 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#090b10" />
+  <meta name="theme-color" content="#07090f" />
   <title>SchafferAI — Antigravity Workspace</title>
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <style>
     :root {
-      --bg: #090b10; --surface: rgba(17, 22, 35, 0.82); --border: rgba(255, 255, 255, 0.09);
-      --text: #f1f5f9; --muted: #94a3b8; --blue: #60a5fa; --violet: #a78bfa;
-      --emerald: #34d399; --amber: #fbbf24; --red: #f87171;
+      --bg: #07090f; --surface: rgba(15, 20, 34, 0.72); --surface-2: rgba(24, 32, 54, 0.55);
+      --border: rgba(255, 255, 255, 0.08); --border-hi: rgba(96, 165, 250, 0.45);
+      --text: #f8fafc; --muted: #94a3b8; --blue: #60a5fa; --violet: #a78bfa;
+      --emerald: #34d399; --amber: #fbbf24;
       --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
     * { box-sizing: border-box; }
     body {
-      margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
-      background: radial-gradient(circle at 50% -10%, rgba(96,165,250,0.14), transparent 55%), var(--bg);
-      color: var(--text); padding: 16px 16px 28px; line-height: 1.45; min-height: 100vh;
+      margin: 0; font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background:
+        radial-gradient(900px 500px at 15% -5%, rgba(96, 165, 250, 0.16), transparent 60%),
+        radial-gradient(700px 450px at 85% 5%, rgba(167, 139, 250, 0.12), transparent 60%),
+        var(--bg);
+      color: var(--text); padding: 18px 18px 40px; line-height: 1.5; min-height: 100vh;
     }
-    .shell { max-width: 1120px; margin: 0 auto; }
-    header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
-    h1 { margin: 0; font-size: 1.15rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-    .badge { font-family: var(--mono); font-size: 0.72rem; padding: 2px 8px; border-radius: 999px; background: rgba(96,165,250,0.14); color: var(--blue); border: 1px solid rgba(96,165,250,0.3); }
+    .shell { max-width: 1180px; margin: 0 auto; }
+    header {
+      display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px;
+      padding: 12px 18px; border-radius: 16px; background: var(--surface);
+      border: 1px solid var(--border); backdrop-filter: blur(18px);
+    }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.08rem; letter-spacing: -0.02em; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--emerald); box-shadow: 0 0 12px var(--emerald); }
+    .badge { font-family: var(--mono); font-size: 0.72rem; padding: 2px 9px; border-radius: 999px; background: rgba(96,165,250,0.14); color: var(--blue); border: 1px solid rgba(96,165,250,0.3); }
     .email-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    input { padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border); background: #070a12; color: var(--text); font-size: 0.85rem; }
-    button { background: linear-gradient(135deg, var(--blue), var(--violet)); color: #060911; border: none; border-radius: 9px; padding: 8px 12px; font-weight: 600; font-size: 0.83rem; cursor: pointer; }
-    button.secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+    input {
+      padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border);
+      background: rgba(7, 9, 15, 0.85); color: var(--text); font-size: 0.84rem; outline: none;
+    }
+    input:focus { border-color: var(--border-hi); }
+    button {
+      background: linear-gradient(135deg, var(--blue), var(--violet)); color: #050811;
+      border: none; border-radius: 10px; padding: 8px 14px; font-weight: 600; font-size: 0.83rem;
+      cursor: pointer; transition: transform 0.14s ease, box-shadow 0.14s ease;
+    }
+    button:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(96,165,250,0.22); }
+    button.secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); box-shadow: none; }
     button.active { border-color: var(--emerald); box-shadow: 0 0 0 1px var(--emerald); }
-    .warn-banner { margin-top: 10px; padding: 9px 12px; border-radius: 10px; background: rgba(251,191,36,0.12); border: 1px solid rgba(251,191,36,0.35); color: var(--amber); font-size: 0.84rem; display: none; }
-    .hero { margin-top: 14px; padding: 16px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border); display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
-    #orbCanvas { width: 150px; height: 150px; border-radius: 50%; cursor: grab; border: 1px solid var(--border); background: #06080f; touch-action: none; }
-    .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
-    .tab-btn { background: transparent; color: var(--muted); border: 1px solid var(--border); }
-    .tab-btn.active { background: rgba(96,165,250,0.14); color: var(--blue); border-color: rgba(96,165,250,0.45); }
+    .warn-banner {
+      margin-top: 12px; padding: 10px 14px; border-radius: 12px;
+      background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.3);
+      color: var(--amber); font-size: 0.84rem; display: none;
+    }
+    .bento-hero {
+      margin-top: 14px; padding: 20px; border-radius: 20px; background: var(--surface);
+      border: 1px solid var(--border); backdrop-filter: blur(20px);
+      display: flex; flex-wrap: wrap; align-items: center; gap: 22px;
+    }
+    #orbCanvas {
+      width: 144px; height: 144px; border-radius: 50%; cursor: grab;
+      border: 1px solid var(--border); background: radial-gradient(circle at 35% 30%, rgba(96,165,250,0.16), #05070e);
+      touch-action: none;
+    }
+    .tabs {
+      display: inline-flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; padding: 6px;
+      border-radius: 14px; background: var(--surface); border: 1px solid var(--border);
+    }
+    .tab-btn { background: transparent; color: var(--muted); border: none; padding: 8px 13px; border-radius: 10px; box-shadow: none; }
+    .tab-btn:hover { color: var(--text); transform: none; box-shadow: none; }
+    .tab-btn.active { background: rgba(96,165,250,0.16); color: var(--blue); }
     .panel { display: none; margin-top: 14px; }
     .panel.active { display: block; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 12px; }
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
-    .card h2 { margin: 0 0 8px; font-size: 0.96rem; color: var(--blue); }
-    .item { padding: 8px 0; border-top: 1px solid var(--border); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 14px; }
+    .card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
+      padding: 18px; backdrop-filter: blur(18px);
+    }
+    .card h2 { margin: 0 0 10px; font-size: 0.96rem; font-weight: 600; color: var(--blue); display: flex; justify-content: space-between; align-items: center; }
+    .item { padding: 10px 0; border-top: 1px solid var(--border); }
     .item:first-of-type { border-top: none; padding-top: 0; }
     .item-title { font-weight: 600; display: flex; justify-content: space-between; gap: 8px; font-size: 0.9rem; }
-    .status { font-family: var(--mono); font-size: 0.68rem; text-transform: uppercase; padding: 2px 7px; border-radius: 6px; background: rgba(52,211,153,0.14); color: var(--emerald); }
+    .status { font-family: var(--mono); font-size: 0.68rem; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; background: rgba(52,211,153,0.14); color: var(--emerald); }
     .detail { font-size: 0.83rem; color: var(--muted); margin-top: 3px; }
-    .mono { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); }
-    .emu-wrap { position: relative; background: #05070d; border: 1px solid var(--border); border-radius: 12px; min-height: 360px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-    .emu-wrap img { max-width: 100%; max-height: 460px; cursor: crosshair; display: block; }
+    .mono { font-family: var(--mono); font-size: 0.77rem; color: var(--muted); }
+    .bezel-ios {
+      background: #03050a; border: 8px solid #1e293b; border-radius: 36px; padding: 10px;
+      min-height: 380px; display: flex; align-items: center; justify-content: center; overflow: hidden;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.55);
+    }
+    .bezel-android {
+      background: #03050a; border: 7px solid #334155; border-radius: 24px; padding: 10px;
+      min-height: 380px; display: flex; align-items: center; justify-content: center; overflow: hidden;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.55);
+    }
+    .bezel-ios img, .bezel-android img { max-width: 100%; max-height: 460px; cursor: crosshair; border-radius: 16px; display: block; }
     .cam-stage { position: relative; width: 320px; height: 240px; }
-    .cam-stage video, .cam-stage canvas { position: absolute; top: 0; left: 0; width: 320px; height: 240px; border-radius: 10px; border: 1px solid var(--border); }
+    .cam-stage video, .cam-stage canvas { position: absolute; top: 0; left: 0; width: 320px; height: 240px; border-radius: 12px; border: 1px solid var(--border); }
   </style>
 </head>
 <body>
   <div class="shell">
     <header>
-      <h1>SchafferAI <span class="badge" id="ver">v2.0.0</span></h1>
+      <div class="brand"><span class="dot"></span> SchafferAI <span class="badge" id="ver">v2.1.0</span></div>
       <div class="email-bar">
-        <input id="workEmail" placeholder="Work email (e.g. c@schafferai.com)" style="width:220px" />
+        <input id="workEmail" placeholder="c@schafferai.com" style="width:210px" />
         <button onclick="unlockEmail()">Unlock</button>
         <span class="mono" id="authState">locked</span>
       </div>
     </header>
 
     <div class="warn-banner" id="httpsWarn">
-      Camera &amp; Microphone require HTTPS. Once GitHub Pages finishes issuing the TLS cert for <code>https://schafferai.com</code>, open via <code>https://</code> to enable MediaPipe Hand Tracking &amp; Live Voice.
+      Camera &amp; Microphone require HTTPS. Ensure all 4 GitHub Pages A records (<code>185.199.108–111.153</code>) are set so GitHub issues the TLS certificate for <code>https://schafferai.com</code>.
     </div>
 
-    <div class="hero">
-      <canvas id="orbCanvas" width="150" height="150"></canvas>
-      <div style="flex:1;min-width:240px">
-        <div style="font-weight:600;font-size:1.05rem">Antigravity Live Voice &amp; Emulator Hub</div>
-        <div class="mono" id="orbTelemetry">spin: 0.00 rad/s · voice: idle</div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+    <div class="bento-hero">
+      <canvas id="orbCanvas" width="144" height="144" title="Drag or flick to spin"></canvas>
+      <div style="flex:1;min-width:250px">
+        <div style="font-weight:700;font-size:1.15rem;letter-spacing:-0.02em">Antigravity Live Voice &amp; Emulator Hub</div>
+        <div class="mono" id="orbTelemetry" style="margin-top:2px">spin: 0.00 rad/s · voice: idle</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
           <button id="liveVoiceBtn" onclick="toggleGeminiLiveVoice()">Connect Live Natural Voice</button>
           <button class="secondary" id="camBtn" onclick="toggleMediaPipeHands()">MediaPipe Hand Cam: OFF</button>
         </div>
-        <div class="detail" id="voiceOut" style="margin-top:8px">
-          Use <strong>Connect Live Natural Voice</strong> (Gemini Live API via <code>/live-token</code>) or <strong>MediaPipe Hand Cam</strong> (21-landmark browser tracking).
+        <div class="detail" id="voiceOut" style="margin-top:9px">
+          Flick the Antigravity orb to spin, connect <strong>Live Natural Voice</strong> via <code>/live-token</code>, or enable <strong>MediaPipe Hand Cam</strong> for 21-landmark gesture tracking.
         </div>
       </div>
     </div>
@@ -92,32 +138,31 @@
     </div>
 
     <section class="panel active" id="tab-emulators">
-      <div class="card" style="margin-bottom:12px">
-        <h2>Mac Device Stream Bridge (Xcode Simulator + Android SDK)</h2>
+      <div class="card" style="margin-bottom:14px">
+        <h2>Mac Device Stream Bridge <span class="mono" id="simStatus">disconnected</span></h2>
         <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-          <input id="simBridgeUrl" value="http://127.0.0.1:8765" style="flex:1;min-width:220px" placeholder="Bridge URL (http://127.0.0.1:8765 or Cloudflare Tunnel)" />
+          <input id="simBridgeUrl" value="http://127.0.0.1:8765" style="flex:1;min-width:220px" placeholder="Bridge URL (http://127.0.0.1:8765 or Tunnel)" />
           <button onclick="connectSimBridge()">Connect &amp; Stream</button>
-          <button class="secondary" onclick="stopSimBridge()">Stop Stream</button>
-          <span class="mono" id="simStatus">disconnected</span>
+          <button class="secondary" onclick="stopSimBridge()">Stop</button>
         </div>
-        <div class="detail">Run <code>python3 simulator_bridge.py</code> on your Mac (wraps <code>/usr/bin/xcrun simctl</code> &amp; <code>adb</code>) and click Android/iPhone screens below to interact.</div>
+        <div class="detail" style="margin-top:6px">Run <code>python3 simulator_bridge.py</code> on your Mac (<code>xcrun simctl</code> + <code>adb</code>) and click device screens below to tap.</div>
       </div>
       <div class="grid">
         <div class="card">
-          <h2>Xcode iPhone Simulator <span class="mono" id="iosInfo"></span></h2>
-          <div style="display:flex;gap:6px;margin-bottom:8px">
+          <h2>Xcode iPhone Simulator <span class="mono" id="iosInfo">standby</span></h2>
+          <div style="display:flex;gap:6px;margin-bottom:10px">
             <input id="iosBundle" placeholder="Bundle ID (e.g. com.apple.mobilesafari)" style="flex:1" />
             <button class="secondary" onclick="launchDeviceApp('ios', document.getElementById('iosBundle').value)">Launch</button>
           </div>
-          <div class="emu-wrap"><img id="iosImg" alt="Boot Xcode Simulator and click Connect" onclick="tapScreen('ios', event)" /></div>
+          <div class="bezel-ios"><img id="iosImg" alt="Boot Xcode Simulator and click Connect" onclick="tapScreen('ios', event)" /></div>
         </div>
         <div class="card">
-          <h2>Android SDK Emulator <span class="mono" id="androidInfo"></span></h2>
-          <div style="display:flex;gap:6px;margin-bottom:8px">
+          <h2>Android SDK Emulator <span class="mono" id="androidInfo">standby</span></h2>
+          <div style="display:flex;gap:6px;margin-bottom:10px">
             <input id="androidPkg" placeholder="Package (e.g. com.android.chrome)" style="flex:1" />
             <button class="secondary" onclick="launchDeviceApp('android', document.getElementById('androidPkg').value)">Launch</button>
           </div>
-          <div class="emu-wrap"><img id="androidImg" alt="Boot Android AVD and click Connect" onclick="tapScreen('android', event)" /></div>
+          <div class="bezel-android"><img id="androidImg" alt="Boot Android AVD and click Connect" onclick="tapScreen('android', event)" /></div>
         </div>
       </div>
     </section>
@@ -133,9 +178,8 @@
           <div class="detail" id="camStatus" style="margin-top:8px">Camera off.</div>
         </div>
         <div class="card">
-          <h2>Signal Catcher (Steered by Index Finger / Mouse)</h2>
-          <div class="detail" id="gameScore">Score: 0</div>
-          <canvas id="gameCanvas" width="340" height="220" style="margin-top:8px;width:100%;background:#06080f;border-radius:10px"></canvas>
+          <h2>Signal Catcher <span class="mono" id="gameScore">Score: 0</span></h2>
+          <canvas id="gameCanvas" width="340" height="220" style="margin-top:8px;width:100%;background:#05070e;border-radius:12px;border:1px solid var(--border)"></canvas>
         </div>
       </div>
     </section>
@@ -145,7 +189,7 @@
         <div class="card"><h2>Active Priorities</h2><div id="priorities"></div></div>
         <div class="card"><h2>Projects &amp; Reporting</h2><div id="projects"></div></div>
       </div>
-      <div class="card" style="margin-top:12px"><h2>Core Goals</h2><ul id="goals" style="margin:0;padding-left:18px;font-size:0.9rem"></ul></div>
+      <div class="card" style="margin-top:14px"><h2>Core Goals</h2><ul id="goals" style="margin:0;padding-left:18px;font-size:0.9rem"></ul></div>
     </section>
 
     <section class="panel" id="tab-qa">
@@ -160,7 +204,7 @@
       <div class="card">
         <h2>Cloud Run Gateway (Live Voice Token &amp; Ledger)</h2>
         <input id="gwUrl" placeholder="Cloud Run / Proxy URL" style="width:100%;margin-bottom:6px" />
-        <input id="gwTok" type="password" placeholder="Bearer Token (stored only in localStorage)" style="width:100%;margin-bottom:8px" />
+        <input id="gwTok" type="password" placeholder="Bearer Token (stored only in localStorage)" style="width:100%;margin-bottom:10px" />
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button onclick="saveGateway()">Save Config</button>
           <button class="secondary" onclick="callGateway('/agent/reconcile', {strategy_id:'default'})">Run /agent/reconcile</button>
@@ -200,7 +244,6 @@
       if (btn) btn.classList.add('active');
     };
 
-    // Kinetic Antigravity Orb
     const oc = document.getElementById('orbCanvas'), octx = oc.getContext('2d');
     let orbAngle = 0, orbVel = 0.015, dragging = false, lastX = 0;
     const ptrX = e => e.touches ? e.touches[0].clientX : e.clientX;
@@ -210,19 +253,18 @@
     (function drawOrb() {
       orbAngle += orbVel; orbVel *= 0.985;
       if (Math.abs(orbVel) < 0.008) orbVel = 0.008 * Math.sign(orbVel || 1);
-      octx.clearRect(0, 0, 150, 150);
+      octx.clearRect(0, 0, 144, 144);
       for (let i = 0; i < 3; i++) {
-        octx.save(); octx.translate(75, 75); octx.rotate(orbAngle * (i % 2 ? -1 : 1) + i * 0.9); octx.scale(1, 0.44 + i * 0.16);
-        octx.beginPath(); octx.arc(0, 0, 50 - i * 8, 0, Math.PI * 2);
+        octx.save(); octx.translate(72, 72); octx.rotate(orbAngle * (i % 2 ? -1 : 1) + i * 0.9); octx.scale(1, 0.44 + i * 0.16);
+        octx.beginPath(); octx.arc(0, 0, 48 - i * 8, 0, Math.PI * 2);
         octx.strokeStyle = i === 0 ? 'rgba(96,165,250,0.85)' : (i === 1 ? 'rgba(167,139,250,0.75)' : 'rgba(52,211,153,0.7)');
         octx.lineWidth = liveWs ? 2.6 : 1.5; octx.stroke(); octx.restore();
       }
-      octx.fillStyle = '#60a5fa'; octx.beginPath(); octx.arc(75, 75, 16, 0, Math.PI * 2); octx.fill();
+      octx.fillStyle = '#60a5fa'; octx.beginPath(); octx.arc(72, 72, 15, 0, Math.PI * 2); octx.fill();
       document.getElementById('orbTelemetry').textContent = `spin: ${(orbVel * 60).toFixed(2)} rad/s · voice: ${liveWs ? 'live_ws' : 'idle'}`;
       requestAnimationFrame(drawOrb);
     })();
 
-    // Real MediaPipe Hands
     window.toggleMediaPipeHands = async () => {
       const btn = document.getElementById('camBtn'), st = document.getElementById('camStatus');
       if (camStream) {
@@ -263,13 +305,12 @@
       } catch (e) { st.textContent = 'Hand Cam error: ' + e.message; }
     };
 
-    // Gemini Live Natural Voice (via /live-token)
     window.toggleGeminiLiveVoice = async () => {
       const btn = document.getElementById('liveVoiceBtn'), out = document.getElementById('voiceOut');
       if (liveWs) { liveWs.close(); liveWs = null; btn.textContent = 'Connect Live Natural Voice'; btn.classList.remove('active'); out.textContent = 'Voice disconnected.'; return; }
       const url = (localStorage.getItem('schafferai_gw_url') || '').replace(/\/+$/, '');
       const tok = localStorage.getItem('schafferai_gw_tok') || '';
-      if (!url) { out.textContent = 'Open "Cloud & Token Config" tab and set your Cloud Run Gateway URL first so /live-token can mint an ephemeral Gemini Live token.'; return; }
+      if (!url) { out.textContent = 'Set your Cloud Run Gateway URL in "Cloud & Token Config" first so /live-token can mint an ephemeral Gemini Live token.'; return; }
       try {
         out.textContent = 'Requesting ephemeral Gemini Live token...';
         const r = await fetch(url + '/live-token', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(tok ? { Authorization: 'Bearer ' + tok } : {}) }, body: '{}' });
@@ -281,13 +322,11 @@
       } catch (e) { out.textContent = 'Live Voice error: ' + e.message; }
     };
 
-    // Mac Xcode & Android SDK Simulator Stream
     const bridgeBase = () => document.getElementById('simBridgeUrl').value.trim().replace(/\/+$/, '');
     window.connectSimBridge = async () => {
       const st = document.getElementById('simStatus');
       try {
-        const res = await fetch(bridgeBase() + '/devices');
-        const d = await res.json();
+        const d = await (await fetch(bridgeBase() + '/devices')).json();
         document.getElementById('iosInfo').textContent = d.ios_booted?.[0]?.name || 'no booted iOS';
         document.getElementById('androidInfo').textContent = d.android_connected?.[0] || 'no Android AVD';
         st.textContent = 'streaming';
@@ -310,12 +349,11 @@
       await fetch(bridgeBase() + '/launch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ platform, target_id }) });
     };
 
-    // Signal Catcher Game
     const gc = document.getElementById('gameCanvas'), gctx = gc.getContext('2d');
     let bx = 170, by = 30, bvx = 2.1, bvy = 2.3;
     gc.addEventListener('mousemove', e => { const r = gc.getBoundingClientRect(); paddleX = Math.max(0, Math.min(280, (e.clientX - r.left) * (340 / r.width) - 30)); });
     (function loopGame() {
-      gctx.fillStyle = '#06080f'; gctx.fillRect(0, 0, 340, 220);
+      gctx.fillStyle = '#05070e'; gctx.fillRect(0, 0, 340, 220);
       bx += bvx; by += bvy;
       if (bx < 8 || bx > 332) bvx *= -1;
       if (by < 8) bvy *= -1;
@@ -326,7 +364,6 @@
       requestAnimationFrame(loopGame);
     })();
 
-    // Status & Gateway
     async function loadStatus() {
       state = await (await fetch('data/status.json?_=' + Date.now())).json();
       document.getElementById('ver').textContent = 'v' + state.version;

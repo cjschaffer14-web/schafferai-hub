@@ -1,6 +1,6 @@
 {
-  "version": "2.0.0",
-  "updated_utc": "2026-11-17T05:18:00Z",
+  "version": "2.1.0",
+  "updated_utc": "2026-11-17T23:25:00Z",
   "priorities": [
     {
       "id": "P1",
@@ -68,6 +68,11 @@
     }
   ],
   "iterations": [
+    {
+      "version": "2.1.0",
+      "date": "2026-11-17",
+      "summary": "Modern Antigravity Bento-grid UI refresh with glassmorphic cards, sleek pill navigation, and realistic iPhone & Android hardware bezels around live simulator streams."
+    },
     {
       "version": "2.0.0",
       "date": "2026-11-16",
