@@ -1,3 +1,4 @@
 # SchafferAI Hub — Iteration Log
 
-- **v1.0.0 (2026-11-16)**: Initial revamp replacing the `HTTP 401` ChatGPT Sites gate on `schafferai.com` with a `$0/mo` public GitHub Pages PWA (`iPhone` + `Android` installable), live `data/status.json` feed for priorities/goals/projects, `$0` Web Speech voice briefing & Q&A, and this visible transformation log.
+- **v1.1.0 (2026-11-16)**: Added interactive **iPhone & Android Simulator** frame, **24/7 Hands-Free `$0` Voice Loop** (continuous `SpeechRecognition` without holding a button or burning LLM tokens), **Webcam Motion Gesture Controller** (inspired by `fluid-control`, steers tabs & built-in game), **Work Account Q&A + Reporting**, **Gesture Target Mini-Game**, and an **Authenticated Control Plane** panel (Cloud Run `/agent/reconcile`, Hermes CloudBridge, and `xcodebuild` / Android SDK build dispatch).
+- **v1.0.0 (2026-11-16)**: Initial revamp replacing the `HTTP 401` ChatGPT Sites gate on `schafferai.com` with a `$0/mo` public GitHub Pages PWA (`iPhone` + `Android` installable), live `data/status.json` feed for priorities/goals/projects, `$0` Web Speech voice briefing & Q&A, and visible transformation log.

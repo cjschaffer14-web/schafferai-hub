@@ -1,18 +1,18 @@
 {
-  "version": "1.0.0",
-  "updated_utc": "2026-11-17T00:55:00Z",
+  "version": "1.1.0",
+  "updated_utc": "2026-11-17T04:10:00Z",
   "priorities": [
     {
       "id": "P1",
-      "title": "Push Concierge Apps Script (clasp push)",
-      "status": "pending_user_login",
-      "detail": "Run npx @google/clasp login && npx @google/clasp push in clasp/live and set TREASURY_WEBHOOK_URL."
+      "title": "Receive $20 USD BTC deposit & run live shadow/canary cycle",
+      "status": "ready",
+      "detail": "BTC-APEX1 (bc1q3m8kj4k29m22af0ff3vqhv6da0zaks7u82fntt) ready; run 5-10 broadcast=false Hyperliquid signals before live $10-$12 canary trades."
     },
     {
       "id": "P2",
-      "title": "Shadow-verify Hyperliquid isolated leverage sleeves",
-      "status": "ready",
-      "detail": "Run 5-10 broadcast=false signals on Hyperliquid funding/momentum sleeves before funding live $10-$12 canary trades."
+      "title": "Push Concierge Apps Script (clasp push)",
+      "status": "pending_user_login",
+      "detail": "Run npx @google/clasp login && npx @google/clasp push in clasp/live and set TREASURY_WEBHOOK_URL."
     },
     {
       "id": "P3",
@@ -24,18 +24,19 @@
   "goals": [
     "Autonomous work-account (c@schafferai.com) treasury & multi-sleeve DAG execution",
     "Positive post-fee compounding via isolated Hyperliquid leverage + HWM trailing throttle",
-    "Any-device iPhone & Android access with built-in voice briefing"
+    "EIN-ready FASB ASU 2023-08 & IRS Rev. Proc. 2024-28 accounting & 4-audience docs",
+    "Universal mobile/desktop hub with iPhone simulator, webcam gesture control, and 24/7 $0 voice"
   ],
   "projects": [
     {
       "name": "Cloud Run Treasury Webhook",
       "status": "live",
-      "detail": "Deployed via keyless Workload Identity Federation (GitHub Actions run 43986533914 passed)."
+      "detail": "Keyless WIF CI/CD (run 44013253292 passed); hosts /treasury & /agent/reconcile."
     },
     {
       "name": "Lean 3-Stage DAG & Smart Risk Gate",
       "status": "tested",
-      "detail": "Exit/hedge edge bypass, round-trip + gas pricing, exposure caps, compound_pnl, HWM drawdown throttle (9/9 + 4/4 tests passing)."
+      "detail": "Exit/hedge edge bypass, round-trip + gas pricing, exposure caps, compound_pnl, HWM drawdown throttle (9/9 + 5/5 tests passing)."
     },
     {
       "name": "Turnkey BTC <-> Base L2 Treasury Cycle",
@@ -43,12 +44,35 @@
       "detail": "Live 49,780 sat bridge in -> Base WETH wrap/unwrap -> 46,994 sat return TXID 0d68a6a4...598."
     },
     {
-      "name": "End-of-Day Wiki & Ledger Sync",
+      "name": "Documentation & Tax Readiness",
       "status": "synced",
-      "detail": "Google Doc, Gmail summary, and Drive Wiki updated; Work Project Index pushed to GitHub."
+      "detail": "Gap Analysis, 4-Audience Standard, EOD Summary, and Wiki synced to Drive & GitHub."
+    }
+  ],
+  "qa": [
+    {
+      "q": "What is the work account BTC deposit address?",
+      "a": "BTC-APEX1 is bc1q3m8kj4k29m22af0ff3vqhv6da0zaks7u82fntt; EVM-APEX-0x (Base L2 & Hyperliquid) is 0xeb551cc7c80CcE81750609fc427f1Cc47932C84D."
+    },
+    {
+      "q": "How are trades gated and compounded?",
+      "a": "evaluate_gate enforces isolated 1x-5x leverage, 15% sleeve / 50% total exposure caps, round-trip + gas pricing, opt-in PnL compounding, and -5% HWM trailing drawdown throttling."
+    },
+    {
+      "q": "How is accounting & tax handled?",
+      "a": "FASB ASU 2023-08 fair-value marking and IRS Rev. Proc. 2024-28 wallet-by-wallet specific identification, logged in TRADE_LEDGER.jsonl and Three-Statement Model."
+    },
+    {
+      "q": "Why is schafferai.com showing a ChatGPT login?",
+      "a": "schafferai.com DNS currently points to OpenAI ChatGPT Sites (HTTP 401). Pointing DNS to GitHub Pages switches it to this open hub."
     }
   ],
   "iterations": [
+    {
+      "version": "1.1.0",
+      "date": "2026-11-16",
+      "summary": "Added iPhone/Android device simulator, 24/7 hands-free $0 Web Speech voice loop, webcam motion gesture controller, Work Account Q&A + Reporting tabs, gesture-controlled mini-game, and authenticated Control Plane panel (Cloud Run / Hermes / Xcode / Android SDK)."
+    },
     {
       "version": "1.0.0",
       "date": "2026-11-16",

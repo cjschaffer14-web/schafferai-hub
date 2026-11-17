@@ -6,182 +6,297 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="theme-color" content="#0b1020" />
-  <title>SchafferAI Hub — Priorities, Projects & Voice</title>
+  <title>SchafferAI Hub — Command, Voice, Simulator & Gesture</title>
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <style>
     :root {
-      --bg: #0b1020;
-      --card: #131b31;
-      --border: #243050;
-      --text: #e2e8f0;
-      --muted: #94a3b8;
-      --accent: #38bdf8;
-      --ok: #34d399;
-      --warn: #fbbf24;
+      --bg: #0b1020; --card: #131b31; --border: #243050;
+      --text: #e2e8f0; --muted: #94a3b8; --accent: #38bdf8;
+      --ok: #34d399; --warn: #fbbf24; --danger: #f87171;
     }
     * { box-sizing: border-box; }
     body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      padding: env(safe-area-inset-top, 16px) 16px env(safe-area-inset-bottom, 24px);
-      line-height: 1.5;
+      margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--text);
+      padding: env(safe-area-inset-top, 14px) 14px env(safe-area-inset-bottom, 24px);
+      line-height: 1.45;
     }
-    .wrap { max-width: 900px; margin: 0 auto; }
+    .shell { max-width: 1080px; margin: 0 auto; transition: all 0.25s ease; }
+    .shell.iphone {
+      max-width: 393px; border: 10px solid #1e293b; border-radius: 42px;
+      padding: 14px; background: #090e1c; box-shadow: 0 24px 60px rgba(0,0,0,0.65);
+    }
+    .shell.android {
+      max-width: 412px; border: 8px solid #334155; border-radius: 28px;
+      padding: 14px; background: #090e1c; box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+    }
     header {
       display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center;
-      gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--border);
+      gap: 10px; padding: 10px 0 14px; border-bottom: 1px solid var(--border);
     }
-    h1 { margin: 0; font-size: 1.4rem; display: flex; align-items: center; gap: 10px; }
+    h1 { margin: 0; font-size: 1.25rem; display: flex; align-items: center; gap: 8px; }
     .badge {
-      font-size: 0.75rem; padding: 3px 9px; border-radius: 999px;
-      background: rgba(56, 189, 248, 0.15); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.35);
+      font-size: 0.72rem; padding: 2px 8px; border-radius: 999px;
+      background: rgba(56,189,248,0.15); color: var(--accent); border: 1px solid rgba(56,189,248,0.35);
     }
-    .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    .bar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
     button {
       background: var(--accent); color: #07101f; border: none; border-radius: 10px;
-      padding: 10px 14px; font-weight: 600; font-size: 0.92rem; cursor: pointer;
+      padding: 8px 12px; font-weight: 600; font-size: 0.85rem; cursor: pointer;
     }
     button.secondary { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+    button.active { outline: 2px solid var(--ok); }
+    .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+    .tab-btn { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+    .tab-btn.active { background: rgba(56,189,248,0.15); color: var(--accent); border-color: var(--accent); outline: none; }
     .voice-box {
-      margin-top: 12px; padding: 12px 14px; border-radius: 12px;
-      background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25);
-      font-size: 0.92rem; color: var(--text);
+      margin-top: 12px; padding: 10px 12px; border-radius: 12px;
+      background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.25); font-size: 0.88rem;
     }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 14px; margin-top: 18px; }
-    .card {
-      background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px;
-    }
-    .card h2 { margin: 0 0 10px; font-size: 1.05rem; color: var(--accent); }
-    .item { padding: 9px 0; border-top: 1px solid var(--border); }
+    .panel { display: none; margin-top: 14px; }
+    .panel.active { display: block; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
+    .card h2 { margin: 0 0 8px; font-size: 1rem; color: var(--accent); }
+    .item { padding: 8px 0; border-top: 1px solid var(--border); }
     .item:first-of-type { border-top: none; padding-top: 0; }
-    .item-title { font-weight: 600; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
-    .status { font-size: 0.72rem; text-transform: uppercase; padding: 2px 7px; border-radius: 6px; background: rgba(52, 211, 153, 0.15); color: var(--ok); }
-    .status.pending_user_login, .status.in_progress { background: rgba(251, 191, 36, 0.15); color: var(--warn); }
-    .detail { font-size: 0.87rem; color: var(--muted); margin-top: 3px; }
-    ul { margin: 0; padding-left: 18px; color: var(--text); }
-    li { margin-bottom: 6px; font-size: 0.92rem; }
-    footer { margin-top: 22px; font-size: 0.82rem; color: var(--muted); text-align: center; }
+    .item-title { font-weight: 600; display: flex; justify-content: space-between; gap: 8px; align-items: center; font-size: 0.92rem; }
+    .status { font-size: 0.7rem; text-transform: uppercase; padding: 2px 7px; border-radius: 6px; background: rgba(52,211,153,0.15); color: var(--ok); }
+    .status.pending_user_login, .status.in_progress { background: rgba(251,191,36,0.15); color: var(--warn); }
+    .detail { font-size: 0.84rem; color: var(--muted); margin-top: 3px; }
+    input { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: #090e1c; color: var(--text); margin: 6px 0; }
+    canvas, video { border-radius: 10px; border: 1px solid var(--border); background: #050814; max-width: 100%; }
+    footer { margin-top: 18px; font-size: 0.78rem; color: var(--muted); text-align: center; }
   </style>
 </head>
 <body>
-  <div class="wrap">
+  <div class="shell" id="shell">
     <header>
-      <h1>SchafferAI Hub <span class="badge" id="ver">v1.0.0</span></h1>
-      <span class="detail" id="updated">Loading live state...</span>
+      <h1>SchafferAI Hub <span class="badge" id="ver">v1.1.0</span></h1>
+      <div class="bar" style="margin-top:0">
+        <button class="secondary active" id="sim-desktop" onclick="setDevice('desktop')">Desktop</button>
+        <button class="secondary" id="sim-iphone" onclick="setDevice('iphone')">📱 iPhone</button>
+        <button class="secondary" id="sim-android" onclick="setDevice('android')">🤖 Android</button>
+      </div>
     </header>
 
-    <div class="controls">
+    <div class="bar">
       <button onclick="speakBriefing()">🔊 Speak Briefing</button>
-      <button class="secondary" onclick="askByVoice()">🎙️ Ask by Voice</button>
-      <button class="secondary" onclick="stopSpeaking()">⏹ Stop</button>
-      <button class="secondary" onclick="loadStatus()">↻ Refresh</button>
+      <button class="secondary" id="voice247Btn" onclick="toggleAlwaysOnVoice()">🎙️ 24/7 Voice: OFF</button>
+      <button class="secondary" id="camBtn" onclick="toggleCamera()">📷 Gesture Cam: OFF</button>
+      <button class="secondary" onclick="stopSpeaking()">⏹ Stop Audio</button>
     </div>
 
     <div class="voice-box" id="voiceOut">
-      Tap <strong>Speak Briefing</strong> for an audio summary of priorities, goals, and projects, or <strong>Ask by Voice</strong> (e.g., "what are my priorities", "status of Hyperliquid", "what changed"). On iPhone/Android, use <em>Add to Home Screen</em> to install as an app.
+      <strong>v1.1.0 Ready:</strong> Click <em>24/7 Voice</em> for hands-free $0 Web Speech Q&amp;A ("priorities", "status", "reporting", "game", "changes"), or enable <em>Gesture Cam</em> to steer tabs &amp; the mini-game with hand motion.
     </div>
 
-    <div class="grid">
-      <section class="card">
-        <h2>Active Priorities</h2>
-        <div id="priorities"></div>
-      </section>
-      <section class="card">
-        <h2>Core Goals</h2>
-        <ul id="goals"></ul>
-      </section>
+    <div class="tabs">
+      <button class="tab-btn active" onclick="showTab('overview', this)">Overview</button>
+      <button class="tab-btn" onclick="showTab('qa', this)">Work Account Q&amp;A</button>
+      <button class="tab-btn" onclick="showTab('game', this)">Gesture Game</button>
+      <button class="tab-btn" onclick="showTab('control', this)">Cloud &amp; Builds</button>
+      <button class="tab-btn" onclick="showTab('iterations', this)">Transformations</button>
     </div>
 
-    <div class="grid">
-      <section class="card">
-        <h2>Projects & Capabilities</h2>
-        <div id="projects"></div>
-      </section>
-      <section class="card">
-        <h2>Transformation & Iteration Log</h2>
-        <div id="iterations"></div>
-      </section>
-    </div>
+    <section class="panel active" id="tab-overview">
+      <div class="grid">
+        <div class="card"><h2>Active Priorities</h2><div id="priorities"></div></div>
+        <div class="card"><h2>Projects &amp; Reporting</h2><div id="projects"></div></div>
+      </div>
+      <div class="card" style="margin-top:12px"><h2>Core Goals</h2><ul id="goals" style="margin:0;padding-left:18px"></ul></div>
+    </section>
 
-    <footer>Public $0 Mobile PWA · Backed by <code>data/status.json</code> · Reachable from any iPhone, Android, or browser</footer>
+    <section class="panel" id="tab-qa">
+      <div class="card">
+        <h2>Work Account Q&amp;A (Ask by Voice or Search)</h2>
+        <input id="qaSearch" placeholder="Search work account facts (BTC address, leverage, tax, Cloud Run)..." oninput="renderQA()" />
+        <div id="qaList"></div>
+      </div>
+    </section>
+
+    <section class="panel" id="tab-game">
+      <div class="grid">
+        <div class="card">
+          <h2>Signal Catcher (Touch / Mouse / Gesture Cam)</h2>
+          <div class="detail" id="gameScore">Score: 0 | Move paddle with mouse, touch, or wave left/right in front of Gesture Cam.</div>
+          <canvas id="gameCanvas" width="340" height="220" style="margin-top:8px;width:100%"></canvas>
+        </div>
+        <div class="card">
+          <h2>Webcam Motion Controller</h2>
+          <video id="camVideo" width="220" height="165" autoplay muted playsinline style="display:block"></video>
+          <div class="detail" id="camStatus">Camera off. Uses local optical-flow motion tracking ($0, nothing leaves your device).</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="tab-control">
+      <div class="card">
+        <h2>Authenticated Control Plane (Cloud Run / Hermes / Xcode / Android)</h2>
+        <div class="detail">Because this page is public ($0 GitHub Pages) and GCP Org Policy blocks unauthenticated Cloud Run access, enter your gateway URL + token locally (stored only in browser <code>localStorage</code>) to dispatch authenticated requests.</div>
+        <input id="gwUrl" placeholder="Gateway URL (e.g. Cloud Run proxy or Hermes CloudBridge)" />
+        <input id="gwTok" type="password" placeholder="Bearer Token (never committed to GitHub)" />
+        <div class="bar">
+          <button onclick="saveGateway()">Save Local Config</button>
+          <button class="secondary" onclick="callGateway('/agent/reconcile', {strategy_id:'default'})">Run /agent/reconcile</button>
+          <button class="secondary" onclick="callGateway('/treasury', {action:'status'})">Check Turnkey Status</button>
+          <button class="secondary" onclick="callGateway('/build', {target:'xcode'})">Trigger Xcode Build</button>
+          <button class="secondary" onclick="callGateway('/build', {target:'android'})">Trigger Android SDK Build</button>
+        </div>
+        <pre id="gwOut" class="detail" style="white-space:pre-wrap;margin-top:10px"></pre>
+      </div>
+    </section>
+
+    <section class="panel" id="tab-iterations">
+      <div class="card"><h2>Transformation &amp; Iteration Log</h2><div id="iterations"></div></div>
+    </section>
+
+    <footer id="updated">Loading...</footer>
   </div>
 
   <script>
-    let state = null;
+    let state = null, voiceLoop = false, rec = null, camStream = null, prevFrame = null, paddleX = 140, score = 0;
+
+    function setDevice(mode) {
+      const sh = document.getElementById('shell');
+      sh.className = 'shell' + (mode === 'desktop' ? '' : ' ' + mode);
+      ['desktop', 'iphone', 'android'].forEach(m => document.getElementById('sim-' + m).classList.toggle('active', m === mode));
+    }
+
+    function showTab(name, btn) {
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      document.getElementById('tab-' + name).classList.add('active');
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+    }
 
     async function loadStatus() {
       const res = await fetch('data/status.json?_=' + Date.now());
       state = await res.json();
       document.getElementById('ver').textContent = 'v' + state.version;
-      document.getElementById('updated').textContent = 'Updated: ' + state.updated_utc;
-
+      document.getElementById('updated').textContent = 'v' + state.version + ' · Updated ' + state.updated_utc + ' · $0 GitHub Pages PWA';
       document.getElementById('priorities').innerHTML = state.priorities.map(p =>
-        `<div class="item"><div class="item-title"><span>${p.id}: ${p.title}</span><span class="status ${p.status}">${p.status.replace(/_/g, ' ')}</span></div><div class="detail">${p.detail}</div></div>`
-      ).join('');
-
-      document.getElementById('goals').innerHTML = state.goals.map(g => `<li>${g}</li>`).join('');
-
+        `<div class="item"><div class="item-title"><span>${p.id}: ${p.title}</span><span class="status ${p.status}">${p.status.replace(/_/g,' ')}</span></div><div class="detail">${p.detail}</div></div>`).join('');
       document.getElementById('projects').innerHTML = state.projects.map(pr =>
-        `<div class="item"><div class="item-title"><span>${pr.name}</span><span class="status ${pr.status}">${pr.status}</span></div><div class="detail">${pr.detail}</div></div>`
-      ).join('');
-
+        `<div class="item"><div class="item-title"><span>${pr.name}</span><span class="status ${pr.status}">${pr.status}</span></div><div class="detail">${pr.detail}</div></div>`).join('');
+      document.getElementById('goals').innerHTML = state.goals.map(g => `<li>${g}</li>`).join('');
       document.getElementById('iterations').innerHTML = state.iterations.map(it =>
-        `<div class="item"><div class="item-title"><span>v${it.version}</span><span class="detail">${it.date}</span></div><div class="detail">${it.summary}</div></div>`
-      ).join('');
+        `<div class="item"><div class="item-title"><span>v${it.version}</span><span class="detail">${it.date}</span></div><div class="detail">${it.summary}</div></div>`).join('');
+      renderQA();
+    }
+
+    function renderQA() {
+      if (!state) return;
+      const q = (document.getElementById('qaSearch').value || '').toLowerCase();
+      document.getElementById('qaList').innerHTML = state.qa.filter(x => (x.q + x.a).toLowerCase().includes(q)).map(x =>
+        `<div class="item"><div class="item-title">${x.q}</div><div class="detail">${x.a}</div></div>`).join('');
     }
 
     function speakText(txt) {
       document.getElementById('voiceOut').textContent = txt;
       if (!('speechSynthesis' in window)) return;
       window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(txt);
-      u.rate = 1.03;
-      window.speechSynthesis.speak(u);
+      window.speechSynthesis.speak(new SpeechSynthesisUtterance(txt));
     }
-
-    function stopSpeaking() {
-      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-    }
-
+    function stopSpeaking() { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); }
     function speakBriefing() {
       if (!state) return;
-      const pList = state.priorities.map(p => `${p.id}: ${p.title}`).join('. ');
-      const prList = state.projects.map(p => `${p.name} is ${p.status}`).join('. ');
-      speakText(`SchafferAI Hub version ${state.version}. Active priorities: ${pList}. Projects: ${prList}.`);
+      speakText(`SchafferAI Hub ${state.version}. Priorities: ${state.priorities.map(p => p.title).join('. ')}.`);
     }
 
-    function askByVoice() {
+    function toggleAlwaysOnVoice() {
       const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SR) {
-        speakText('Voice recognition is not supported in this browser; tap Speak Briefing for audio output.');
-        return;
-      }
-      const rec = new SR();
-      rec.lang = 'en-US';
-      document.getElementById('voiceOut').textContent = 'Listening...';
+      if (!SR) { speakText('Browser SpeechRecognition unavailable here; use Speak Briefing.'); return; }
+      voiceLoop = !voiceLoop;
+      const btn = document.getElementById('voice247Btn');
+      btn.textContent = '🎙️ 24/7 Voice: ' + (voiceLoop ? 'ON' : 'OFF');
+      btn.classList.toggle('active', voiceLoop);
+      if (!voiceLoop) { if (rec) rec.stop(); return; }
+      rec = new SR(); rec.continuous = true; rec.lang = 'en-US';
       rec.onresult = (ev) => {
-        const q = (ev.results[0][0].transcript || '').toLowerCase();
+        const q = (ev.results[ev.results.length - 1][0].transcript || '').toLowerCase();
         if (!state) return;
-        if (q.includes('priorit')) {
-          speakText('Priorities: ' + state.priorities.map(p => `${p.id}: ${p.title} (${p.status})`).join('. '));
-        } else if (q.includes('goal')) {
-          speakText('Goals: ' + state.goals.join('. '));
-        } else if (q.includes('change') || q.includes('iterat') || q.includes('transform')) {
-          speakText('Latest iteration: ' + state.iterations[0].summary);
-        } else {
-          const match = state.projects.find(p => q.includes(p.name.toLowerCase().split(' ')[0]));
-          if (match) speakText(`${match.name} is ${match.status}. ${match.detail}`);
-          else speakBriefing();
-        }
+        const qaHit = state.qa.find(x => q.split(' ').some(w => w.length > 3 && x.q.toLowerCase().includes(w)));
+        if (q.includes('priorit')) speakText(state.priorities.map(p => `${p.id}: ${p.title}`).join('. '));
+        else if (q.includes('game')) { showTab('game', document.querySelectorAll('.tab-btn')[2]); speakText('Opened Gesture Game.'); }
+        else if (q.includes('change') || q.includes('transform')) speakText(state.iterations[0].summary);
+        else if (qaHit) speakText(qaHit.a);
+        else speakBriefing();
       };
-      rec.onerror = (e) => { document.getElementById('voiceOut').textContent = 'Voice error: ' + e.error; };
+      rec.onend = () => { if (voiceLoop) try { rec.start(); } catch(e){} };
       rec.start();
     }
 
+    async function toggleCamera() {
+      const btn = document.getElementById('camBtn');
+      if (camStream) {
+        camStream.getTracks().forEach(t => t.stop()); camStream = null;
+        btn.textContent = '📷 Gesture Cam: OFF'; btn.classList.remove('active');
+        document.getElementById('camStatus').textContent = 'Camera stopped.';
+        return;
+      }
+      try {
+        camStream = await navigator.mediaDevices.getUserMedia({ video: { width: 160, height: 120 } });
+        document.getElementById('camVideo').srcObject = camStream;
+        btn.textContent = '📷 Gesture Cam: ON'; btn.classList.add('active');
+        document.getElementById('camStatus').textContent = 'Tracking motion centroid -> paddle X.';
+        trackMotion();
+      } catch (e) { document.getElementById('camStatus').textContent = 'Camera permission denied: ' + e.message; }
+    }
+
+    function trackMotion() {
+      if (!camStream) return;
+      const vid = document.getElementById('camVideo');
+      const off = document.createElement('canvas'); off.width = 64; off.height = 48;
+      const ctx = off.getContext('2d');
+      ctx.drawImage(vid, 0, 0, 64, 48);
+      const cur = ctx.getImageData(0, 0, 64, 48).data;
+      if (prevFrame) {
+        let sumX = 0, cnt = 0;
+        for (let i = 0; i < cur.length; i += 4) {
+          if (Math.abs(cur[i] - prevFrame[i]) > 35) { sumX += (i / 4) % 64; cnt++; }
+        }
+        if (cnt > 25) paddleX = Math.max(0, Math.min(280, (1 - (sumX / cnt) / 64) * 280));
+      }
+      prevFrame = cur;
+      requestAnimationFrame(trackMotion);
+    }
+
+    const gc = document.getElementById('gameCanvas'), gctx = gc.getContext('2d');
+    let bx = 170, by = 30, bvx = 2.1, bvy = 2.3;
+    gc.addEventListener('mousemove', e => { const r = gc.getBoundingClientRect(); paddleX = Math.max(0, Math.min(280, (e.clientX - r.left) * (340 / r.width) - 30)); });
+    gc.addEventListener('touchmove', e => { const r = gc.getBoundingClientRect(); paddleX = Math.max(0, Math.min(280, (e.touches[0].clientX - r.left) * (340 / r.width) - 30)); e.preventDefault(); }, { passive: false });
+    function loopGame() {
+      gctx.fillStyle = '#050814'; gctx.fillRect(0, 0, 340, 220);
+      bx += bvx; by += bvy;
+      if (bx < 8 || bx > 332) bvx *= -1;
+      if (by < 8) bvy *= -1;
+      if (by > 195 && bx >= paddleX && bx <= paddleX + 60) { bvy = -Math.abs(bvy); score++; document.getElementById('gameScore').textContent = 'Score: ' + score; }
+      if (by > 220) { bx = 170; by = 30; score = 0; document.getElementById('gameScore').textContent = 'Score: 0 (missed)'; }
+      gctx.fillStyle = '#38bdf8'; gctx.fillRect(paddleX, 202, 60, 8);
+      gctx.fillStyle = '#34d399'; gctx.beginPath(); gctx.arc(bx, by, 7, 0, Math.PI * 2); gctx.fill();
+      requestAnimationFrame(loopGame);
+    }
+    loopGame();
+
+    function saveGateway() {
+      localStorage.setItem('schafferai_gw_url', document.getElementById('gwUrl').value.trim());
+      localStorage.setItem('schafferai_gw_tok', document.getElementById('gwTok').value.trim());
+      document.getElementById('gwOut').textContent = 'Saved gateway config to browser localStorage.';
+    }
+    async function callGateway(path, body) {
+      const url = (localStorage.getItem('schafferai_gw_url') || '').replace(/\/+$/, '');
+      const tok = localStorage.getItem('schafferai_gw_tok') || '';
+      if (!url) { document.getElementById('gwOut').textContent = 'Set Gateway URL first (saved only in your browser).'; return; }
+      try {
+        const res = await fetch(url + path, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(tok ? { Authorization: 'Bearer ' + tok } : {}) }, body: JSON.stringify(body) });
+        document.getElementById('gwOut').textContent = await res.text();
+      } catch (e) { document.getElementById('gwOut').textContent = 'Request error: ' + e.message; }
+    }
+    document.getElementById('gwUrl').value = localStorage.getItem('schafferai_gw_url') || '';
+    document.getElementById('gwTok').value = localStorage.getItem('schafferai_gw_tok') || '';
     loadStatus();
   </script>
 </body>
