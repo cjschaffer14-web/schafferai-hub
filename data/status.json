@@ -1,0 +1,58 @@
+{
+  "version": "1.0.0",
+  "updated_utc": "2026-11-17T00:55:00Z",
+  "priorities": [
+    {
+      "id": "P1",
+      "title": "Push Concierge Apps Script (clasp push)",
+      "status": "pending_user_login",
+      "detail": "Run npx @google/clasp login && npx @google/clasp push in clasp/live and set TREASURY_WEBHOOK_URL."
+    },
+    {
+      "id": "P2",
+      "title": "Shadow-verify Hyperliquid isolated leverage sleeves",
+      "status": "ready",
+      "detail": "Run 5-10 broadcast=false signals on Hyperliquid funding/momentum sleeves before funding live $10-$12 canary trades."
+    },
+    {
+      "id": "P3",
+      "title": "Point schafferai.com DNS to open mobile PWA",
+      "status": "in_progress",
+      "detail": "Replacing HTTP 401 ChatGPT Sites login gate with $0 public GitHub Pages PWA."
+    }
+  ],
+  "goals": [
+    "Autonomous work-account (c@schafferai.com) treasury & multi-sleeve DAG execution",
+    "Positive post-fee compounding via isolated Hyperliquid leverage + HWM trailing throttle",
+    "Any-device iPhone & Android access with built-in voice briefing"
+  ],
+  "projects": [
+    {
+      "name": "Cloud Run Treasury Webhook",
+      "status": "live",
+      "detail": "Deployed via keyless Workload Identity Federation (GitHub Actions run 43986533914 passed)."
+    },
+    {
+      "name": "Lean 3-Stage DAG & Smart Risk Gate",
+      "status": "tested",
+      "detail": "Exit/hedge edge bypass, round-trip + gas pricing, exposure caps, compound_pnl, HWM drawdown throttle (9/9 + 4/4 tests passing)."
+    },
+    {
+      "name": "Turnkey BTC <-> Base L2 Treasury Cycle",
+      "status": "verified",
+      "detail": "Live 49,780 sat bridge in -> Base WETH wrap/unwrap -> 46,994 sat return TXID 0d68a6a4...598."
+    },
+    {
+      "name": "End-of-Day Wiki & Ledger Sync",
+      "status": "synced",
+      "detail": "Google Doc, Gmail summary, and Drive Wiki updated; Work Project Index pushed to GitHub."
+    }
+  ],
+  "iterations": [
+    {
+      "version": "1.0.0",
+      "date": "2026-11-16",
+      "summary": "Replaced HTTP 401 ChatGPT Sites gate with a $0 public iPhone/Android PWA, live priorities/goals/projects JSON feed, Web Speech voice assistant, and visible iteration changelog."
+    }
+  ]
+}

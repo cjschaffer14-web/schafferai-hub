@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#0b1020" />
+  <title>SchafferAI Hub — Priorities, Projects & Voice</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <style>
+    :root {
+      --bg: #0b1020;
+      --card: #131b31;
+      --border: #243050;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --ok: #34d399;
+      --warn: #fbbf24;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: env(safe-area-inset-top, 16px) 16px env(safe-area-inset-bottom, 24px);
+      line-height: 1.5;
+    }
+    .wrap { max-width: 900px; margin: 0 auto; }
+    header {
+      display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center;
+      gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--border);
+    }
+    h1 { margin: 0; font-size: 1.4rem; display: flex; align-items: center; gap: 10px; }
+    .badge {
+      font-size: 0.75rem; padding: 3px 9px; border-radius: 999px;
+      background: rgba(56, 189, 248, 0.15); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.35);
+    }
+    .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    button {
+      background: var(--accent); color: #07101f; border: none; border-radius: 10px;
+      padding: 10px 14px; font-weight: 600; font-size: 0.92rem; cursor: pointer;
+    }
+    button.secondary { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+    .voice-box {
+      margin-top: 12px; padding: 12px 14px; border-radius: 12px;
+      background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25);
+      font-size: 0.92rem; color: var(--text);
+    }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 14px; margin-top: 18px; }
+    .card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px;
+    }
+    .card h2 { margin: 0 0 10px; font-size: 1.05rem; color: var(--accent); }
+    .item { padding: 9px 0; border-top: 1px solid var(--border); }
+    .item:first-of-type { border-top: none; padding-top: 0; }
+    .item-title { font-weight: 600; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+    .status { font-size: 0.72rem; text-transform: uppercase; padding: 2px 7px; border-radius: 6px; background: rgba(52, 211, 153, 0.15); color: var(--ok); }
+    .status.pending_user_login, .status.in_progress { background: rgba(251, 191, 36, 0.15); color: var(--warn); }
+    .detail { font-size: 0.87rem; color: var(--muted); margin-top: 3px; }
+    ul { margin: 0; padding-left: 18px; color: var(--text); }
+    li { margin-bottom: 6px; font-size: 0.92rem; }
+    footer { margin-top: 22px; font-size: 0.82rem; color: var(--muted); text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>SchafferAI Hub <span class="badge" id="ver">v1.0.0</span></h1>
+      <span class="detail" id="updated">Loading live state...</span>
+    </header>
+
+    <div class="controls">
+      <button onclick="speakBriefing()">🔊 Speak Briefing</button>
+      <button class="secondary" onclick="askByVoice()">🎙️ Ask by Voice</button>
+      <button class="secondary" onclick="stopSpeaking()">⏹ Stop</button>
+      <button class="secondary" onclick="loadStatus()">↻ Refresh</button>
+    </div>
+
+    <div class="voice-box" id="voiceOut">
+      Tap <strong>Speak Briefing</strong> for an audio summary of priorities, goals, and projects, or <strong>Ask by Voice</strong> (e.g., "what are my priorities", "status of Hyperliquid", "what changed"). On iPhone/Android, use <em>Add to Home Screen</em> to install as an app.
+    </div>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Active Priorities</h2>
+        <div id="priorities"></div>
+      </section>
+      <section class="card">
+        <h2>Core Goals</h2>
+        <ul id="goals"></ul>
+      </section>
+    </div>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Projects & Capabilities</h2>
+        <div id="projects"></div>
+      </section>
+      <section class="card">
+        <h2>Transformation & Iteration Log</h2>
+        <div id="iterations"></div>
+      </section>
+    </div>
+
+    <footer>Public $0 Mobile PWA · Backed by <code>data/status.json</code> · Reachable from any iPhone, Android, or browser</footer>
+  </div>
+
+  <script>
+    let state = null;
+
+    async function loadStatus() {
+      const res = await fetch('data/status.json?_=' + Date.now());
+      state = await res.json();
+      document.getElementById('ver').textContent = 'v' + state.version;
+      document.getElementById('updated').textContent = 'Updated: ' + state.updated_utc;
+
+      document.getElementById('priorities').innerHTML = state.priorities.map(p =>
+        `<div class="item"><div class="item-title"><span>${p.id}: ${p.title}</span><span class="status ${p.status}">${p.status.replace(/_/g, ' ')}</span></div><div class="detail">${p.detail}</div></div>`
+      ).join('');
+
+      document.getElementById('goals').innerHTML = state.goals.map(g => `<li>${g}</li>`).join('');
+
+      document.getElementById('projects').innerHTML = state.projects.map(pr =>
+        `<div class="item"><div class="item-title"><span>${pr.name}</span><span class="status ${pr.status}">${pr.status}</span></div><div class="detail">${pr.detail}</div></div>`
+      ).join('');
+
+      document.getElementById('iterations').innerHTML = state.iterations.map(it =>
+        `<div class="item"><div class="item-title"><span>v${it.version}</span><span class="detail">${it.date}</span></div><div class="detail">${it.summary}</div></div>`
+      ).join('');
+    }
+
+    function speakText(txt) {
+      document.getElementById('voiceOut').textContent = txt;
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(txt);
+      u.rate = 1.03;
+      window.speechSynthesis.speak(u);
+    }
+
+    function stopSpeaking() {
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    }
+
+    function speakBriefing() {
+      if (!state) return;
+      const pList = state.priorities.map(p => `${p.id}: ${p.title}`).join('. ');
+      const prList = state.projects.map(p => `${p.name} is ${p.status}`).join('. ');
+      speakText(`SchafferAI Hub version ${state.version}. Active priorities: ${pList}. Projects: ${prList}.`);
+    }
+
+    function askByVoice() {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) {
+        speakText('Voice recognition is not supported in this browser; tap Speak Briefing for audio output.');
+        return;
+      }
+      const rec = new SR();
+      rec.lang = 'en-US';
+      document.getElementById('voiceOut').textContent = 'Listening...';
+      rec.onresult = (ev) => {
+        const q = (ev.results[0][0].transcript || '').toLowerCase();
+        if (!state) return;
+        if (q.includes('priorit')) {
+          speakText('Priorities: ' + state.priorities.map(p => `${p.id}: ${p.title} (${p.status})`).join('. '));
+        } else if (q.includes('goal')) {
+          speakText('Goals: ' + state.goals.join('. '));
+        } else if (q.includes('change') || q.includes('iterat') || q.includes('transform')) {
+          speakText('Latest iteration: ' + state.iterations[0].summary);
+        } else {
+          const match = state.projects.find(p => q.includes(p.name.toLowerCase().split(' ')[0]));
+          if (match) speakText(`${match.name} is ${match.status}. ${match.detail}`);
+          else speakBriefing();
+        }
+      };
+      rec.onerror = (e) => { document.getElementById('voiceOut').textContent = 'Voice error: ' + e.error; };
+      rec.start();
+    }
+
+    loadStatus();
+  </script>
+</body>
+</html>
