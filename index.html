@@ -101,18 +101,27 @@
       max-width: 220px;
     }
 
-    /* Lead Top Concierge (AI-App Style Rounded Bar) */
-    .concierge-shell {
+    /* Lead Top Site Navigator (AI-App Style Rounded Bar) */
+    .navigator-shell {
       background: var(--surface);
       border: 1px solid var(--border-strong);
-      border-radius: 22px;
-      padding: 14px 16px;
+      border-radius: 20px;
+      padding: 12px 14px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 8px;
     }
 
-    .concierge-bar {
+    .navigator-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+      padding: 0 4px;
+    }
+
+    .navigator-bar {
       display: flex;
       align-items: center;
       gap: 8px;
@@ -122,11 +131,9 @@
       padding: 6px 8px 6px 16px;
     }
 
-    .concierge-bar:focus-within {
-      border-color: var(--border-strong);
-    }
+    .navigator-bar:focus-within { border-color: var(--border-strong); }
 
-    .concierge-bar input {
+    .navigator-bar input {
       flex: 1;
       background: transparent;
       border: none;
@@ -137,21 +144,16 @@
       min-width: 0;
     }
 
-    .concierge-chips {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
+    .navigator-chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 
-    .concierge-log {
-      max-height: 180px;
+    .navigator-log {
+      max-height: 150px;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
       gap: 6px;
       font-size: 12.5px;
-      padding-top: 4px;
+      padding-top: 2px;
     }
 
     .msg { padding: 8px 11px; border-radius: 10px; word-break: break-word; white-space: pre-wrap; }
@@ -293,7 +295,7 @@
     <header>
       <div class="brand">
         <h1>Schaffer AI</h1>
-        <span class="version-tag" id="versionTag">v2.5.0</span>
+        <span class="version-tag" id="versionTag">v2.5.1</span>
       </div>
       <div class="header-actions">
         <button class="pill" id="btnMacView" onclick="toggleMacView()">Mac View: Off</button>
@@ -304,14 +306,18 @@
       </div>
     </header>
 
-    <!-- Global Lead Concierge (Rounded Text + Voice Bar at Top) -->
-    <section class="concierge-shell" id="conciergeSection">
-      <form class="concierge-bar" onsubmit="handleAgentSubmit(event)">
-        <input type="text" id="agentInput" placeholder="Describe what you want (e.g. 'debug', 'show mac', 'open snake', 'go home', 'open settings', 'describe site')..." autocomplete="off" />
+    <!-- Global Lead Site Navigator (Rounded Text + Voice Bar at Top) -->
+    <section class="navigator-shell" id="navigatorSection">
+      <div class="navigator-head">
+        <strong id="navigatorTitle" style="color:var(--text); font-weight:600;">Site Navigator</strong>
+        <button class="pill" style="padding:2px 8px; font-size:11px;" onclick="renameNavigator()">Rename</button>
+      </div>
+      <form class="navigator-bar" onsubmit="handleAgentSubmit(event)">
+        <input type="text" id="agentInput" placeholder="Describe what you want (e.g. 'debug', 'show mac', 'open wasm4', 'go home', 'open settings')..." autocomplete="off" />
         <button type="button" class="pill" id="btnVoice" onclick="toggleVoice()">Voice</button>
         <button type="submit" class="pill primary">Send</button>
       </form>
-      <div class="concierge-chips">
+      <div class="navigator-chips">
         <button class="pill" onclick="runCommandText('debug')">Debug All</button>
         <button class="pill" onclick="runCommandText('describe site')">Describe Site</button>
         <button class="pill" onclick="runCommandText('show mac')">Mac View</button>
@@ -320,8 +326,8 @@
         <button class="pill" onclick="runCommandText('go home')">Android Home</button>
         <button class="pill" onclick="runCommandText('/devices')">Devices</button>
       </div>
-      <div class="concierge-log" id="agentLog">
-        <div class="msg sys">Global Concierge ready. Type naturally or use /debug, /devices, /launch, /nav, /tap, /gesture. (Cloud APEX/Hermes blocked: Always-Free Mode keeps paid GCP billing OFF.)</div>
+      <div class="navigator-log" id="agentLog">
+        <div class="msg sys">Site Navigator ready. Type naturally or use /debug, /devices, /launch, /nav, /tap, /gesture. (Always-Free Mode: paid GCP billing OFF.)</div>
       </div>
     </section>
 
@@ -472,6 +478,7 @@
       gestureEnabled: localStorage.getItem("schaffer_gesture_on") === "true",
       gestureSens: localStorage.getItem("schaffer_gesture_sens") || "0.65",
       speakReplies: localStorage.getItem("schaffer_speak") === "true",
+      navigatorName: localStorage.getItem("schaffer_nav_name") || "Site Navigator",
       streaming: true,
       voiceActive: false,
       recognition: null
@@ -490,6 +497,7 @@
       document.getElementById("gatewayUrlInput").value = state.gatewayUrl;
       document.getElementById("gatewayTokenInput").value = state.gatewayToken;
       document.getElementById("gestureSensInput").value = state.gestureSens;
+      document.getElementById("navigatorTitle").textContent = state.navigatorName;
       updateGestureButton();
       updateSpeakButton();
       updatePairBadge();
@@ -545,6 +553,14 @@
       state.speakReplies = !state.speakReplies;
       localStorage.setItem("schaffer_speak", String(state.speakReplies));
       updateSpeakButton();
+    }
+
+    function renameNavigator() {
+      const next = prompt("Name this site control bar:", state.navigatorName);
+      if (!next || !next.trim()) return;
+      state.navigatorName = next.trim();
+      localStorage.setItem("schaffer_nav_name", state.navigatorName);
+      document.getElementById("navigatorTitle").textContent = state.navigatorName;
     }
 
     function appendMsg(role, text) {
@@ -984,7 +1000,7 @@
         return;
       }
       if (lower.includes("describe") || lower.includes("explain") || lower === "/help" || lower === "help") {
-        appendMsg("agent", "This Always-Free Hub has: (1) Top Concierge bar for text/voice control & debugging, (2) Multi-device Live Simulators with Android tap/drag-swipe/wheel scroll & Action Recording, (3) Opt-in local Mac View, (4) Chrome Remote Desktop portal for remote Mac access, and (5) Free Browser Arcade (Snake, Brick Breaker, WASM-4). Paid GCP/APEX cloud features remain OFF.");
+        appendMsg("agent", "This Always-Free Hub has: (1) Top Site Navigator bar for text/voice control & debugging, (2) Multi-device Live Simulators with Android tap/drag-swipe/wheel scroll & Action Recording, (3) Opt-in local Mac View, (4) Chrome Remote Desktop portal for remote Mac access, and (5) Free Browser Arcade (Snake, Brick Breaker, WASM-4). Paid GCP/APEX cloud features remain OFF.");
         return;
       }
       if (lower.includes("show mac") || lower === "mac view") { await toggleMacView(true); document.getElementById("macViewCard").scrollIntoView({ behavior: "smooth" }); appendMsg("agent", "Opened Mac View."); return; }
