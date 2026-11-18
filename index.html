@@ -262,7 +262,7 @@
     <header>
       <div class="brand">
         <h1>Schaffer AI</h1>
-        <span class="version-tag" id="versionTag">v2.3.2</span>
+        <span class="version-tag" id="versionTag">v2.3.3</span>
       </div>
       <div class="header-actions">
         <button class="pill" id="btnGesture" onclick="toggleGesture()">Gesture: Off</button>
@@ -563,17 +563,27 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
             <button class="pill" onclick="scrollDevice('android', '${dev.deviceId}', 'down')">Scroll ↓</button>
             <button class="pill" onclick="scrollDevice('android', '${dev.deviceId}', 'up')">Scroll ↑</button>
             <button class="pill" onclick="launchAppForDevice('android', 'com.android.settings', '${dev.deviceId}')">Settings</button>
+            <button class="pill" onclick="shutdownDevice('${dev.platform}', '${dev.deviceId}')">Shut Down</button>
           `;
         } else {
           ctrl.innerHTML = `
             <button class="pill" onclick="sendNav('ios', 'focus', '${dev.deviceId}')">Focus Window</button>
             <button class="pill" onclick="launchAppForDevice('ios', 'com.apple.Preferences', '${dev.deviceId}')">Settings</button>
             <button class="pill" onclick="launchAppForDevice('ios', 'com.apple.mobilesafari', '${dev.deviceId}')">Safari</button>
+            <button class="pill" onclick="shutdownDevice('${dev.platform}', '${dev.deviceId}')">Shut Down</button>
             <span style="font-size:11.5px; color:var(--muted); width:100%;">iOS note: tap focuses window; raw tap/scroll requires WDA.</span>
           `;
         }
       }
       pollFrames();
+    }
+
+    async function shutdownDevice(platform, deviceId) {
+      appendMsg("sys", `Shutting down ${platform} (${deviceId}) to free CPU/RAM...`);
+      try {
+        const res = await bridgePost("/shutdown", { platform, device_id: deviceId });
+        if (res && res.ok) setTimeout(checkDevices, 1200);
+      } catch (e) { appendMsg("sys", `Shutdown failed: ${e.message}`); }
     }
 
     function attachScreenInteractions(scr, dev, safeId) {
