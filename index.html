@@ -296,7 +296,7 @@
     <header>
       <div class="brand">
         <h1>Schaffer AI</h1>
-        <span class="version-tag" id="versionTag">v2.6.0</span>
+        <span class="version-tag" id="versionTag">v2.6.1</span>
       </div>
       <div class="header-actions">
         <button class="pill" id="btnMacView" onclick="toggleMacView()">Mac View: Off</button>
@@ -325,6 +325,8 @@
         <button class="pill" onclick="runCommandText('open wasm4')">WASM-4 Console</button>
         <button class="pill" onclick="runCommandText('open settings')">Android Settings</button>
         <button class="pill" onclick="runCommandText('go home')">Android Home</button>
+        <button class="pill" onclick="runCommandText('/requests')">Queue</button>
+        <button class="pill" onclick="runCommandText('/fulfill')">Fulfill Latest</button>
         <button class="pill" onclick="runCommandText('/devices')">Devices</button>
       </div>
       <div class="navigator-log" id="agentLog">
@@ -1024,7 +1026,7 @@
       if (lower.includes("arcade") || lower.includes("game")) { document.getElementById("arcadeCard").scrollIntoView({ behavior: "smooth" }); appendMsg("agent", "Scrolled to Free Browser Arcade."); return; }
       if (lower.includes("remote") || lower.includes("portal")) { document.getElementById("remotePortalCard").scrollIntoView({ behavior: "smooth" }); appendMsg("agent", "Scrolled to Remote Mac Portal (Chrome Remote Desktop)."); return; }
       if (lower === "pair" || lower.includes("pair bridge")) { await pairLocalBridge(); return; }
-      if (lower.includes("go home") || lower === "home") { await sendNav("android", "home", ""); appendMsg("agent", "Sent Android Home."); return; }
+      if (lower.includes("go home") || lower === "home" || lower === "gohome") { await sendNav("android", "home", ""); appendMsg("agent", "Sent Android Home."); return; }
       if (lower === "back" || lower === "go back") { await sendNav("android", "back", ""); appendMsg("agent", "Sent Android Back."); return; }
       if (lower.includes("open settings") || lower === "settings") { await launchAppForDevice("android", "com.android.settings", ""); appendMsg("agent", "Launched Android Settings."); return; }
       if (lower.includes("scroll down")) { const d = frameState.devices.find(x => x.platform === "android"); if (d) await scrollDevice("android", d.deviceId, "down"); appendMsg("agent", d ? "Scrolled Android down." : "No Android emulator connected."); return; }
@@ -1038,7 +1040,24 @@
           if (r && r.ok) macStatus = "Queued on Mac (~/.schafferai/requests.json for Hermes/Codex).";
         } catch (_) {}
         const issueUrl = `https://github.com/cjschaffer14-web/schafferai-hub/issues/new?title=${encodeURIComponent("[App/Game Request] " + idea.slice(0, 60))}&body=${encodeURIComponent("Requested via Site Navigator:\n\n" + idea)}`;
-        appendMsg("agent", `Request logged: "${idea}"\n- Mac: ${macStatus}\n- $0 Cloud Queue: Open GitHub Issue to trigger cloud build:\n${issueUrl}`);
+        appendMsg("agent", `Request logged: "${idea}"\n- Mac: ${macStatus}\n- Optional manual GitHub Issue draft (does not auto-build):\n${issueUrl}`);
+        return;
+      }
+      if (lower === "/requests" || lower === "requests" || lower === "queue") {
+        try {
+          const r = await fetch(`${state.bridgeUrl}/requests`, { signal: AbortSignal.timeout(5000) });
+          appendMsg("agent", `Request Queue -> HTTP ${r.status}\n${await r.text()}`);
+        } catch (e) { appendMsg("agent", `Bridge unreachable: ${e.message}`); }
+        return;
+      }
+      if (lower.startsWith("/fulfill")) {
+        const [, to = ""] = text.split(/\s+/);
+        appendMsg("sys", `Fulfilling latest queued request${to ? ` + emailing ${to}` : ""}...`);
+        try {
+          const res = await bridgePost("/requests/fulfill", { to, platform: "android" });
+          if (!res) return;
+          appendMsg("agent", `Fulfill -> HTTP ${res.status}\n${await res.text()}`);
+        } catch (e) { appendMsg("agent", `Fulfill failed: ${e.message}`); }
         return;
       }
       if (lower.startsWith("/devices") || lower === "simulators" || lower === "devices") {
