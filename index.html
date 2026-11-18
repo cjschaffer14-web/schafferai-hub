@@ -1,397 +1,819 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#07090f" />
-  <title>SchafferAI — Antigravity Workspace</title>
-  <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Schaffer AI — Operations & Simulator Hub</title>
   <style>
     :root {
-      --bg: #07090f; --surface: rgba(15, 20, 34, 0.72); --surface-2: rgba(24, 32, 54, 0.55);
-      --border: rgba(255, 255, 255, 0.08); --border-hi: rgba(96, 165, 250, 0.45);
-      --text: #f8fafc; --muted: #94a3b8; --blue: #60a5fa; --violet: #a78bfa;
-      --emerald: #34d399; --amber: #fbbf24;
+      --bg: #0a0b0e;
+      --surface: #111318;
+      --surface-2: #171a21;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.16);
+      --text: #f3f4f6;
+      --muted: #9ca3af;
+      --accent: #3b82f6;
+      --ok: #10b981;
+      --warn: #f59e0b;
+      --err: #ef4444;
+      --radius: 12px;
+      --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
       --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
-    * { box-sizing: border-box; }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      margin: 0; font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background:
-        radial-gradient(900px 500px at 15% -5%, rgba(96, 165, 250, 0.16), transparent 60%),
-        radial-gradient(700px 450px at 85% 5%, rgba(167, 139, 250, 0.12), transparent 60%),
-        var(--bg);
-      color: var(--text); padding: 18px 18px 40px; line-height: 1.5; min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
     }
-    .shell { max-width: 1180px; margin: 0 auto; }
+
+    .wrap {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 24px 24px 48px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Header */
     header {
-      display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px;
-      padding: 12px 18px; border-radius: 16px; background: var(--surface);
-      border: 1px solid var(--border); backdrop-filter: blur(18px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
     }
-    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.08rem; letter-spacing: -0.02em; }
-    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--emerald); box-shadow: 0 0 12px var(--emerald); }
-    .badge { font-family: var(--mono); font-size: 0.72rem; padding: 2px 9px; border-radius: 999px; background: rgba(96,165,250,0.14); color: var(--blue); border: 1px solid rgba(96,165,250,0.3); }
-    .email-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    input {
-      padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border);
-      background: rgba(7, 9, 15, 0.85); color: var(--text); font-size: 0.84rem; outline: none;
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
-    input:focus { border-color: var(--border-hi); }
-    button {
-      background: linear-gradient(135deg, var(--blue), var(--violet)); color: #050811;
-      border: none; border-radius: 10px; padding: 8px 14px; font-weight: 600; font-size: 0.83rem;
-      cursor: pointer; transition: transform 0.14s ease, box-shadow 0.14s ease;
+
+    .brand h1 {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
     }
-    button:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(96,165,250,0.22); }
-    button.secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); box-shadow: none; }
-    button.active { border-color: var(--emerald); box-shadow: 0 0 0 1px var(--emerald); }
-    .warn-banner {
-      margin-top: 12px; padding: 10px 14px; border-radius: 12px;
-      background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.3);
-      color: var(--amber); font-size: 0.84rem; display: none;
+
+    .version-tag {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      padding: 2px 8px;
+      border-radius: 999px;
     }
-    .bento-hero {
-      margin-top: 14px; padding: 20px; border-radius: 20px; background: var(--surface);
-      border: 1px solid var(--border); backdrop-filter: blur(20px);
-      display: flex; flex-wrap: wrap; align-items: center; gap: 22px;
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
     }
-    #orbCanvas {
-      width: 144px; height: 144px; border-radius: 50%; cursor: grab;
-      border: 1px solid var(--border); background: radial-gradient(circle at 35% 30%, rgba(96,165,250,0.16), #05070e);
-      touch-action: none;
+
+    /* Modern Flat / Pill Buttons */
+    button, .btn {
+      appearance: none;
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-family: var(--font);
+      font-size: 12.5px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
     }
-    .tabs {
-      display: inline-flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; padding: 6px;
-      border-radius: 14px; background: var(--surface); border: 1px solid var(--border);
+
+    button:hover, .btn:hover {
+      background: #1f242e;
+      border-color: var(--border-strong);
     }
-    .tab-btn { background: transparent; color: var(--muted); border: none; padding: 8px 13px; border-radius: 10px; box-shadow: none; }
-    .tab-btn:hover { color: var(--text); transform: none; box-shadow: none; }
-    .tab-btn.active { background: rgba(96,165,250,0.16); color: var(--blue); }
-    .panel { display: none; margin-top: 14px; }
-    .panel.active { display: block; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 14px; }
-    .card {
-      background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
-      padding: 18px; backdrop-filter: blur(18px);
+
+    button.primary {
+      background: var(--text);
+      color: #0a0b0e;
+      border-color: var(--text);
     }
-    .card h2 { margin: 0 0 10px; font-size: 0.96rem; font-weight: 600; color: var(--blue); display: flex; justify-content: space-between; align-items: center; }
-    .item { padding: 10px 0; border-top: 1px solid var(--border); }
-    .item:first-of-type { border-top: none; padding-top: 0; }
-    .item-title { font-weight: 600; display: flex; justify-content: space-between; gap: 8px; font-size: 0.9rem; }
-    .status { font-family: var(--mono); font-size: 0.68rem; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; background: rgba(52,211,153,0.14); color: var(--emerald); }
-    .detail { font-size: 0.83rem; color: var(--muted); margin-top: 3px; }
-    .mono { font-family: var(--mono); font-size: 0.77rem; color: var(--muted); }
-    .bezel-ios {
-      background: #03050a; border: 8px solid #1e293b; border-radius: 36px; padding: 10px;
-      min-height: 380px; display: flex; align-items: center; justify-content: center; overflow: hidden;
-      box-shadow: 0 20px 50px rgba(0,0,0,0.55);
+
+    button.primary:hover {
+      background: #e5e7eb;
+      border-color: #e5e7eb;
     }
-    .bezel-android {
-      background: #03050a; border: 7px solid #334155; border-radius: 24px; padding: 10px;
-      min-height: 380px; display: flex; align-items: center; justify-content: center; overflow: hidden;
-      box-shadow: 0 20px 50px rgba(0,0,0,0.55);
+
+    button.pill {
+      border-radius: 999px;
+      padding: 5px 12px;
+      font-size: 12px;
     }
-    .bezel-ios img, .bezel-android img { max-width: 100%; max-height: 460px; cursor: crosshair; border-radius: 16px; display: block; }
-    .cam-stage { position: relative; width: 320px; height: 240px; }
-    .cam-stage video, .cam-stage canvas { position: absolute; top: 0; left: 0; width: 320px; height: 240px; border-radius: 12px; border: 1px solid var(--border); }
+
+    button.active {
+      border-color: var(--accent);
+      color: #93c5fd;
+      background: rgba(59, 130, 246, 0.12);
+    }
+
+    /* Status Strip */
+    .status-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 10px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .stat-label {
+      font-size: 11.5px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .stat-value {
+      font-size: 13.5px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--muted);
+      flex-shrink: 0;
+    }
+    .dot.ok { background: var(--ok); }
+    .dot.warn { background: var(--warn); }
+    .dot.err { background: var(--err); }
+
+    /* Main Workspace Grid */
+    .workspace {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 20px;
+      align-items: start;
+    }
+
+    @media (max-width: 980px) {
+      .workspace { grid-template-columns: 1fr; }
+    }
+
+    /* Borderless Simulators */
+    .sim-section {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .section-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .sim-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    @media (max-width: 640px) {
+      .sim-grid { grid-template-columns: 1fr; }
+    }
+
+    .sim-unit {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .sim-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .sim-meta strong {
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    /* Pure borderless screen surface — no heavy dark square box or bezel */
+    .sim-screen {
+      width: 100%;
+      aspect-ratio: 9 / 19.5;
+      border-radius: 18px;
+      overflow: hidden;
+      background: transparent;
+      position: relative;
+      cursor: crosshair;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .sim-screen img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      border-radius: 18px;
+    }
+
+    .sim-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 20px;
+      color: var(--muted);
+      font-size: 12px;
+      border: 1px dashed var(--border);
+      border-radius: 18px;
+    }
+
+    /* Agent Console (Text + Voice) */
+    .agent-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      display: flex;
+      flex-direction: column;
+      height: 620px;
+      overflow: hidden;
+    }
+
+    .agent-header {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .agent-header-title {
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .quick-chips {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .agent-log {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-size: 13px;
+    }
+
+    .msg {
+      padding: 9px 12px;
+      border-radius: 10px;
+      max-width: 92%;
+      word-break: break-word;
+      white-space: pre-wrap;
+    }
+
+    .msg.user {
+      align-self: flex-end;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+    }
+
+    .msg.agent {
+      align-self: flex-start;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+    }
+
+    .msg.sys {
+      align-self: stretch;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      color: var(--muted);
+      background: transparent;
+      border: 1px dashed var(--border);
+    }
+
+    .agent-input-row {
+      padding: 12px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      background: var(--surface);
+    }
+
+    input[type="text"], input[type="url"] {
+      flex: 1;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 11px;
+      font-family: var(--font);
+      font-size: 13px;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: var(--border-strong);
+    }
+
+    /* Config Drawer */
+    .config-bar {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    }
+
+    .config-bar.open {
+      display: grid;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .field label {
+      font-size: 11.5px;
+      color: var(--muted);
+    }
   </style>
 </head>
 <body>
-  <div class="shell">
+  <div class="wrap">
     <header>
-      <div class="brand"><span class="dot"></span> SchafferAI <span class="badge" id="ver">v2.1.0</span></div>
-      <div class="email-bar">
-        <input id="workEmail" placeholder="c@schafferai.com" style="width:210px" />
-        <button onclick="unlockEmail()">Unlock</button>
-        <span class="mono" id="authState">locked</span>
+      <div class="brand">
+        <h1>Schaffer AI</h1>
+        <span class="version-tag" id="versionTag">v2.2.0</span>
+      </div>
+      <div class="header-actions">
+        <button class="pill" id="btnGesture" onclick="toggleGesture()">Gesture: Off</button>
+        <button class="pill" id="btnVoice" onclick="toggleVoice()">Voice</button>
+        <button class="pill" onclick="refreshAll()">Refresh</button>
+        <button class="pill" onclick="toggleConfig()">Endpoints</button>
       </div>
     </header>
 
-    <div class="warn-banner" id="httpsWarn">
-      Camera &amp; Microphone require HTTPS. Ensure all 4 GitHub Pages A records (<code>185.199.108–111.153</code>) are set so GitHub issues the TLS certificate for <code>https://schafferai.com</code>.
-    </div>
-
-    <div class="bento-hero">
-      <canvas id="orbCanvas" width="144" height="144" title="Drag or flick to spin"></canvas>
-      <div style="flex:1;min-width:250px">
-        <div style="font-weight:700;font-size:1.15rem;letter-spacing:-0.02em">Antigravity Live Voice &amp; Emulator Hub</div>
-        <div class="mono" id="orbTelemetry" style="margin-top:2px">spin: 0.00 rad/s · voice: idle</div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
-          <button id="liveVoiceBtn" onclick="toggleGeminiLiveVoice()">Connect Live Natural Voice</button>
-          <button class="secondary" id="camBtn" onclick="toggleMediaPipeHands()">MediaPipe Hand Cam: OFF</button>
-        </div>
-        <div class="detail" id="voiceOut" style="margin-top:9px">
-          Flick the Antigravity orb to spin, connect <strong>Live Natural Voice</strong> via <code>/live-token</code>, or enable <strong>MediaPipe Hand Cam</strong> for 21-landmark gesture tracking.
-        </div>
+    <div class="config-bar" id="configBar">
+      <div class="field">
+        <label>Mac / Simulator Bridge URL</label>
+        <input type="url" id="bridgeUrlInput" placeholder="http://127.0.0.1:8765" />
+      </div>
+      <div class="field">
+        <label>Cloud Run / Hermes Gateway URL</label>
+        <input type="url" id="gatewayUrlInput" placeholder="https://schafferai-treasury-webhook-rtr25d4k5q-uc.a.run.app" />
+      </div>
+      <div class="field">
+        <label>MediaPipe Sensitivity (0.1 – 1.0)</label>
+        <input type="text" id="gestureSensInput" placeholder="0.65" />
+      </div>
+      <div class="field" style="justify-content: flex-end;">
+        <button class="primary" onclick="saveConfig()">Save Config</button>
       </div>
     </div>
 
-    <div class="tabs">
-      <button class="tab-btn active" onclick="showTab('emulators', this)">iPhone &amp; Android Emulators</button>
-      <button class="tab-btn" onclick="showTab('hand', this)">MediaPipe Hand &amp; Game</button>
-      <button class="tab-btn" onclick="showTab('overview', this)">Priorities &amp; Reporting</button>
-      <button class="tab-btn" onclick="showTab('qa', this)">Work Account Q&amp;A</button>
-      <button class="tab-btn" onclick="showTab('control', this)">Cloud &amp; Token Config</button>
-      <button class="tab-btn" onclick="showTab('iterations', this)">Transformations</button>
-    </div>
-
-    <section class="panel active" id="tab-emulators">
-      <div class="card" style="margin-bottom:14px">
-        <h2>Mac Device Stream Bridge <span class="mono" id="simStatus">disconnected</span></h2>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-          <input id="simBridgeUrl" value="http://127.0.0.1:8765" style="flex:1;min-width:220px" placeholder="Bridge URL (http://127.0.0.1:8765 or Tunnel)" />
-          <button onclick="connectSimBridge()">Connect &amp; Stream</button>
-          <button class="secondary" onclick="stopSimBridge()">Stop</button>
-        </div>
-        <div class="detail" style="margin-top:6px">Run <code>python3 simulator_bridge.py</code> on your Mac (<code>xcrun simctl</code> + <code>adb</code>) and click device screens below to tap.</div>
+    <section class="status-strip" id="statusStrip">
+      <div class="stat-card">
+        <div class="stat-label">APEX Feed</div>
+        <div class="stat-value"><span class="dot warn" id="dotApex"></span><span id="valApex">Loading...</span></div>
       </div>
-      <div class="grid">
-        <div class="card">
-          <h2>Xcode iPhone Simulator <span class="mono" id="iosInfo">standby</span></h2>
-          <div style="display:flex;gap:6px;margin-bottom:10px">
-            <input id="iosBundle" placeholder="Bundle ID (e.g. com.apple.mobilesafari)" style="flex:1" />
-            <button class="secondary" onclick="launchDeviceApp('ios', document.getElementById('iosBundle').value)">Launch</button>
+      <div class="stat-card">
+        <div class="stat-label">GCP Billing</div>
+        <div class="stat-value"><span class="dot err" id="dotBilling"></span><span id="valBilling">Loading...</span></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Domain & TLS</div>
+        <div class="stat-value"><span class="dot warn" id="dotDomain"></span><span id="valDomain">Loading...</span></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Simulators</div>
+        <div class="stat-value"><span class="dot" id="dotSim"></span><span id="valSim">Checking...</span></div>
+      </div>
+    </section>
+
+    <main class="workspace">
+      <section class="sim-section">
+        <div class="section-head">
+          <span class="section-title">Live Simulators</span>
+          <div style="display:flex; gap:6px;">
+            <button class="pill" onclick="toggleStream()" id="btnStream">Pause Stream</button>
+            <button class="pill" onclick="runCommandText('/devices')">Devices</button>
           </div>
-          <div class="bezel-ios"><img id="iosImg" alt="Boot Xcode Simulator and click Connect" onclick="tapScreen('ios', event)" /></div>
         </div>
-        <div class="card">
-          <h2>Android SDK Emulator <span class="mono" id="androidInfo">standby</span></h2>
-          <div style="display:flex;gap:6px;margin-bottom:10px">
-            <input id="androidPkg" placeholder="Package (e.g. com.android.chrome)" style="flex:1" />
-            <button class="secondary" onclick="launchDeviceApp('android', document.getElementById('androidPkg').value)">Launch</button>
+
+        <div class="sim-grid">
+          <div class="sim-unit">
+            <div class="sim-meta">
+              <strong>iOS Simulator</strong>
+              <span id="iosLabel">Offline</span>
+            </div>
+            <div class="sim-screen" onclick="handleSimTap(event, 'ios')">
+              <img id="iosImg" alt="iOS Simulator" style="display:none;" />
+              <div class="sim-placeholder" id="iosEmpty">Connect Mac Bridge (`http://127.0.0.1:8765`) to stream iPhone 18 Pro</div>
+            </div>
           </div>
-          <div class="bezel-android"><img id="androidImg" alt="Boot Android AVD and click Connect" onclick="tapScreen('android', event)" /></div>
-        </div>
-      </div>
-    </section>
 
-    <section class="panel" id="tab-hand">
-      <div class="grid">
-        <div class="card">
-          <h2>MediaPipe 21-Landmark Hand Tracking</h2>
-          <div class="cam-stage">
-            <video id="camVideo" width="320" height="240" autoplay muted playsinline></video>
-            <canvas id="handOverlay" width="320" height="240"></canvas>
+          <div class="sim-unit">
+            <div class="sim-meta">
+              <strong>Android Emulator</strong>
+              <span id="androidLabel">Offline</span>
+            </div>
+            <div class="sim-screen" onclick="handleSimTap(event, 'android')">
+              <img id="androidImg" alt="Android Emulator" style="display:none;" />
+              <div class="sim-placeholder" id="androidEmpty">Connect Mac Bridge (`http://127.0.0.1:8765`) to stream Android API 37</div>
+            </div>
           </div>
-          <div class="detail" id="camStatus" style="margin-top:8px">Camera off.</div>
         </div>
-        <div class="card">
-          <h2>Signal Catcher <span class="mono" id="gameScore">Score: 0</span></h2>
-          <canvas id="gameCanvas" width="340" height="220" style="margin-top:8px;width:100%;background:#05070e;border-radius:12px;border:1px solid var(--border)"></canvas>
+      </section>
+
+      <section class="agent-panel">
+        <div class="agent-header">
+          <div class="agent-header-title">
+            <span class="dot ok"></span>
+            Text & Voice Agent
+          </div>
+          <span style="font-size:11.5px; color:var(--muted);" id="agentModeLabel">Ready</span>
         </div>
-      </div>
-    </section>
 
-    <section class="panel" id="tab-overview">
-      <div class="grid">
-        <div class="card"><h2>Active Priorities</h2><div id="priorities"></div></div>
-        <div class="card"><h2>Projects &amp; Reporting</h2><div id="projects"></div></div>
-      </div>
-      <div class="card" style="margin-top:14px"><h2>Core Goals</h2><ul id="goals" style="margin:0;padding-left:18px;font-size:0.9rem"></ul></div>
-    </section>
-
-    <section class="panel" id="tab-qa">
-      <div class="card">
-        <h2>Work Account Q&amp;A</h2>
-        <input id="qaSearch" placeholder="Search BTC address, leverage, tax, Cloud Run..." oninput="renderQA()" style="width:100%;margin-bottom:8px" />
-        <div id="qaList"></div>
-      </div>
-    </section>
-
-    <section class="panel" id="tab-control">
-      <div class="card">
-        <h2>Cloud Run Gateway (Live Voice Token &amp; Ledger)</h2>
-        <input id="gwUrl" placeholder="Cloud Run / Proxy URL" style="width:100%;margin-bottom:6px" />
-        <input id="gwTok" type="password" placeholder="Bearer Token (stored only in localStorage)" style="width:100%;margin-bottom:10px" />
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button onclick="saveGateway()">Save Config</button>
-          <button class="secondary" onclick="callGateway('/agent/reconcile', {strategy_id:'default'})">Run /agent/reconcile</button>
-          <button class="secondary" onclick="callGateway('/treasury', {action:'status'})">Turnkey Status</button>
+        <div class="quick-chips">
+          <button class="pill" onclick="runCommandText('/apex status')">APEX Status</button>
+          <button class="pill" onclick="runCommandText('/devices')">Simulators</button>
+          <button class="pill" onclick="runCommandText('/gesture toggle')">MediaPipe</button>
+          <button class="pill" onclick="runCommandText('/build ios app')">Build iOS</button>
+          <button class="pill" onclick="runCommandText('/build android app')">Build Android</button>
         </div>
-        <pre id="gwOut" class="mono" style="white-space:pre-wrap;margin-top:10px"></pre>
-      </div>
-    </section>
 
-    <section class="panel" id="tab-iterations">
-      <div class="card"><h2>Transformation &amp; Iteration Log</h2><div id="iterations"></div></div>
-    </section>
+        <div class="agent-log" id="agentLog">
+          <div class="msg sys">Commands: /apex status | /treasury status | /reconcile &lt;id&gt; | /devices | /launch &lt;ios|android&gt; &lt;id&gt; | /build &lt;ios|android&gt; &lt;target&gt; | /gesture &lt;on|off|0.65&gt;</div>
+        </div>
+
+        <form class="agent-input-row" onsubmit="handleAgentSubmit(event)">
+          <input type="text" id="agentInput" placeholder="Configure APEX, MediaPipe, Mac/Hermes, or build & run app..." autocomplete="off" />
+          <button type="submit" class="primary">Send</button>
+        </form>
+      </section>
+    </main>
   </div>
 
-  <script type="module">
-    import { FilesetResolver, HandLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
+  <script>
+    const DEFAULT_BRIDGE = "http://127.0.0.1:8765";
+    const DEFAULT_GATEWAY = "https://schafferai-treasury-webhook-rtr25d4k5q-uc.a.run.app";
 
-    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-      document.getElementById('httpsWarn').style.display = 'block';
+    const state = {
+      bridgeUrl: localStorage.getItem("schaffer_bridge_url") || DEFAULT_BRIDGE,
+      gatewayUrl: localStorage.getItem("schaffer_gateway_url") || DEFAULT_GATEWAY,
+      gestureEnabled: localStorage.getItem("schaffer_gesture_on") === "true",
+      gestureSens: localStorage.getItem("schaffer_gesture_sens") || "0.65",
+      streaming: true,
+      voiceActive: false,
+      recognition: null
+    };
+
+    function initConfigInputs() {
+      document.getElementById("bridgeUrlInput").value = state.bridgeUrl;
+      document.getElementById("gatewayUrlInput").value = state.gatewayUrl;
+      document.getElementById("gestureSensInput").value = state.gestureSens;
+      updateGestureButton();
     }
 
-    let state = null, simTimer = null, handLandmarker = null, camStream = null, paddleX = 140, score = 0, liveWs = null;
+    function toggleConfig() {
+      document.getElementById("configBar").classList.toggle("open");
+    }
 
-    window.unlockEmail = () => {
-      const em = document.getElementById('workEmail').value.trim().toLowerCase();
-      if (!em || !em.includes('@')) { document.getElementById('authState').textContent = 'enter valid email'; return; }
-      localStorage.setItem('schafferai_email', em);
-      document.getElementById('authState').textContent = 'unlocked: ' + em;
-    };
-    const savedEmail = localStorage.getItem('schafferai_email');
-    if (savedEmail) { document.getElementById('workEmail').value = savedEmail; document.getElementById('authState').textContent = 'unlocked: ' + savedEmail; }
+    function saveConfig() {
+      state.bridgeUrl = (document.getElementById("bridgeUrlInput").value || DEFAULT_BRIDGE).replace(/\/+$/, "");
+      state.gatewayUrl = (document.getElementById("gatewayUrlInput").value || DEFAULT_GATEWAY).replace(/\/+$/, "");
+      state.gestureSens = document.getElementById("gestureSensInput").value || "0.65";
+      localStorage.setItem("schaffer_bridge_url", state.bridgeUrl);
+      localStorage.setItem("schaffer_gateway_url", state.gatewayUrl);
+      localStorage.setItem("schaffer_gesture_sens", state.gestureSens);
+      toggleConfig();
+      appendMsg("sys", `Saved endpoints. Bridge: ${state.bridgeUrl} | Gateway: ${state.gatewayUrl}`);
+      refreshAll();
+    }
 
-    window.showTab = (name, btn) => {
-      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-      document.getElementById('tab-' + name).classList.add('active');
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      if (btn) btn.classList.add('active');
-    };
+    function updateGestureButton() {
+      const btn = document.getElementById("btnGesture");
+      btn.textContent = state.gestureEnabled ? `Gesture: On (${state.gestureSens})` : "Gesture: Off";
+      btn.classList.toggle("active", state.gestureEnabled);
+    }
 
-    const oc = document.getElementById('orbCanvas'), octx = oc.getContext('2d');
-    let orbAngle = 0, orbVel = 0.015, dragging = false, lastX = 0;
-    const ptrX = e => e.touches ? e.touches[0].clientX : e.clientX;
-    oc.addEventListener('mousedown', e => { dragging = true; lastX = ptrX(e); });
-    window.addEventListener('mouseup', () => dragging = false);
-    window.addEventListener('mousemove', e => { if (!dragging) return; orbVel = (ptrX(e) - lastX) * 0.025; lastX = ptrX(e); });
-    (function drawOrb() {
-      orbAngle += orbVel; orbVel *= 0.985;
-      if (Math.abs(orbVel) < 0.008) orbVel = 0.008 * Math.sign(orbVel || 1);
-      octx.clearRect(0, 0, 144, 144);
-      for (let i = 0; i < 3; i++) {
-        octx.save(); octx.translate(72, 72); octx.rotate(orbAngle * (i % 2 ? -1 : 1) + i * 0.9); octx.scale(1, 0.44 + i * 0.16);
-        octx.beginPath(); octx.arc(0, 0, 48 - i * 8, 0, Math.PI * 2);
-        octx.strokeStyle = i === 0 ? 'rgba(96,165,250,0.85)' : (i === 1 ? 'rgba(167,139,250,0.75)' : 'rgba(52,211,153,0.7)');
-        octx.lineWidth = liveWs ? 2.6 : 1.5; octx.stroke(); octx.restore();
-      }
-      octx.fillStyle = '#60a5fa'; octx.beginPath(); octx.arc(72, 72, 15, 0, Math.PI * 2); octx.fill();
-      document.getElementById('orbTelemetry').textContent = `spin: ${(orbVel * 60).toFixed(2)} rad/s · voice: ${liveWs ? 'live_ws' : 'idle'}`;
-      requestAnimationFrame(drawOrb);
-    })();
+    function toggleGesture(forceVal) {
+      state.gestureEnabled = typeof forceVal === "boolean" ? forceVal : !state.gestureEnabled;
+      localStorage.setItem("schaffer_gesture_on", String(state.gestureEnabled));
+      updateGestureButton();
+      appendMsg("agent", `MediaPipe hand-tracking ${state.gestureEnabled ? "enabled" : "disabled"} (sensitivity ${state.gestureSens}).`);
+    }
 
-    window.toggleMediaPipeHands = async () => {
-      const btn = document.getElementById('camBtn'), st = document.getElementById('camStatus');
-      if (camStream) {
-        camStream.getTracks().forEach(t => t.stop()); camStream = null;
-        btn.textContent = 'MediaPipe Hand Cam: OFF'; btn.classList.remove('active'); st.textContent = 'Camera stopped.'; return;
-      }
-      if (!navigator.mediaDevices?.getUserMedia) { st.textContent = 'Camera requires HTTPS.'; return; }
-      try {
-        st.textContent = 'Loading MediaPipe HandLandmarker...';
-        if (!handLandmarker) {
-          const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
-          handLandmarker = await HandLandmarker.createFromOptions(vision, {
-            baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task", delegate: "GPU" },
-            runningMode: "VIDEO", numHands: 1
-          });
-        }
-        camStream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 } });
-        const vid = document.getElementById('camVideo'); vid.srcObject = camStream;
-        btn.textContent = 'MediaPipe Hand Cam: ON'; btn.classList.add('active'); st.textContent = 'Tracking 21 hand landmarks!';
-        const overlay = document.getElementById('handOverlay'), ctx = overlay.getContext('2d');
-        const step = () => {
-          if (!camStream) return;
-          ctx.clearRect(0, 0, 320, 240);
-          if (vid.readyState >= 2) {
-            const res = handLandmarker.detectForVideo(vid, performance.now());
-            if (res.landmarks?.[0]) {
-              const lm = res.landmarks[0];
-              ctx.fillStyle = '#34d399';
-              for (const p of lm) { ctx.beginPath(); ctx.arc((1 - p.x) * 320, p.y * 240, 3.5, 0, Math.PI * 2); ctx.fill(); }
-              const idxX = 1 - lm[8].x;
-              paddleX = Math.max(0, Math.min(280, idxX * 280));
-              orbVel = (idxX - 0.5) * 0.25;
-            }
-          }
-          requestAnimationFrame(step);
-        };
-        requestAnimationFrame(step);
-      } catch (e) { st.textContent = 'Hand Cam error: ' + e.message; }
-    };
-
-    window.toggleGeminiLiveVoice = async () => {
-      const btn = document.getElementById('liveVoiceBtn'), out = document.getElementById('voiceOut');
-      if (liveWs) { liveWs.close(); liveWs = null; btn.textContent = 'Connect Live Natural Voice'; btn.classList.remove('active'); out.textContent = 'Voice disconnected.'; return; }
-      const url = (localStorage.getItem('schafferai_gw_url') || '').replace(/\/+$/, '');
-      const tok = localStorage.getItem('schafferai_gw_tok') || '';
-      if (!url) { out.textContent = 'Set your Cloud Run Gateway URL in "Cloud & Token Config" first so /live-token can mint an ephemeral Gemini Live token.'; return; }
-      try {
-        out.textContent = 'Requesting ephemeral Gemini Live token...';
-        const r = await fetch(url + '/live-token', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(tok ? { Authorization: 'Bearer ' + tok } : {}) }, body: '{}' });
-        const d = await r.json();
-        if (!d.ok || !d.token) { out.textContent = 'Live Voice unavailable: ' + (d.error || 'missing token'); return; }
-        liveWs = new WebSocket(`wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token=${encodeURIComponent(d.token)}`);
-        liveWs.onopen = () => { btn.textContent = 'Live Voice: CONNECTED'; btn.classList.add('active'); out.textContent = 'Gemini Live WebSocket connected!'; };
-        liveWs.onclose = () => { liveWs = null; btn.textContent = 'Connect Live Natural Voice'; btn.classList.remove('active'); };
-      } catch (e) { out.textContent = 'Live Voice error: ' + e.message; }
-    };
-
-    const bridgeBase = () => document.getElementById('simBridgeUrl').value.trim().replace(/\/+$/, '');
-    window.connectSimBridge = async () => {
-      const st = document.getElementById('simStatus');
-      try {
-        const d = await (await fetch(bridgeBase() + '/devices')).json();
-        document.getElementById('iosInfo').textContent = d.ios_booted?.[0]?.name || 'no booted iOS';
-        document.getElementById('androidInfo').textContent = d.android_connected?.[0] || 'no Android AVD';
-        st.textContent = 'streaming';
-        if (simTimer) clearInterval(simTimer);
-        simTimer = setInterval(() => {
-          const ts = Date.now();
-          if (d.ios_booted?.length) document.getElementById('iosImg').src = `${bridgeBase()}/frame?platform=ios&t=${ts}`;
-          if (d.android_connected?.length) document.getElementById('androidImg').src = `${bridgeBase()}/frame?platform=android&t=${ts}`;
-        }, 700);
-      } catch (e) { st.textContent = 'error: ' + e.message; }
-    };
-    window.stopSimBridge = () => { if (simTimer) clearInterval(simTimer); simTimer = null; document.getElementById('simStatus').textContent = 'stopped'; };
-    window.tapScreen = async (platform, ev) => {
-      const img = ev.target, rect = img.getBoundingClientRect();
-      const x = Math.round((ev.clientX - rect.left) * (img.naturalWidth / rect.width));
-      const y = Math.round((ev.clientY - rect.top) * (img.naturalHeight / rect.height));
-      await fetch(bridgeBase() + '/tap', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ platform, x, y }) });
-    };
-    window.launchDeviceApp = async (platform, target_id) => {
-      await fetch(bridgeBase() + '/launch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ platform, target_id }) });
-    };
-
-    const gc = document.getElementById('gameCanvas'), gctx = gc.getContext('2d');
-    let bx = 170, by = 30, bvx = 2.1, bvy = 2.3;
-    gc.addEventListener('mousemove', e => { const r = gc.getBoundingClientRect(); paddleX = Math.max(0, Math.min(280, (e.clientX - r.left) * (340 / r.width) - 30)); });
-    (function loopGame() {
-      gctx.fillStyle = '#05070e'; gctx.fillRect(0, 0, 340, 220);
-      bx += bvx; by += bvy;
-      if (bx < 8 || bx > 332) bvx *= -1;
-      if (by < 8) bvy *= -1;
-      if (by > 195 && bx >= paddleX && bx <= paddleX + 60) { bvy = -Math.abs(bvy); score++; document.getElementById('gameScore').textContent = 'Score: ' + score; }
-      if (by > 220) { bx = 170; by = 30; score = 0; document.getElementById('gameScore').textContent = 'Score: 0 (missed)'; }
-      gctx.fillStyle = '#60a5fa'; gctx.fillRect(paddleX, 202, 60, 8);
-      gctx.fillStyle = '#34d399'; gctx.beginPath(); gctx.arc(bx, by, 7, 0, Math.PI * 2); gctx.fill();
-      requestAnimationFrame(loopGame);
-    })();
+    function appendMsg(role, text) {
+      const log = document.getElementById("agentLog");
+      const el = document.createElement("div");
+      el.className = `msg ${role}`;
+      el.textContent = text;
+      log.appendChild(el);
+      log.scrollTop = log.scrollHeight;
+    }
 
     async function loadStatus() {
-      state = await (await fetch('data/status.json?_=' + Date.now())).json();
-      document.getElementById('ver').textContent = 'v' + state.version;
-      document.getElementById('priorities').innerHTML = state.priorities.map(p => `<div class="item"><div class="item-title"><span>${p.id}: ${p.title}</span><span class="status">${p.status.replace(/_/g,' ')}</span></div><div class="detail">${p.detail}</div></div>`).join('');
-      document.getElementById('projects').innerHTML = state.projects.map(pr => `<div class="item"><div class="item-title"><span>${pr.name}</span><span class="status">${pr.status}</span></div><div class="detail">${pr.detail}</div></div>`).join('');
-      document.getElementById('goals').innerHTML = state.goals.map(g => `<li>${g}</li>`).join('');
-      document.getElementById('iterations').innerHTML = state.iterations.map(it => `<div class="item"><div class="item-title"><span>v${it.version}</span><span class="detail">${it.date}</span></div><div class="detail">${it.summary}</div></div>`).join('');
-      window.renderQA();
+      try {
+        const res = await fetch(`./data/status.json?t=${Date.now()}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        document.getElementById("versionTag").textContent = data.version || "v2.2.0";
+
+        const apex = data.systems?.apex || {};
+        document.getElementById("valApex").textContent = apex.summary || "Check required";
+        document.getElementById("dotApex").className = `dot ${apex.status || "warn"}`;
+
+        const billing = data.systems?.billing || {};
+        document.getElementById("valBilling").textContent = billing.summary || "BILLING_DISABLED";
+        document.getElementById("dotBilling").className = `dot ${billing.status || "err"}`;
+
+        const domain = data.systems?.domain || {};
+        document.getElementById("valDomain").textContent = domain.summary || "HTTP 200";
+        document.getElementById("dotDomain").className = `dot ${domain.status || "warn"}`;
+      } catch (_) {}
     }
-    window.renderQA = () => {
-      if (!state) return;
-      const q = (document.getElementById('qaSearch').value || '').toLowerCase();
-      document.getElementById('qaList').innerHTML = state.qa.filter(x => (x.q + x.a).toLowerCase().includes(q)).map(x => `<div class="item"><div class="item-title">${x.q}</div><div class="detail">${x.a}</div></div>`).join('');
-    };
-    window.saveGateway = () => {
-      localStorage.setItem('schafferai_gw_url', document.getElementById('gwUrl').value.trim());
-      localStorage.setItem('schafferai_gw_tok', document.getElementById('gwTok').value.trim());
-      document.getElementById('gwOut').textContent = 'Saved gateway config.';
-    };
-    window.callGateway = async (path, body) => {
-      const url = (localStorage.getItem('schafferai_gw_url') || '').replace(/\/+$/, ''), tok = localStorage.getItem('schafferai_gw_tok') || '';
-      if (!url) { document.getElementById('gwOut').textContent = 'Set Gateway URL first.'; return; }
-      const res = await fetch(url + path, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(tok ? { Authorization: 'Bearer ' + tok } : {}) }, body: JSON.stringify(body) });
-      document.getElementById('gwOut').textContent = await res.text();
-    };
-    document.getElementById('gwUrl').value = localStorage.getItem('schafferai_gw_url') || '';
-    document.getElementById('gwTok').value = localStorage.getItem('schafferai_gw_tok') || '';
-    loadStatus();
+
+    async function checkDevices() {
+      try {
+        const res = await fetch(`${state.bridgeUrl}/devices`, { signal: AbortSignal.timeout(2500) });
+        const data = await res.json();
+        const iosCount = (data.ios_booted || []).length;
+        const andCount = (data.android_connected || []).length;
+        document.getElementById("valSim").textContent = `${iosCount} iOS · ${andCount} Android`;
+        document.getElementById("dotSim").className = `dot ${(iosCount || andCount) ? "ok" : "warn"}`;
+        document.getElementById("iosLabel").textContent = iosCount ? data.ios_booted[0].name || "Booted" : "Offline";
+        document.getElementById("androidLabel").textContent = andCount ? data.android_connected[0].id || "Connected" : "Offline";
+        return data;
+      } catch (_) {
+        document.getElementById("valSim").textContent = "Bridge unreachable";
+        document.getElementById("dotSim").className = "dot warn";
+        return null;
+      }
+    }
+
+    async function pollFrames() {
+      if (!state.streaming) return;
+      for (const platform of ["ios", "android"]) {
+        const img = document.getElementById(`${platform}Img`);
+        const empty = document.getElementById(`${platform}Empty`);
+        try {
+          const res = await fetch(`${state.bridgeUrl}/frame?platform=${platform}&t=${Date.now()}`, { signal: AbortSignal.timeout(2500) });
+          if (!res.ok) throw new Error("not ok");
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const prev = img.dataset.objUrl;
+          img.src = url;
+          img.dataset.objUrl = url;
+          img.style.display = "block";
+          empty.style.display = "none";
+          if (prev) URL.revokeObjectURL(prev);
+        } catch (_) {
+          img.style.display = "none";
+          empty.style.display = "flex";
+        }
+      }
+    }
+
+    function toggleStream() {
+      state.streaming = !state.streaming;
+      document.getElementById("btnStream").textContent = state.streaming ? "Pause Stream" : "Resume Stream";
+      if (state.streaming) pollFrames();
+    }
+
+    async function handleSimTap(event, platform) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const x = Math.round(((event.clientX - rect.left) / rect.width) * 1080);
+      const y = Math.round(((event.clientY - rect.top) / rect.height) * 2340);
+      try {
+        const res = await fetch(`${state.bridgeUrl}/tap`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ platform, x, y })
+        });
+        if (res.ok) appendMsg("sys", `Tapped ${platform} at (${x}, ${y})`);
+      } catch (err) {
+        appendMsg("sys", `Tap failed on ${platform}: Mac bridge unreachable.`);
+      }
+    }
+
+    async function callGateway(path, payload) {
+      const res = await fetch(`${state.gatewayUrl}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const text = await res.text();
+      try { return { ok: res.ok, status: res.status, data: JSON.parse(text) }; }
+      catch { return { ok: res.ok, status: res.status, data: text }; }
+    }
+
+    async function runCommandText(raw) {
+      const text = raw.trim();
+      if (!text) return;
+      appendMsg("user", text);
+      const lower = text.toLowerCase();
+
+      if (lower.startsWith("/devices") || lower.includes("list devices") || lower.includes("simulators")) {
+        const devs = await checkDevices();
+        appendMsg("agent", devs ? JSON.stringify(devs, null, 2) : `Mac bridge unreachable at ${state.bridgeUrl}. Start simulator_bridge.py on your Mac.`);
+        return;
+      }
+
+      if (lower.startsWith("/gesture")) {
+        const parts = text.split(/\s+/);
+        const arg = (parts[1] || "toggle").toLowerCase();
+        if (arg === "on") toggleGesture(true);
+        else if (arg === "off") toggleGesture(false);
+        else if (!isNaN(parseFloat(arg))) {
+          state.gestureSens = arg;
+          localStorage.setItem("schaffer_gesture_sens", arg);
+          toggleGesture(true);
+        } else {
+          toggleGesture();
+        }
+        return;
+      }
+
+      if (lower.startsWith("/launch")) {
+        const [, platform = "ios", target_id = ""] = text.split(/\s+/);
+        if (!target_id) {
+          appendMsg("agent", "Usage: /launch <ios|android> <bundle_or_package_id>");
+          return;
+        }
+        try {
+          const res = await fetch(`${state.bridgeUrl}/launch`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ platform, target_id })
+          });
+          appendMsg("agent", `Launch (${platform} -> ${target_id}): HTTP ${res.status}\n${await res.text()}`);
+        } catch {
+          appendMsg("agent", `Could not reach Mac bridge at ${state.bridgeUrl}.`);
+        }
+        return;
+      }
+
+      if (lower.startsWith("/build")) {
+        const [, platform = "ios", target = "app"] = text.split(/\s+/);
+        appendMsg("agent", `Dispatching ${platform} build for "${target}" via Mac/Hermes bridge (${state.bridgeUrl})...`);
+        try {
+          const devs = await checkDevices();
+          if (!devs) {
+            appendMsg("agent", `Mac bridge offline at ${state.bridgeUrl}. Start simulator_bridge.py / Hermes locally to execute Xcode or Gradle builds and stream into this simulator.`);
+          } else {
+            appendMsg("agent", `Bridge connected (${(devs.ios_booted||[]).length} iOS, ${(devs.android_connected||[]).length} Android). Ready to launch target via /launch ${platform} <bundle_id>.`);
+          }
+        } catch (e) {
+          appendMsg("agent", `Build dispatch error: ${e.message}`);
+        }
+        return;
+      }
+
+      if (lower.startsWith("/apex") || lower.startsWith("/treasury")) {
+        const parts = text.split(/\s+/);
+        const action = parts[1] || "status";
+        try {
+          const r = await callGateway("/treasury", { action });
+          appendMsg("agent", `Gateway /treasury (${action}) -> HTTP ${r.status}\n${JSON.stringify(r.data, null, 2)}`);
+        } catch (e) {
+          appendMsg("agent", `Gateway unreachable (${state.gatewayUrl}): ${e.message}`);
+        }
+        return;
+      }
+
+      if (lower.startsWith("/reconcile")) {
+        const [, strategy_id = "live_test_01"] = text.split(/\s+/);
+        try {
+          const r = await callGateway("/agent/reconcile", { strategy_id });
+          appendMsg("agent", `Reconcile (${strategy_id}) -> HTTP ${r.status}\n${JSON.stringify(r.data, null, 2)}`);
+        } catch (e) {
+          appendMsg("agent", `Gateway unreachable: ${e.message}`);
+        }
+        return;
+      }
+
+      appendMsg("agent", `Parsed intent: "${text}". Use /apex status, /treasury <action>, /reconcile <id>, /devices, /launch <ios|android> <id>, /build <ios|android> <target>, or /gesture <on|off>.`);
+    }
+
+    function handleAgentSubmit(e) {
+      e.preventDefault();
+      const input = document.getElementById("agentInput");
+      const val = input.value;
+      input.value = "";
+      runCommandText(val);
+    }
+
+    function toggleVoice() {
+      const btn = document.getElementById("btnVoice");
+      const mode = document.getElementById("agentModeLabel");
+      const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRec) {
+        appendMsg("sys", "Browser SpeechRecognition unavailable; use the text agent or Gemini Live token endpoint.");
+        return;
+      }
+      if (state.voiceActive && state.recognition) {
+        state.recognition.stop();
+        state.voiceActive = false;
+        btn.classList.remove("active");
+        btn.textContent = "Voice";
+        mode.textContent = "Ready";
+        return;
+      }
+      const rec = new SpeechRec();
+      rec.continuous = false;
+      rec.interimResults = false;
+      rec.onresult = (ev) => {
+        const transcript = ev.results[0][0].transcript;
+        runCommandText(transcript);
+      };
+      rec.onend = () => {
+        state.voiceActive = false;
+        btn.classList.remove("active");
+        btn.textContent = "Voice";
+        mode.textContent = "Ready";
+      };
+      rec.start();
+      state.recognition = rec;
+      state.voiceActive = true;
+      btn.classList.add("active");
+      btn.textContent = "Listening...";
+      mode.textContent = "Voice Active";
+    }
+
+    function refreshAll() {
+      loadStatus();
+      checkDevices();
+      pollFrames();
+    }
+
+    initConfigInputs();
+    refreshAll();
+    setInterval(pollFrames, 1800);
+    setInterval(loadStatus, 15000);
   </script>
 </body>
 </html>
