@@ -262,7 +262,7 @@
     <header>
       <div class="brand">
         <h1>Schaffer AI</h1>
-        <span class="version-tag" id="versionTag">v2.4.0</span>
+        <span class="version-tag" id="versionTag">v2.4.1</span>
       </div>
       <div class="header-actions">
         <button class="pill" id="btnMacView" onclick="toggleMacView()">Mac View: Off</button>
@@ -417,10 +417,10 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
         <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
           <button class="pill active" id="btnGameSnake" onclick="selectGame('snake')">Retro Snake</button>
           <button class="pill" id="btnGameBreakout" onclick="selectGame('breakout')">Brick Breaker</button>
+          <button class="pill" id="btnGameWasm4" onclick="selectGame('wasm4')">WASM-4 Console</button>
           <button class="pill" onclick="startArcadeGame()">Restart</button>
-          <span style="font-size:11.5px; color:var(--muted);">Arrows / WASD / Mouse / Touch · EmulatorJS homebrew slot pending</span>
         </div>
-        <div style="display:flex; gap:14px; align-items:center; flex-wrap:wrap;">
+        <div id="canvasArcadeWrap" style="display:flex; gap:14px; align-items:center; flex-wrap:wrap;">
           <canvas id="arcadeCanvas" width="260" height="200" style="background:#050608; border:1px solid var(--border); border-radius:10px; touch-action:none;"></canvas>
           <div style="display:grid; grid-template-columns:repeat(3,36px); gap:4px;">
             <div></div><button class="pill" style="padding:6px; justify-content:center;" onclick="arcadeDir(0,-1)">↑</button><div></div>
@@ -428,6 +428,12 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
             <button class="pill" style="padding:6px; justify-content:center;" onclick="arcadeDir(0,1)">↓</button>
             <button class="pill" style="padding:6px; justify-content:center;" onclick="arcadeDir(1,0)">→</button>
           </div>
+        </div>
+        <div id="wasm4Wrap" style="display:none; flex-direction:column; gap:6px;">
+          <iframe id="wasm4Frame" title="WASM-4 Official Snake" style="width:100%; height:320px; border:1px solid var(--border); border-radius:10px; background:#050608;"></iframe>
+          <span style="font-size:11.5px; color:var(--muted);">
+            Official <a href="https://github.com/aduros/wasm4/tree/a79314df03c7c859239f81a3958152c09c3aeaf9/examples/snake" target="_blank" rel="noopener" style="color:var(--text);">WASM-4 Snake example</a> (Bruno Garcia, <a href="./arcade/wasm4-snake/LICENSE.txt" target="_blank" rel="noopener" style="color:var(--text);">ISC License</a>).
+          </span>
         </div>
       </div>
     </section>
@@ -1160,7 +1166,17 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
       arcade.game = g;
       document.getElementById("btnGameSnake").classList.toggle("active", g === "snake");
       document.getElementById("btnGameBreakout").classList.toggle("active", g === "breakout");
-      startArcadeGame();
+      document.getElementById("btnGameWasm4").classList.toggle("active", g === "wasm4");
+      const isWasm4 = g === "wasm4";
+      document.getElementById("canvasArcadeWrap").style.display = isWasm4 ? "none" : "flex";
+      document.getElementById("wasm4Wrap").style.display = isWasm4 ? "flex" : "none";
+      const frame = document.getElementById("wasm4Frame");
+      if (isWasm4) {
+        clearInterval(arcade.timer);
+        if (!frame.getAttribute("src")) frame.setAttribute("src", "./arcade/wasm4-snake/wasm4-snake.html");
+      } else {
+        startArcadeGame();
+      }
     }
 
     function arcadeDir(dx, dy) {
@@ -1170,6 +1186,11 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
 
     function startArcadeGame() {
       clearInterval(arcade.timer);
+      if (arcade.game === "wasm4") {
+        const frame = document.getElementById("wasm4Frame");
+        frame.setAttribute("src", `./arcade/wasm4-snake/wasm4-snake.html?t=${Date.now()}`);
+        return;
+      }
       updateArcadeScore(0);
       if (arcade.game === "snake") {
         snake = [{ x: 6, y: 5 }, { x: 5, y: 5 }]; dir = { x: 1, y: 0 };
