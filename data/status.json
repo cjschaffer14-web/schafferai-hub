@@ -1,10 +1,10 @@
 {
-  "version": "v2.6.1",
-  "updated_at": "2026-11-18T13:22:00Z",
+  "version": "v2.6.2",
+  "updated_at": "2026-11-18T13:52:21.524308+00:00",
   "systems": {
     "apex": {
-      "status": "ok",
-      "summary": "Local Read-Only DAG Loaded (Billing OFF)"
+      "status": "warn",
+      "summary": "Local status available; live execution not active"
     },
     "billing": {
       "status": "ok",
@@ -12,11 +12,11 @@
     },
     "domain": {
       "status": "ok",
-      "summary": "HTTPS healthy & enforced (301 HTTP→HTTPS)"
+      "summary": "HTTPS healthy & enforced (301 HTTP\u2192HTTPS)"
     },
     "clasp": {
       "status": "ok",
-      "summary": "Complete (4/4 live Apps Script files match)"
+      "summary": "Work Gmail delivery verified via existing private Workspace route"
     }
   }
 }

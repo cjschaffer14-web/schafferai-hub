@@ -296,7 +296,7 @@
     <header>
       <div class="brand">
         <h1>Schaffer AI</h1>
-        <span class="version-tag" id="versionTag">v2.6.1</span>
+        <span class="version-tag" id="versionTag">v2.6.2</span>
       </div>
       <div class="header-actions">
         <button class="pill" id="btnMacView" onclick="toggleMacView()">Mac View: Off</button>
@@ -307,6 +307,9 @@
       </div>
     </header>
 
+    <div class="stat-card" id="connectionBanner" role="status" style="margin-bottom:14px; font-size:13px;">
+      Website online. Browser games work on any computer. Connecting to your Mac...
+    </div>
     <!-- Global Lead Site Navigator (Rounded Text + Voice Bar at Top) -->
     <section class="navigator-shell" id="navigatorSection">
       <div class="navigator-head">
@@ -326,8 +329,9 @@
         <button class="pill" onclick="runCommandText('open settings')">Android Settings</button>
         <button class="pill" onclick="runCommandText('go home')">Android Home</button>
         <button class="pill" onclick="runCommandText('/requests')">Queue</button>
-        <button class="pill" onclick="runCommandText('/fulfill')">Fulfill Latest</button>
+        <button class="pill" onclick="runCommandText('/fulfill c@schafferai.com')">Build, Install & Email</button>
         <button class="pill" onclick="runCommandText('/devices')">Devices</button>
+        <a class="pill" href="https://remotedesktop.google.com/access" target="_blank" rel="noopener">Connect to my Mac</a>
       </div>
       <div class="navigator-log" id="agentLog">
         <div class="msg sys">Site Navigator ready. Type naturally or use /debug, /devices, /launch, /nav, /tap, /gesture. (Always-Free Mode: paid GCP billing OFF.)</div>
@@ -362,7 +366,7 @@
 
     <section class="status-strip" id="statusStrip">
       <div class="stat-card">
-        <div class="stat-label">GCP Billing &amp; APEX</div>
+        <div class="stat-label">GCP Billing</div>
         <div class="stat-value"><span class="dot ok" id="dotBilling"></span><span id="valBilling">Always-Free Mode</span></div>
       </div>
       <div class="stat-card">
@@ -370,7 +374,7 @@
         <div class="stat-value"><span class="dot ok" id="dotDomain"></span><span id="valDomain">HTTPS healthy</span></div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Apps Script (clasp)</div>
+        <div class="stat-label">Work email delivery</div>
         <div class="stat-value"><span class="dot ok" id="dotClasp"></span><span id="valClasp">Complete</span></div>
       </div>
       <div class="stat-card">
@@ -432,7 +436,7 @@
           <span class="version-tag">$0 Always-Free</span>
         </div>
         <p style="font-size:12.5px; color:var(--muted);">
-          Note: The local bridge (<code>127.0.0.1:8765</code>) is <strong>loopback-only</strong> and only works on this Mac. For authenticated remote view and full mouse/keyboard control from your iPhone, iPad, or another computer, use Google Chrome Remote Desktop:
+          Browser games run on any computer. To view and control your Mac and its Android emulator from another device, connect through Chrome Remote Desktop while the Mac is on. Sign in with the Google account used during host setup. The Mac host must be installed and configured before it appears online.
         </p>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <a class="btn primary" href="https://remotedesktop.google.com/access" target="_blank" rel="noopener">Open Chrome Remote Desktop</a>
@@ -793,14 +797,19 @@
           return { key: `android:${id}`, platform: "android", deviceId: id, title: `Android (${id})` };
         });
         frameState.devices = [...iosList, ...andList];
+        document.getElementById("connectionBanner").textContent = "Website online · Mac connected · Local build and emulator controls available.";
         document.getElementById("valSim").textContent = `${iosList.length} iOS · ${andList.length} Android`;
         document.getElementById("dotSim").className = `dot ${frameState.devices.length ? "ok" : "warn"}`;
         renderSimGrid(frameState.devices);
         return data;
       } catch (_) {
         const recentlyLive = frameState.lastFrameOkAt && (Date.now() - frameState.lastFrameOkAt) < 20000;
-        document.getElementById("valSim").textContent = recentlyLive ? "Streaming (device list slow)" : "Bridge unreachable";
+        document.getElementById("valSim").textContent = recentlyLive ? "Streaming (device list slow)" : "Mac not connected";
         document.getElementById("dotSim").className = recentlyLive ? "dot ok" : "dot warn";
+        if (!recentlyLive) {
+          document.getElementById("connectionBanner").textContent = "Website online · Browser games available · Connect to your Mac for builds and device control.";
+          if (!frameState.devices.length) document.getElementById("simGrid").innerHTML = '<div class="stat-card"><strong>Connect to your Mac</strong><p style="font-size:13px;color:var(--muted)">This website is online. The Android emulator and app builds run on your Mac. From another computer, open the authenticated Mac portal while the Mac is on.</p><a class="btn primary" href="https://remotedesktop.google.com/access" target="_blank" rel="noopener">Open Mac portal</a><p style="font-size:12px;color:var(--muted)">The browser arcade below works without the Mac connection.</p></div>';
+        }
         return null;
       }
     }
@@ -967,7 +976,8 @@
         if (!res) return;
         appendMsg("sys", `Launch (${platform} -> ${targetId}): HTTP ${res.status} ${await res.text()}`);
         if (res.ok) trackStep({ platform, device_id: deviceId, type: "launch", target_id: targetId, label: `Launch ${platform} ${targetId}` });
-      } catch (_) { appendMsg("sys", `Launch failed on ${platform}.`); }
+        return res.ok;
+      } catch (_) { appendMsg("sys", `Mac connection unavailable. Open the Mac portal to control ${platform}.`); return false; }
     }
 
     async function callGateway(path, payload) {
@@ -1028,19 +1038,22 @@
       if (lower === "pair" || lower.includes("pair bridge")) { await pairLocalBridge(); return; }
       if (lower.includes("go home") || lower === "home" || lower === "gohome") { await sendNav("android", "home", ""); appendMsg("agent", "Sent Android Home."); return; }
       if (lower === "back" || lower === "go back") { await sendNav("android", "back", ""); appendMsg("agent", "Sent Android Back."); return; }
-      if (lower.includes("open settings") || lower === "settings") { await launchAppForDevice("android", "com.android.settings", ""); appendMsg("agent", "Launched Android Settings."); return; }
+      if (lower.includes("open settings") || lower === "settings") { const ok = await launchAppForDevice("android", "com.android.settings", ""); if (ok) appendMsg("agent", "Launched Android Settings."); return; }
       if (lower.includes("scroll down")) { const d = frameState.devices.find(x => x.platform === "android"); if (d) await scrollDevice("android", d.deviceId, "down"); appendMsg("agent", d ? "Scrolled Android down." : "No Android emulator connected."); return; }
       if (lower.includes("scroll up")) { const d = frameState.devices.find(x => x.platform === "android"); if (d) await scrollDevice("android", d.deviceId, "up"); appendMsg("agent", d ? "Scrolled Android up." : "No Android emulator connected."); return; }
 
       if (lower.startsWith("request game") || lower.startsWith("request app") || lower.startsWith("make a game") || lower.startsWith("build app")) {
         const idea = text.replace(/^(request game|request app|make a game|build app)[:\s]*/i, "").trim() || text;
-        let macStatus = "Mac bridge offline (saved locally in browser).";
+        let queued = false;
+        let macStatus = "Draft saved on this computer. Connect to your Mac to submit it.";
         try {
           const r = await bridgePost("/request", { prompt: idea });
-          if (r && r.ok) macStatus = "Queued on Mac (~/.schafferai/requests.json for Hermes/Codex).";
+          if (r && r.ok) { const saved = await r.json(); queued = true; macStatus = `Queued on Mac: ${saved.request?.id || "saved"} (HTTP ${r.status}).`; }
         } catch (_) {}
+        if (queued) localStorage.removeItem("schaffer_request_draft");
+        else localStorage.setItem("schaffer_request_draft", idea);
         const issueUrl = `https://github.com/cjschaffer14-web/schafferai-hub/issues/new?title=${encodeURIComponent("[App/Game Request] " + idea.slice(0, 60))}&body=${encodeURIComponent("Requested via Site Navigator:\n\n" + idea)}`;
-        appendMsg("agent", `Request logged: "${idea}"\n- Mac: ${macStatus}\n- Optional manual GitHub Issue draft (does not auto-build):\n${issueUrl}`);
+        appendMsg("agent", `${queued ? "Request queued" : "Request draft saved"}: "${idea}"\n- Mac: ${macStatus}\n- Optional manual GitHub Issue draft (does not auto-build):\n${issueUrl}`);
         return;
       }
       if (lower === "/requests" || lower === "requests" || lower === "queue") {
@@ -1051,10 +1064,10 @@
         return;
       }
       if (lower.startsWith("/fulfill")) {
-        const [, to = ""] = text.split(/\s+/);
+        const [, to = "", request_id = ""] = text.split(/\s+/);
         appendMsg("sys", `Fulfilling latest queued request${to ? ` + emailing ${to}` : ""}...`);
         try {
-          const res = await bridgePost("/requests/fulfill", { to, platform: "android" });
+          const res = await bridgePost("/requests/fulfill", { to, request_id, platform: "android" });
           if (!res) return;
           appendMsg("agent", `Fulfill -> HTTP ${res.status}\n${await res.text()}`);
         } catch (e) { appendMsg("agent", `Fulfill failed: ${e.message}`); }
