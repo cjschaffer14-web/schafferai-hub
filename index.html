@@ -262,7 +262,7 @@
     <header>
       <div class="brand">
         <h1>Schaffer AI</h1>
-        <span class="version-tag" id="versionTag">v2.3.5</span>
+        <span class="version-tag" id="versionTag">v2.3.6</span>
       </div>
       <div class="header-actions">
         <button class="pill" id="btnMacView" onclick="toggleMacView()">Mac View: Off</button>
@@ -334,8 +334,11 @@
 
         <div id="macViewCard" style="display:none; flex-direction:column; gap:8px;">
           <div class="sim-meta">
-            <strong>Mac Display (Live View)</strong>
-            <span id="macViewLabel">Off</span>
+            <strong>Mac Display (Live View · Local Only)</strong>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span id="macViewLabel">Off</span>
+              <button class="pill" onclick="toggleMacView(false)">Stop Mac View</button>
+            </div>
           </div>
           <div style="width:100%; aspect-ratio:16/10; border-radius:14px; overflow:hidden; position:relative; border:1px solid var(--border);">
             <img id="macViewImg" alt="Mac Display" style="width:100%; height:100%; object-fit:contain; display:none;" />
@@ -725,38 +728,45 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
     }
 
     let macViewActive = false;
-    function toggleMacView() {
-      macViewActive = !macViewActive;
+    async function toggleMacView(forceVal) {
+      macViewActive = typeof forceVal === "boolean" ? forceVal : !macViewActive;
       const btn = document.getElementById("btnMacView");
       const card = document.getElementById("macViewCard");
       const img = document.getElementById("macViewImg");
       const empty = document.getElementById("macViewEmpty");
       const lbl = document.getElementById("macViewLabel");
-      btn.textContent = macViewActive ? "Mac View: On" : "Mac View: Off";
-      btn.classList.toggle("active", macViewActive);
-      card.style.display = macViewActive ? "flex" : "none";
       if (!macViewActive) {
+        btn.textContent = "Mac View: Off";
+        btn.classList.remove("active");
+        card.style.display = "none";
         img.onerror = null;
         img.removeAttribute("src");
         img.style.display = "none";
         lbl.textContent = "Off";
         return;
       }
+      if (!state.bridgeToken && !(await pairLocalBridge())) {
+        macViewActive = false;
+        return;
+      }
+      btn.textContent = "Mac View: On";
+      btn.classList.add("active");
+      card.style.display = "flex";
       lbl.textContent = "Connecting...";
       empty.style.display = "flex";
       img.onload = () => {
         if (!macViewActive) return;
         img.style.display = "block";
         empty.style.display = "none";
-        lbl.textContent = "Live (MJPEG)";
+        lbl.textContent = "Live (MJPEG ~1 FPS)";
       };
       img.onerror = () => {
         if (!macViewActive) return;
         img.style.display = "none";
         empty.style.display = "flex";
-        lbl.textContent = "Unavailable (check bridge/Screen Recording)";
+        lbl.textContent = "Unavailable (pair or grant Screen Recording)";
       };
-      img.src = `${state.bridgeUrl}/stream?platform=mac&t=${Date.now()}`;
+      img.src = `${state.bridgeUrl}/stream?platform=mac&token=${encodeURIComponent(state.bridgeToken)}&t=${Date.now()}`;
     }
 
     function toggleStream() {
