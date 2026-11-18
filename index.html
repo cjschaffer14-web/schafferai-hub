@@ -398,7 +398,7 @@
     <header>
       <div class="brand">
         <h1>Schaffer AI</h1>
-        <span class="version-tag" id="versionTag">v2.2.5</span>
+        <span class="version-tag" id="versionTag">v2.2.6</span>
       </div>
       <div class="header-actions">
         <button class="pill" id="btnGesture" onclick="toggleGesture()">Gesture: Off</button>
@@ -481,6 +481,7 @@
               <button class="pill" onclick="runCommandText('/launch ios com.apple.Preferences')">Settings</button>
               <button class="pill" onclick="runCommandText('/launch ios com.apple.mobilesafari')">Safari</button>
             </div>
+            <span style="font-size:11.5px; color:var(--muted);">iOS note: tap focuses window; use Settings, Safari, or /launch (raw tap requires WDA).</span>
           </div>
 
           <div class="sim-unit">
@@ -503,8 +504,11 @@
 
         <div class="stat-card" style="margin-top:6px;">
           <div class="stat-label">
-            <span>AI Tracking &amp; Saved Automations (Persistent Mac + Local Storage)</span>
+            <span>Action Recording &amp; Saved Automations (Mac + Local Storage)</span>
             <span id="recStatus">Idle · 0 steps</span>
+          </div>
+          <div style="font-size:11.5px; color:var(--muted); margin-top:2px;">
+            Deterministic event recorder (tap/nav/launch). AI vision screen tracking: unavailable (no local vision model wired).
           </div>
           <div id="automationsList" style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;">
             <span style="font-size:12px; color:var(--muted);">No saved automations yet. Click Record, interact with iOS/Android, then Save Macro.</span>
@@ -644,7 +648,7 @@ Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasu
 
     async function checkDevices() {
       try {
-        const res = await fetch(`${state.bridgeUrl}/devices`, { signal: AbortSignal.timeout(2500) });
+        const res = await fetch(`${state.bridgeUrl}/devices`, { signal: AbortSignal.timeout(8000) });
         const data = await res.json();
         const iosCount = (data.ios_booted || []).length;
         const andCount = (data.android_connected || []).length;
@@ -657,15 +661,22 @@ Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasu
         if (!document.getElementById("androidImg").dataset.objUrl) document.getElementById("androidLabel").textContent = andName;
         return data;
       } catch (_) {
-        document.getElementById("valSim").textContent = "Bridge unreachable";
-        document.getElementById("dotSim").className = "dot warn";
+        const recentlyLive = frameState.lastFrameOkAt && (Date.now() - frameState.lastFrameOkAt) < 20000;
+        if (recentlyLive) {
+          document.getElementById("valSim").textContent = "Streaming (device list slow)";
+          document.getElementById("dotSim").className = "dot ok";
+        } else {
+          document.getElementById("valSim").textContent = "Bridge unreachable";
+          document.getElementById("dotSim").className = "dot warn";
+        }
         return null;
       }
     }
 
     const frameState = {
       inFlight: { ios: false, android: false },
-      timers: { ios: null, android: null }
+      timers: { ios: null, android: null },
+      lastFrameOkAt: 0
     };
 
     async function capturePlatformFrame(platform) {
@@ -694,6 +705,11 @@ Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasu
         img.style.display = "block";
         empty.style.display = "none";
         label.textContent = isStale ? `${devName} · Stale (cached)` : `${devName} · Live`;
+        frameState.lastFrameOkAt = Date.now();
+        if (document.getElementById("valSim").textContent === "Bridge unreachable") {
+          document.getElementById("valSim").textContent = "Streaming (Bridge Live)";
+          document.getElementById("dotSim").className = "dot ok";
+        }
         if (prev) URL.revokeObjectURL(prev);
       } catch (_) {
         if (img.dataset.objUrl) {
