@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Schaffer AI — Operations & Simulator Hub</title>
+  <title>Schaffer AI — Always-Free Hub</title>
   <style>
     :root {
       --bg: #0a0b0e;
@@ -34,12 +34,12 @@
     }
 
     .wrap {
-      max-width: 1320px;
+      max-width: 1240px;
       margin: 0 auto;
-      padding: 24px 24px 48px;
+      padding: 20px 24px 56px;
       display: flex;
       flex-direction: column;
-      gap: 20px;
+      gap: 18px;
     }
 
     header {
@@ -48,8 +48,6 @@
       justify-content: space-between;
       flex-wrap: wrap;
       gap: 12px;
-      padding-bottom: 16px;
-      border-bottom: 1px solid var(--border);
     }
 
     .brand { display: flex; align-items: center; gap: 10px; }
@@ -81,12 +79,13 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
+      text-decoration: none;
       transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
     }
 
     button:hover, .btn:hover { background: #1f242e; border-color: var(--border-strong); }
-    button.primary { background: var(--text); color: #0a0b0e; border-color: var(--text); }
-    button.primary:hover { background: #e5e7eb; border-color: #e5e7eb; }
+    button.primary, .btn.primary { background: var(--text); color: #0a0b0e; border-color: var(--text); }
+    button.primary:hover, .btn.primary:hover { background: #e5e7eb; border-color: #e5e7eb; }
     button.pill { border-radius: 999px; padding: 5px 12px; font-size: 12px; }
     button.active { border-color: var(--accent); color: #93c5fd; background: rgba(59, 130, 246, 0.12); }
 
@@ -101,6 +100,64 @@
       outline: none;
       max-width: 220px;
     }
+
+    /* Lead Top Concierge (AI-App Style Rounded Bar) */
+    .concierge-shell {
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      border-radius: 22px;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .concierge-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 8px 6px 16px;
+    }
+
+    .concierge-bar:focus-within {
+      border-color: var(--border-strong);
+    }
+
+    .concierge-bar input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 14px;
+      outline: none;
+      min-width: 0;
+    }
+
+    .concierge-chips {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .concierge-log {
+      max-height: 180px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 12.5px;
+      padding-top: 4px;
+    }
+
+    .msg { padding: 8px 11px; border-radius: 10px; word-break: break-word; white-space: pre-wrap; }
+    .msg.user { align-self: flex-end; background: var(--surface-2); border: 1px solid var(--border); max-width: 85%; }
+    .msg.agent { align-self: flex-start; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border); max-width: 92%; }
+    .msg.sys { font-family: var(--mono); font-size: 11.5px; color: var(--muted); background: transparent; border: 1px dashed var(--border); }
 
     .status-strip {
       display: grid;
@@ -124,6 +181,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 8px;
     }
 
     .stat-value { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
@@ -133,27 +191,18 @@
     .dot.warn { background: var(--warn); }
     .dot.err { background: var(--err); }
 
-    .workspace {
-      display: grid;
-      grid-template-columns: 1.25fr 0.75fr;
-      gap: 20px;
-      align-items: start;
-    }
-
-    @media (max-width: 980px) { .workspace { grid-template-columns: 1fr; } }
-
     .sim-section { display: flex; flex-direction: column; gap: 12px; }
     .section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
     .section-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
 
     .sim-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       gap: 18px;
       align-items: start;
     }
 
-    .sim-unit { display: flex; flex-direction: column; gap: 8px; }
+    .sim-unit { display: flex; flex-direction: column; gap: 8px; max-width: 360px; }
     .sim-meta { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted); gap: 6px; }
     .sim-meta strong { color: var(--text); font-weight: 500; }
 
@@ -164,15 +213,13 @@
       overflow: hidden;
       background: transparent;
       position: relative;
-      cursor: grab;
+      cursor: crosshair;
       touch-action: none;
       user-select: none;
       display: flex;
       align-items: center;
       justify-content: center;
     }
-
-    .sim-screen:active { cursor: grabbing; }
 
     .sim-screen img {
       width: 100%;
@@ -181,6 +228,24 @@
       display: block;
       border-radius: 18px;
       pointer-events: none;
+    }
+
+    .tap-ripple {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      margin-left: -12px;
+      margin-top: -12px;
+      border-radius: 50%;
+      border: 2px solid var(--accent);
+      background: rgba(59, 130, 246, 0.25);
+      pointer-events: none;
+      animation: rippleOut 0.45s ease-out forwards;
+    }
+
+    @keyframes rippleOut {
+      from { transform: scale(0.5); opacity: 1; }
+      to { transform: scale(1.8); opacity: 0; }
     }
 
     .sim-placeholder {
@@ -198,50 +263,6 @@
       border-radius: 18px;
     }
 
-    .agent-panel {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      display: flex;
-      flex-direction: column;
-      height: 640px;
-      overflow: hidden;
-    }
-
-    .agent-header {
-      padding: 12px 14px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-    }
-
-    .agent-header-title { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-    .quick-chips { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; gap: 6px; flex-wrap: wrap; }
-    .agent-log { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
-
-    .msg { padding: 9px 12px; border-radius: 10px; max-width: 92%; word-break: break-word; white-space: pre-wrap; }
-    .msg.user { align-self: flex-end; background: var(--surface-2); border: 1px solid var(--border); }
-    .msg.agent { align-self: flex-start; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border); }
-    .msg.sys { align-self: stretch; font-family: var(--mono); font-size: 11.5px; color: var(--muted); background: transparent; border: 1px dashed var(--border); }
-
-    .agent-input-row { padding: 12px; border-top: 1px solid var(--border); display: flex; gap: 8px; align-items: center; background: var(--surface); }
-
-    input[type="text"], input[type="url"], input[type="password"] {
-      flex: 1;
-      background: var(--bg);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 8px 11px;
-      font-family: var(--font);
-      font-size: 13px;
-      outline: none;
-    }
-
-    input:focus { border-color: var(--border-strong); }
-
     .config-bar {
       display: none;
       background: var(--surface);
@@ -255,6 +276,16 @@
     .config-bar.open { display: grid; }
     .field { display: flex; flex-direction: column; gap: 5px; }
     .field label { font-size: 11.5px; color: var(--muted); }
+    .field input {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 11px;
+      font-family: var(--font);
+      font-size: 13px;
+      outline: none;
+    }
   </style>
 </head>
 <body>
@@ -262,16 +293,37 @@
     <header>
       <div class="brand">
         <h1>Schaffer AI</h1>
-        <span class="version-tag" id="versionTag">v2.4.1</span>
+        <span class="version-tag" id="versionTag">v2.5.0</span>
       </div>
       <div class="header-actions">
         <button class="pill" id="btnMacView" onclick="toggleMacView()">Mac View: Off</button>
         <button class="pill" id="btnGesture" onclick="toggleGesture()">Gesture: Off</button>
-        <button class="pill" id="btnVoice" onclick="toggleVoice()">Voice (Local)</button>
+        <button class="pill" id="btnSpeak" onclick="toggleSpeak()">Speak: Off</button>
         <button class="pill" onclick="refreshAll()">Refresh</button>
         <button class="pill" id="btnPairStatus" onclick="toggleConfig()">Session & Endpoints</button>
       </div>
     </header>
+
+    <!-- Global Lead Concierge (Rounded Text + Voice Bar at Top) -->
+    <section class="concierge-shell" id="conciergeSection">
+      <form class="concierge-bar" onsubmit="handleAgentSubmit(event)">
+        <input type="text" id="agentInput" placeholder="Describe what you want (e.g. 'debug', 'show mac', 'open snake', 'go home', 'open settings', 'describe site')..." autocomplete="off" />
+        <button type="button" class="pill" id="btnVoice" onclick="toggleVoice()">Voice</button>
+        <button type="submit" class="pill primary">Send</button>
+      </form>
+      <div class="concierge-chips">
+        <button class="pill" onclick="runCommandText('debug')">Debug All</button>
+        <button class="pill" onclick="runCommandText('describe site')">Describe Site</button>
+        <button class="pill" onclick="runCommandText('show mac')">Mac View</button>
+        <button class="pill" onclick="runCommandText('open wasm4')">WASM-4 Console</button>
+        <button class="pill" onclick="runCommandText('open settings')">Android Settings</button>
+        <button class="pill" onclick="runCommandText('go home')">Android Home</button>
+        <button class="pill" onclick="runCommandText('/devices')">Devices</button>
+      </div>
+      <div class="concierge-log" id="agentLog">
+        <div class="msg sys">Global Concierge ready. Type naturally or use /debug, /devices, /launch, /nav, /tap, /gesture. (Cloud APEX/Hermes blocked: Always-Free Mode keeps paid GCP billing OFF.)</div>
+      </div>
+    </section>
 
     <div class="config-bar" id="configBar">
       <div class="field">
@@ -279,8 +331,8 @@
         <input type="url" id="bridgeUrlInput" placeholder="http://127.0.0.1:8765" />
       </div>
       <div class="field">
-        <label>Local Bridge Session Token (session-only, for /tap, /swipe, /launch)</label>
-        <input type="password" id="bridgeTokenInput" placeholder="Paste token or click Pair Bridge" />
+        <label>Local Bridge Session Token (session-only)</label>
+        <input type="password" id="bridgeTokenInput" placeholder="Auto-paired via Pair Bridge" />
       </div>
       <div class="field">
         <label>Cloud Run Gateway URL (Blocked while billing OFF)</label>
@@ -302,15 +354,15 @@
     <section class="status-strip" id="statusStrip">
       <div class="stat-card">
         <div class="stat-label">GCP Billing &amp; APEX</div>
-        <div class="stat-value"><span class="dot warn" id="dotBilling"></span><span id="valBilling">Loading...</span></div>
+        <div class="stat-value"><span class="dot ok" id="dotBilling"></span><span id="valBilling">Always-Free Mode</span></div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Domain &amp; TLS</div>
-        <div class="stat-value"><span class="dot ok" id="dotDomain"></span><span id="valDomain">Loading...</span></div>
+        <div class="stat-value"><span class="dot ok" id="dotDomain"></span><span id="valDomain">HTTPS healthy</span></div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Apps Script (clasp)</div>
-        <div class="stat-value"><span class="dot ok" id="dotClasp"></span><span id="valClasp">Loading...</span></div>
+        <div class="stat-value"><span class="dot ok" id="dotClasp"></span><span id="valClasp">Complete</span></div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Local Simulators</div>
@@ -318,85 +370,54 @@
       </div>
     </section>
 
-    <main class="workspace">
-      <section class="sim-section">
-        <div class="section-head">
-          <span class="section-title">Live Simulators (Multi-Device)</span>
-          <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
-            <select id="bootSelect"><option value="">+ Boot Emulator...</option></select>
-            <button class="pill" onclick="bootSelectedEmulator()">Boot</button>
-            <button class="pill" onclick="pairLocalBridge()" id="btnQuickPair">Pair Bridge</button>
-            <button class="pill" onclick="toggleRecording()" id="btnRecord">Record</button>
-            <button class="pill" onclick="saveCurrentRecording()" id="btnSaveMacro" style="display:none;">Save Macro</button>
-            <button class="pill" onclick="toggleStream()" id="btnStream">Pause Stream</button>
+    <section class="sim-section" id="simSection">
+      <div class="section-head">
+        <span class="section-title">Live Simulators (Multi-Device)</span>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+          <select id="bootSelect"><option value="">+ Boot Emulator...</option></select>
+          <button class="pill" onclick="bootSelectedEmulator()">Boot</button>
+          <button class="pill" onclick="pairLocalBridge()" id="btnQuickPair">Pair Bridge</button>
+          <button class="pill" onclick="toggleRecording()" id="btnRecord">Record</button>
+          <button class="pill" onclick="saveCurrentRecording()" id="btnSaveMacro" style="display:none;">Save Macro</button>
+          <button class="pill" onclick="toggleStream()" id="btnStream">Pause Stream</button>
+        </div>
+      </div>
+
+      <div id="macViewCard" style="display:none; flex-direction:column; gap:8px;">
+        <div class="sim-meta">
+          <strong>Mac Display (Live View · Local Only)</strong>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span id="macViewLabel">Off</span>
+            <button class="pill" onclick="toggleMacView(false)">Stop Mac View</button>
           </div>
         </div>
-
-        <div id="macViewCard" style="display:none; flex-direction:column; gap:8px;">
-          <div class="sim-meta">
-            <strong>Mac Display (Live View · Local Only)</strong>
-            <div style="display:flex; align-items:center; gap:8px;">
-              <span id="macViewLabel">Off</span>
-              <button class="pill" onclick="toggleMacView(false)">Stop Mac View</button>
-            </div>
-          </div>
-          <div style="width:100%; aspect-ratio:16/10; border-radius:14px; overflow:hidden; position:relative; border:1px solid var(--border);">
-            <img id="macViewImg" alt="Mac Display" style="width:100%; height:100%; object-fit:contain; display:none;" />
-            <div class="sim-placeholder" id="macViewEmpty">Connecting to Mac Display stream...</div>
-          </div>
-          <span style="font-size:11.5px; color:var(--muted);">Read-only Mac display mirror (requires macOS Screen Recording permission for the bridge terminal).</span>
+        <div style="width:100%; aspect-ratio:16/10; border-radius:14px; overflow:hidden; position:relative; border:1px solid var(--border);">
+          <img id="macViewImg" alt="Mac Display" style="width:100%; height:100%; object-fit:contain; display:none;" />
+          <div class="sim-placeholder" id="macViewEmpty">Connecting to Mac Display stream...</div>
         </div>
+        <span style="font-size:11.5px; color:var(--muted);">Read-only Mac display mirror (requires macOS Screen Recording permission for the bridge terminal).</span>
+      </div>
 
-        <div class="sim-grid" id="simGrid">
-          <div class="stat-card">Connecting to Mac Simulator Bridge (`http://127.0.0.1:8765`)...</div>
+      <div class="sim-grid" id="simGrid">
+        <div class="stat-card">Connecting to Mac Simulator Bridge (<code>http://127.0.0.1:8765</code>)...</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">
+          <span>Action Recording &amp; Saved Automations (Mac + Local Storage)</span>
+          <span id="recStatus">Idle · 0 steps</span>
         </div>
-
-        <div class="stat-card" style="margin-top:6px;">
-          <div class="stat-label">
-            <span>Action Recording &amp; Saved Automations (Mac + Local Storage)</span>
-            <span id="recStatus">Idle · 0 steps</span>
-          </div>
-          <div style="font-size:11.5px; color:var(--muted); margin-top:2px;">
-            Deterministic event recorder (tap/swipe/nav/launch). AI vision screen tracking: unavailable (no local vision model wired).
-          </div>
-          <div id="automationsList" style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;">
-            <span style="font-size:12px; color:var(--muted);">No saved automations yet. Click Record, interact with simulators, then Save Macro.</span>
-          </div>
+        <div style="font-size:11.5px; color:var(--muted); margin-top:2px;">
+          Deterministic event recorder (tap/swipe/nav/launch). AI vision screen tracking: unavailable (no local vision model wired).
         </div>
-      </section>
-
-      <section class="agent-panel">
-        <div class="agent-header">
-          <div class="agent-header-title">
-            <span class="dot ok"></span>
-            Local Command Console
-          </div>
-          <span style="font-size:11.5px; color:var(--muted);" id="agentModeLabel">Local Bridge Only</span>
+        <div id="automationsList" style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;">
+          <span style="font-size:12px; color:var(--muted);">No saved automations yet. Click Record, interact with simulators, then Save Macro.</span>
         </div>
+      </div>
+    </section>
 
-        <div class="quick-chips">
-          <button class="pill" onclick="runCommandText('/devices')">Simulators</button>
-          <button class="pill" onclick="runCommandText('/gesture toggle')">MediaPipe</button>
-          <button class="pill" onclick="runCommandText('/launch ios com.apple.Preferences')">Launch iOS Settings</button>
-          <button class="pill" onclick="runCommandText('/apex status')">APEX (Billing Off)</button>
-          <button class="pill" onclick="runCommandText('/build ios app')">Build (Not Wired)</button>
-        </div>
-
-        <div class="agent-log" id="agentLog">
-          <div class="msg sys">Implemented local commands: /devices | /launch &lt;ios|android&gt; &lt;id&gt; | /nav &lt;ios|android&gt; &lt;home|back|recents|focus&gt; | /tap android &lt;x&gt; &lt;y&gt; | /gesture &lt;on|off|0.65&gt;.
-Android supports drag-to-swipe &amp; mouse-wheel scrolling directly on the screen.
-Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; Hermes cloud chat (GCP billing kept OFF).</div>
-        </div>
-
-        <form class="agent-input-row" onsubmit="handleAgentSubmit(event)">
-          <input type="text" id="agentInput" placeholder="Enter /devices, /launch, /nav, /tap, /gesture..." autocomplete="off" />
-          <button type="submit" class="primary">Run</button>
-        </form>
-      </section>
-    </main>
-
-    <section class="sim-grid" style="margin-top:4px;">
-      <div class="stat-card" style="gap:10px;">
+    <section class="sim-grid" id="portalArcadeSection">
+      <div class="stat-card" id="remotePortalCard" style="gap:10px;">
         <div class="stat-label">
           <span>Remote Mac Portal (View + Control from Other Devices)</span>
           <span class="version-tag">$0 Always-Free</span>
@@ -409,7 +430,7 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
         </div>
       </div>
 
-      <div class="stat-card" style="gap:10px;">
+      <div class="stat-card" id="arcadeCard" style="gap:10px;">
         <div class="stat-label">
           <span>Free Browser Arcade ($0 Legal Games &amp; Homebrew)</span>
           <span id="arcadeScore">Score: 0 · Best: 0</span>
@@ -450,13 +471,14 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
       gatewayToken: sessionStorage.getItem("schaffer_gateway_token") || "",
       gestureEnabled: localStorage.getItem("schaffer_gesture_on") === "true",
       gestureSens: localStorage.getItem("schaffer_gesture_sens") || "0.65",
+      speakReplies: localStorage.getItem("schaffer_speak") === "true",
       streaming: true,
       voiceActive: false,
       recognition: null
     };
 
     const frameState = {
-      devices: [], // [{ key, platform, deviceId, title }]
+      devices: [],
       inFlight: {},
       timers: {},
       lastFrameOkAt: 0
@@ -469,6 +491,7 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
       document.getElementById("gatewayTokenInput").value = state.gatewayToken;
       document.getElementById("gestureSensInput").value = state.gestureSens;
       updateGestureButton();
+      updateSpeakButton();
       updatePairBadge();
     }
 
@@ -486,7 +509,6 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
       state.gatewayUrl = (document.getElementById("gatewayUrlInput").value || DEFAULT_GATEWAY).replace(/\/+$/, "");
       state.gatewayToken = (document.getElementById("gatewayTokenInput").value || "").trim();
       state.gestureSens = document.getElementById("gestureSensInput").value || "0.65";
-
       localStorage.setItem("schaffer_bridge_url", state.bridgeUrl);
       localStorage.setItem("schaffer_gateway_url", state.gatewayUrl);
       localStorage.setItem("schaffer_gesture_sens", state.gestureSens);
@@ -494,7 +516,6 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
       else sessionStorage.removeItem("schaffer_bridge_token");
       if (state.gatewayToken) sessionStorage.setItem("schaffer_gateway_token", state.gatewayToken);
       else sessionStorage.removeItem("schaffer_gateway_token");
-
       updatePairBadge();
       toggleConfig();
       appendMsg("sys", `Saved session config. Bridge: ${state.bridgeUrl} (${state.bridgeToken ? "paired" : "unpaired"})`);
@@ -514,6 +535,18 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
       appendMsg("agent", `MediaPipe local preference ${state.gestureEnabled ? "enabled" : "disabled"} (sensitivity ${state.gestureSens}).`);
     }
 
+    function updateSpeakButton() {
+      const btn = document.getElementById("btnSpeak");
+      btn.textContent = state.speakReplies ? "Speak: On" : "Speak: Off";
+      btn.classList.toggle("active", state.speakReplies);
+    }
+
+    function toggleSpeak() {
+      state.speakReplies = !state.speakReplies;
+      localStorage.setItem("schaffer_speak", String(state.speakReplies));
+      updateSpeakButton();
+    }
+
     function appendMsg(role, text) {
       const log = document.getElementById("agentLog");
       const el = document.createElement("div");
@@ -521,6 +554,10 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
       el.textContent = text;
       log.appendChild(el);
       log.scrollTop = log.scrollHeight;
+      if (role === "agent" && state.speakReplies && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(new SpeechSynthesisUtterance(text.slice(0, 260)));
+      }
     }
 
     async function loadStatus() {
@@ -528,10 +565,10 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
         const res = await fetch(`./data/status.json?t=${Date.now()}`);
         if (!res.ok) return;
         const data = await res.json();
-        document.getElementById("versionTag").textContent = data.version || "v2.3.0";
+        document.getElementById("versionTag").textContent = data.version || "v2.5.0";
         const billing = data.systems?.billing || {};
-        document.getElementById("valBilling").textContent = billing.summary || "Kept OFF by Chris";
-        document.getElementById("dotBilling").className = `dot ${billing.status || "warn"}`;
+        document.getElementById("valBilling").textContent = billing.summary || "Always-Free Mode";
+        document.getElementById("dotBilling").className = `dot ${billing.status || "ok"}`;
         const domain = data.systems?.domain || {};
         document.getElementById("valDomain").textContent = domain.summary || "HTTPS healthy";
         document.getElementById("dotDomain").className = `dot ${domain.status || "ok"}`;
@@ -574,9 +611,7 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
         appendMsg("sys", `Boot ${platform}: HTTP ${res.status} ${await res.text()}`);
         setTimeout(checkDevices, 3000);
         setTimeout(checkDevices, 8000);
-      } catch (e) {
-        appendMsg("sys", `Boot failed: ${e.message}`);
-      }
+      } catch (e) { appendMsg("sys", `Boot failed: ${e.message}`); }
     }
 
     function renderSimGrid(devices) {
@@ -645,29 +680,44 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
       } catch (e) { appendMsg("sys", `Shutdown failed: ${e.message}`); }
     }
 
+    function showTapRipple(scr, clientX, clientY) {
+      const r = scr.getBoundingClientRect();
+      const dot = document.createElement("div");
+      dot.className = "tap-ripple";
+      dot.style.left = `${clientX - r.left}px`;
+      dot.style.top = `${clientY - r.top}px`;
+      scr.appendChild(dot);
+      setTimeout(() => dot.remove(), 460);
+    }
+
     function attachScreenInteractions(scr, dev, safeId) {
       let downPt = null;
       let wheelTimer = null;
       let wheelDelta = 0;
 
       scr.addEventListener("pointerdown", (ev) => {
-        downPt = { x: ev.clientX, y: ev.clientY };
+        downPt = { x: ev.clientX, y: ev.clientY, id: ev.pointerId };
+        try { scr.setPointerCapture(ev.pointerId); } catch (_) {}
       });
+
+      scr.addEventListener("pointercancel", () => { downPt = null; });
 
       scr.addEventListener("pointerup", (ev) => {
         if (!downPt) return;
+        try { scr.releasePointerCapture(downPt.id); } catch (_) {}
         const dx = ev.clientX - downPt.x;
         const dy = ev.clientY - downPt.y;
         const start = downPt;
         downPt = null;
+        showTapRipple(scr, ev.clientX, ev.clientY);
         const img = document.getElementById(`img_${safeId}`);
         const p1 = mapClientToDevice(img, start.x, start.y);
         const p2 = mapClientToDevice(img, ev.clientX, ev.clientY);
         if (!p1 || !p2) return;
         if (Math.hypot(dx, dy) >= 15 && dev.platform === "android") {
-          sendSwipe(dev.platform, dev.deviceId, p1.x, p1.y, p2.x, p2.y, safeId);
+          sendSwipe(dev.platform, dev.deviceId, p1.x, p1.y, p2.x, p2.y);
         } else {
-          sendTap(dev.platform, dev.deviceId, p2.x, p2.y, safeId);
+          sendTap(dev.platform, dev.deviceId, p2.x, p2.y);
         }
       });
 
@@ -679,7 +729,7 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
           wheelTimer = setTimeout(() => {
             const dir = wheelDelta > 0 ? "down" : "up";
             wheelDelta = 0;
-            scrollDevice("android", dev.deviceId, dir, safeId);
+            scrollDevice("android", dev.deviceId, dir);
           }, 120);
         }, { passive: false });
       }
@@ -706,10 +756,7 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
         const res = await fetch(`${state.bridgeUrl}/devices`, { signal: AbortSignal.timeout(8000) });
         const data = await res.json();
         const iosList = (data.ios_booted || []).map(d => ({
-          key: `ios:${d.udid}`,
-          platform: "ios",
-          deviceId: d.udid,
-          title: d.name || "iOS Simulator"
+          key: `ios:${d.udid}`, platform: "ios", deviceId: d.udid, title: d.name || "iOS Simulator"
         }));
         const andList = (data.android_connected || []).map(s => {
           const id = typeof s === "string" ? s : (s.id || "emulator-5554");
@@ -754,10 +801,7 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
       };
       img.onerror = () => {
         img.dataset.streamActive = "0";
-        if (!state.streaming) {
-          label.textContent = "Paused";
-          return;
-        }
+        if (!state.streaming) { label.textContent = "Paused"; return; }
         const delay = frameState.inFlight[dev.key] || 1500;
         frameState.inFlight[dev.key] = Math.min(delay * 2, 10000);
         img.style.display = "none";
@@ -770,9 +814,7 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
       img.src = streamUrl;
     }
 
-    function pollFrames() {
-      for (const dev of frameState.devices) captureDeviceFrame(dev);
-    }
+    function pollFrames() { for (const dev of frameState.devices) captureDeviceFrame(dev); }
 
     let macViewActive = false;
     async function toggleMacView(forceVal) {
@@ -783,36 +825,15 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
       const empty = document.getElementById("macViewEmpty");
       const lbl = document.getElementById("macViewLabel");
       if (!macViewActive) {
-        btn.textContent = "Mac View: Off";
-        btn.classList.remove("active");
-        card.style.display = "none";
-        img.onerror = null;
-        img.removeAttribute("src");
-        img.style.display = "none";
-        lbl.textContent = "Off";
+        btn.textContent = "Mac View: Off"; btn.classList.remove("active");
+        card.style.display = "none"; img.onerror = null; img.removeAttribute("src"); img.style.display = "none"; lbl.textContent = "Off";
         return;
       }
-      if (!state.bridgeToken && !(await pairLocalBridge())) {
-        macViewActive = false;
-        return;
-      }
-      btn.textContent = "Mac View: On";
-      btn.classList.add("active");
-      card.style.display = "flex";
-      lbl.textContent = "Connecting...";
-      empty.style.display = "flex";
-      img.onload = () => {
-        if (!macViewActive) return;
-        img.style.display = "block";
-        empty.style.display = "none";
-        lbl.textContent = "Live (MJPEG ~1 FPS)";
-      };
-      img.onerror = () => {
-        if (!macViewActive) return;
-        img.style.display = "none";
-        empty.style.display = "flex";
-        lbl.textContent = "Unavailable (pair or grant Screen Recording)";
-      };
+      if (!state.bridgeToken && !(await pairLocalBridge())) { macViewActive = false; return; }
+      btn.textContent = "Mac View: On"; btn.classList.add("active");
+      card.style.display = "flex"; lbl.textContent = "Connecting..."; empty.style.display = "flex";
+      img.onload = () => { if (!macViewActive) return; img.style.display = "block"; empty.style.display = "none"; lbl.textContent = "Live (MJPEG ~1 FPS)"; };
+      img.onerror = () => { if (!macViewActive) return; img.style.display = "none"; empty.style.display = "flex"; lbl.textContent = "Unavailable (pair or grant Screen Recording)"; };
       img.src = `${state.bridgeUrl}/stream?platform=mac&token=${encodeURIComponent(state.bridgeToken)}&t=${Date.now()}`;
     }
 
@@ -849,7 +870,7 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
         sessionStorage.setItem("schaffer_bridge_token", data.token);
         document.getElementById("bridgeTokenInput").value = data.token;
         updatePairBadge();
-        appendMsg("sys", "Local bridge paired for this browser session. Tap, swipe, scroll, nav, boot, and /launch are enabled.");
+        appendMsg("sys", "Local bridge paired for this browser session.");
         return true;
       } catch (e) {
         clearBridgeSession();
@@ -861,18 +882,14 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
     async function bridgePost(path, payload) {
       if (!state.bridgeToken && !(await pairLocalBridge())) return null;
       let res = await fetch(`${state.bridgeUrl}${path}`, {
-        method: "POST",
-        headers: bridgeHeaders(),
-        body: JSON.stringify(payload)
+        method: "POST", headers: bridgeHeaders(), body: JSON.stringify(payload)
       });
       if (res.status === 401) {
         clearBridgeSession();
-        appendMsg("sys", "Bridge session expired (server restarted). Re-pairing...");
+        appendMsg("sys", "Bridge session expired. Re-pairing...");
         if (!(await pairLocalBridge())) return res;
         res = await fetch(`${state.bridgeUrl}${path}`, {
-          method: "POST",
-          headers: bridgeHeaders(),
-          body: JSON.stringify(payload)
+          method: "POST", headers: bridgeHeaders(), body: JSON.stringify(payload)
         });
       }
       return res;
@@ -884,11 +901,7 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
         if (!res) return;
         const body = await res.text();
         appendMsg("sys", res.ok ? `Tapped ${platform} (${x}, ${y})` : `Tap rejected (HTTP ${res.status}): ${body}`);
-        if (res.ok) {
-          trackStep({ platform, device_id: deviceId, type: "tap", x, y, label: `Tap ${platform} (${x}, ${y})` });
-          const dev = frameState.devices.find(d => d.platform === platform && d.deviceId === deviceId);
-          if (dev && platform === "android") setTimeout(() => captureDeviceFrame(dev), 300);
-        }
+        if (res.ok) trackStep({ platform, device_id: deviceId, type: "tap", x, y, label: `Tap ${platform} (${x}, ${y})` });
       } catch (_) { appendMsg("sys", `Tap failed on ${platform}.`); }
     }
 
@@ -898,11 +911,7 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
         if (!res) return;
         const body = await res.text();
         appendMsg("sys", res.ok ? `Swiped ${platform} (${x1},${y1})→(${x2},${y2})` : `Swipe rejected (HTTP ${res.status}): ${body}`);
-        if (res.ok) {
-          trackStep({ platform, device_id: deviceId, type: "swipe", x1, y1, x2, y2, duration_ms: 240, label: `Swipe ${platform}` });
-          const dev = frameState.devices.find(d => d.platform === platform && d.deviceId === deviceId);
-          if (dev) setTimeout(() => captureDeviceFrame(dev), 300);
-        }
+        if (res.ok) trackStep({ platform, device_id: deviceId, type: "swipe", x1, y1, x2, y2, duration_ms: 240, label: `Swipe ${platform}` });
       } catch (_) { appendMsg("sys", `Swipe failed on ${platform}.`); }
     }
 
@@ -918,11 +927,7 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
         if (!res) return;
         const body = await res.text();
         appendMsg("sys", res.ok ? `Nav ${platform}/${action} sent` : `Nav rejected (HTTP ${res.status}): ${body}`);
-        if (res.ok) {
-          trackStep({ platform, device_id: deviceId, type: "nav", action, label: `${platform} nav ${action}` });
-          const dev = frameState.devices.find(d => d.platform === platform && (!deviceId || d.deviceId === deviceId));
-          if (dev) setTimeout(() => captureDeviceFrame(dev), 300);
-        }
+        if (res.ok) trackStep({ platform, device_id: deviceId, type: "nav", action, label: `${platform} nav ${action}` });
       } catch (_) { appendMsg("sys", `Nav failed on ${platform}.`); }
     }
 
@@ -931,17 +936,13 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
         const res = await bridgePost("/launch", { platform, device_id: deviceId, target_id: targetId });
         if (!res) return;
         appendMsg("sys", `Launch (${platform} -> ${targetId}): HTTP ${res.status} ${await res.text()}`);
-        if (res.ok) {
-          trackStep({ platform, device_id: deviceId, type: "launch", target_id: targetId, label: `Launch ${platform} ${targetId}` });
-          const dev = frameState.devices.find(d => d.platform === platform && (!deviceId || d.deviceId === deviceId));
-          if (dev) setTimeout(() => captureDeviceFrame(dev), 400);
-        }
+        if (res.ok) trackStep({ platform, device_id: deviceId, type: "launch", target_id: targetId, label: `Launch ${platform} ${targetId}` });
       } catch (_) { appendMsg("sys", `Launch failed on ${platform}.`); }
     }
 
     async function callGateway(path, payload) {
       if (!state.gatewayToken) {
-        return { ok: false, status: 401, data: { blocked: true, reason: "Paid GCP billing is kept OFF by Chris and no session Gateway Bearer token is configured." } };
+        return { ok: false, status: 401, data: { blocked: true, reason: "Always-Free Mode keeps paid GCP billing OFF and no Gateway Bearer token is configured." } };
       }
       const res = await fetch(`${state.gatewayUrl}${path}`, {
         method: "POST",
@@ -953,13 +954,54 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
       catch { return { ok: res.ok, status: res.status, data: text }; }
     }
 
+    async function runDiagnostics() {
+      const t0 = performance.now();
+      let health = "unreachable", devs = null;
+      try {
+        const r = await fetch(`${state.bridgeUrl}/health`, { signal: AbortSignal.timeout(4000) });
+        health = r.ok ? `OK (${Math.round(performance.now() - t0)}ms)` : `HTTP ${r.status}`;
+      } catch (e) { health = `unreachable (${e.message})`; }
+      devs = await checkDevices();
+      const summary = [
+        `Bridge (${state.bridgeUrl}): ${health}`,
+        `Session Paired: ${state.bridgeToken ? "Yes" : "No"}`,
+        `Devices: ${devs ? `${(devs.ios_booted||[]).length} iOS, ${(devs.android_connected||[]).length} Android` : "unavailable"}`,
+        `Streaming: ${state.streaming ? "On (MJPEG)" : "Paused"} · Mac View: ${macViewActive ? "On" : "Off"}`,
+        `Billing: Always-Free Mode (GCP paid billing OFF)`
+      ].join("\n");
+      appendMsg("agent", summary);
+    }
+
     async function runCommandText(raw) {
       const text = raw.trim();
       if (!text) return;
       appendMsg("user", text);
       const lower = text.toLowerCase();
 
-      if (lower.startsWith("/devices") || lower === "simulators") {
+      // Natural language site configuration & debugging
+      if (lower === "debug" || lower === "/debug" || lower.includes("debug") || lower === "status" || lower === "/status") {
+        await runDiagnostics();
+        return;
+      }
+      if (lower.includes("describe") || lower.includes("explain") || lower === "/help" || lower === "help") {
+        appendMsg("agent", "This Always-Free Hub has: (1) Top Concierge bar for text/voice control & debugging, (2) Multi-device Live Simulators with Android tap/drag-swipe/wheel scroll & Action Recording, (3) Opt-in local Mac View, (4) Chrome Remote Desktop portal for remote Mac access, and (5) Free Browser Arcade (Snake, Brick Breaker, WASM-4). Paid GCP/APEX cloud features remain OFF.");
+        return;
+      }
+      if (lower.includes("show mac") || lower === "mac view") { await toggleMacView(true); document.getElementById("macViewCard").scrollIntoView({ behavior: "smooth" }); appendMsg("agent", "Opened Mac View."); return; }
+      if (lower.includes("hide mac") || lower.includes("stop mac")) { await toggleMacView(false); appendMsg("agent", "Stopped Mac View."); return; }
+      if (lower.includes("wasm") || lower.includes("wasm-4")) { selectGame("wasm4"); document.getElementById("arcadeCard").scrollIntoView({ behavior: "smooth" }); appendMsg("agent", "Opened WASM-4 Console."); return; }
+      if (lower.includes("snake")) { selectGame("snake"); document.getElementById("arcadeCard").scrollIntoView({ behavior: "smooth" }); appendMsg("agent", "Opened Retro Snake."); return; }
+      if (lower.includes("breakout") || lower.includes("brick")) { selectGame("breakout"); document.getElementById("arcadeCard").scrollIntoView({ behavior: "smooth" }); appendMsg("agent", "Opened Brick Breaker."); return; }
+      if (lower.includes("arcade") || lower.includes("game")) { document.getElementById("arcadeCard").scrollIntoView({ behavior: "smooth" }); appendMsg("agent", "Scrolled to Free Browser Arcade."); return; }
+      if (lower.includes("remote") || lower.includes("portal")) { document.getElementById("remotePortalCard").scrollIntoView({ behavior: "smooth" }); appendMsg("agent", "Scrolled to Remote Mac Portal (Chrome Remote Desktop)."); return; }
+      if (lower === "pair" || lower.includes("pair bridge")) { await pairLocalBridge(); return; }
+      if (lower.includes("go home") || lower === "home") { await sendNav("android", "home", ""); appendMsg("agent", "Sent Android Home."); return; }
+      if (lower === "back" || lower === "go back") { await sendNav("android", "back", ""); appendMsg("agent", "Sent Android Back."); return; }
+      if (lower.includes("open settings") || lower === "settings") { await launchAppForDevice("android", "com.android.settings", ""); appendMsg("agent", "Launched Android Settings."); return; }
+      if (lower.includes("scroll down")) { const d = frameState.devices.find(x => x.platform === "android"); if (d) await scrollDevice("android", d.deviceId, "down"); appendMsg("agent", d ? "Scrolled Android down." : "No Android emulator connected."); return; }
+      if (lower.includes("scroll up")) { const d = frameState.devices.find(x => x.platform === "android"); if (d) await scrollDevice("android", d.deviceId, "up"); appendMsg("agent", d ? "Scrolled Android up." : "No Android emulator connected."); return; }
+
+      if (lower.startsWith("/devices") || lower === "simulators" || lower === "devices") {
         const devs = await checkDevices();
         appendMsg("agent", devs ? JSON.stringify(devs, null, 2) : `Mac bridge unreachable at ${state.bridgeUrl}.`);
         return;
@@ -973,7 +1015,7 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
         return;
       }
       if (lower.startsWith("/launch")) {
-        const [, platform = "ios", target_id = ""] = text.split(/\s+/);
+        const [, platform = "android", target_id = ""] = text.split(/\s+/);
         if (!target_id) { appendMsg("agent", "Usage: /launch <ios|android> <bundle_or_package_id>"); return; }
         await launchAppForDevice(platform, target_id, "");
         return;
@@ -990,31 +1032,20 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
         await sendTap(platform, "", x, y);
         return;
       }
-      if (lower === "/help" || lower === "help") {
-        appendMsg("agent", "Local commands: /devices | /launch <ios|android> <id> | /nav <ios|android> <home|back|recents|focus> | /tap <android|ios> <x> <y> | /gesture <on|off|0.65>");
-        return;
-      }
-      if (lower.startsWith("/build")) {
-        appendMsg("agent", "Unavailable: /build orchestration (Xcode/Gradle) is not implemented in simulator_bridge.py.");
-        return;
-      }
+      if (lower.startsWith("/build")) { appendMsg("agent", "Unavailable: /build orchestration is not wired in simulator_bridge.py."); return; }
       if (lower.startsWith("/apex") || lower.startsWith("/treasury")) {
         const action = text.split(/\s+/)[1] || "status";
-        try {
-          const r = await callGateway("/treasury", { action });
-          appendMsg("agent", `Gateway /treasury (${action}) -> HTTP ${r.status}\n${JSON.stringify(r.data, null, 2)}`);
-        } catch (e) { appendMsg("agent", `Gateway unreachable: ${e.message}`); }
+        try { const r = await callGateway("/treasury", { action }); appendMsg("agent", `Gateway /treasury (${action}) -> HTTP ${r.status}\n${JSON.stringify(r.data, null, 2)}`); }
+        catch (e) { appendMsg("agent", `Gateway unreachable: ${e.message}`); }
         return;
       }
       if (lower.startsWith("/reconcile")) {
         const strategy_id = text.split(/\s+/)[1] || "live_test_01";
-        try {
-          const r = await callGateway("/agent/reconcile", { strategy_id });
-          appendMsg("agent", `Reconcile (${strategy_id}) -> HTTP ${r.status}\n${JSON.stringify(r.data, null, 2)}`);
-        } catch (e) { appendMsg("agent", `Gateway unreachable: ${e.message}`); }
+        try { const r = await callGateway("/agent/reconcile", { strategy_id }); appendMsg("agent", `Reconcile (${strategy_id}) -> HTTP ${r.status}\n${JSON.stringify(r.data, null, 2)}`); }
+        catch (e) { appendMsg("agent", `Gateway unreachable: ${e.message}`); }
         return;
       }
-      appendMsg("agent", `No Hermes / cloud agent is connected (paid GCP billing is kept OFF). Supported local commands: /devices, /launch, /nav, /tap, /gesture.`);
+      appendMsg("agent", `Try: "debug", "describe site", "show mac", "open wasm4", "open settings", "go home", "scroll down", or /devices.`);
     }
 
     function handleAgentSubmit(e) {
@@ -1027,24 +1058,17 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
 
     function toggleVoice() {
       const btn = document.getElementById("btnVoice");
-      const mode = document.getElementById("agentModeLabel");
       const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SpeechRec) { appendMsg("sys", "Browser SpeechRecognition unavailable."); return; }
       if (state.voiceActive && state.recognition) {
-        state.recognition.stop(); state.voiceActive = false;
-        btn.classList.remove("active"); btn.textContent = "Voice (Local)"; mode.textContent = "Local Bridge Only";
-        return;
+        state.recognition.stop(); state.voiceActive = false; btn.classList.remove("active"); btn.textContent = "Voice"; return;
       }
       const rec = new SpeechRec();
       rec.continuous = false; rec.interimResults = false;
       rec.onresult = (ev) => runCommandText(ev.results[0][0].transcript);
-      rec.onend = () => {
-        state.voiceActive = false; btn.classList.remove("active");
-        btn.textContent = "Voice (Local)"; mode.textContent = "Local Bridge Only";
-      };
+      rec.onend = () => { state.voiceActive = false; btn.classList.remove("active"); btn.textContent = "Voice"; };
       rec.start();
-      state.recognition = rec; state.voiceActive = true;
-      btn.classList.add("active"); btn.textContent = "Listening..."; mode.textContent = "Local Voice Active";
+      state.recognition = rec; state.voiceActive = true; btn.classList.add("active"); btn.textContent = "Listening...";
     }
 
     const recorder = { active: false, steps: [], lastTs: 0, saved: [] };
@@ -1139,19 +1163,10 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
       recorder.saved = recorder.saved.filter(a => a.name !== name);
       localStorage.setItem("schaffer_automations_v1", JSON.stringify(recorder.saved));
       renderAutomations();
-      try {
-        await bridgePost("/automations/delete", { name });
-      } catch (_) {}
+      try { await bridgePost("/automations/delete", { name }); } catch (_) {}
     }
 
-    function refreshAll() {
-      loadStatus();
-      checkDevices();
-      loadAvailableEmulators();
-      loadAutomations();
-    }
-
-    // Free $0 Browser Arcade (Retro Snake & Brick Breaker)
+    // Free $0 Browser Arcade
     const arcade = { game: "snake", timer: null, score: 0, best: Number(localStorage.getItem("schaffer_arcade_best") || 0) };
     let snake = [{ x: 6, y: 5 }], dir = { x: 1, y: 0 }, food = { x: 10, y: 5 };
     let paddleX = 100, ball = { x: 130, y: 140, dx: 2.5, dy: -2.5 }, bricks = [];
@@ -1174,9 +1189,7 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
       if (isWasm4) {
         clearInterval(arcade.timer);
         if (!frame.getAttribute("src")) frame.setAttribute("src", "./arcade/wasm4-snake/wasm4-snake.html");
-      } else {
-        startArcadeGame();
-      }
+      } else startArcadeGame();
     }
 
     function arcadeDir(dx, dy) {
@@ -1187,8 +1200,7 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
     function startArcadeGame() {
       clearInterval(arcade.timer);
       if (arcade.game === "wasm4") {
-        const frame = document.getElementById("wasm4Frame");
-        frame.setAttribute("src", `./arcade/wasm4-snake/wasm4-snake.html?t=${Date.now()}`);
+        document.getElementById("wasm4Frame").setAttribute("src", `./arcade/wasm4-snake/wasm4-snake.html?t=${Date.now()}`);
         return;
       }
       updateArcadeScore(0);
@@ -1250,6 +1262,13 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
       const r = e.currentTarget.getBoundingClientRect();
       paddleX = Math.max(0, Math.min(200, ((e.clientX - r.left) / r.width) * 260 - 30));
     });
+
+    function refreshAll() {
+      loadStatus();
+      checkDevices();
+      loadAvailableEmulators();
+      loadAutomations();
+    }
 
     initConfigInputs();
     refreshAll();

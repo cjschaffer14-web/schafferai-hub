@@ -1,5 +1,6 @@
 # SchafferAI Hub — Iteration Log
 
+- **v2.5.0 (2026-11-17)**: Elevated the **Global Concierge** (AI-app style rounded text + voice bar with natural-language site configuration, site description, and live `/debug` diagnostics + optional speech replies) to the very top of the page; added `setPointerCapture` + visual tap/swipe ripple feedback on simulator screens.
 - **v2.4.1 (2026-11-17)**: Embedded the official ISC-licensed **WASM-4 Snake** fantasy console (`./arcade/wasm4-snake/wasm4-snake.html`) in the Free Browser Arcade with `LICENSE.txt`, `UPSTREAM.txt`, and source attribution.
 - **v2.4.0 (2026-11-17)**: Fixed MJPEG `onerror` auto-reconnect with exponential backoff (`1.5s`→`10s`) after bridge restarts; added **Remote Mac Portal** card (loopback-vs-remote clarity + Chrome Remote Desktop link); added **Free Browser Arcade** ($0 Retro Snake & Brick Breaker with keyboard/mouse/touch controls + local high score).
 - **v2.3.6 (2026-11-17)**: Required paired session token + allowed origin on `platform=mac` (`/frame` & `/stream`), lowered Mac View FPS (`0.85s` MJPEG pacing), and added visible `Stop Mac View` control inside the Mac Display card.
