@@ -262,7 +262,7 @@
     <header>
       <div class="brand">
         <h1>Schaffer AI</h1>
-        <span class="version-tag" id="versionTag">v2.3.0</span>
+        <span class="version-tag" id="versionTag">v2.3.1</span>
       </div>
       <div class="header-actions">
         <button class="pill" id="btnGesture" onclick="toggleGesture()">Gesture: Off</button>
@@ -508,17 +508,10 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
       const val = document.getElementById("bootSelect").value;
       if (!val) return;
       const [platform, target] = val.split("|");
-      if (!state.bridgeToken) {
-        const ok = await pairLocalBridge();
-        if (!ok) return;
-      }
       appendMsg("sys", `Booting ${platform} emulator (${target})...`);
       try {
-        const res = await fetch(`${state.bridgeUrl}/boot`, {
-          method: "POST",
-          headers: bridgeHeaders(),
-          body: JSON.stringify({ platform, target })
-        });
+        const res = await bridgePost("/boot", { platform, target });
+        if (!res) return;
         appendMsg("sys", `Boot ${platform}: HTTP ${res.status} ${await res.text()}`);
         setTimeout(checkDevices, 3000);
         setTimeout(checkDevices, 8000);
@@ -733,6 +726,13 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
       return headers;
     }
 
+    function clearBridgeSession() {
+      state.bridgeToken = "";
+      sessionStorage.removeItem("schaffer_bridge_token");
+      document.getElementById("bridgeTokenInput").value = "";
+      updatePairBadge();
+    }
+
     async function pairLocalBridge() {
       try {
         const res = await fetch(`${state.bridgeUrl}/pair`, { method: "POST" });
@@ -745,19 +745,36 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
         appendMsg("sys", "Local bridge paired for this browser session. Tap, swipe, scroll, nav, boot, and /launch are enabled.");
         return true;
       } catch (e) {
+        clearBridgeSession();
         appendMsg("sys", `Bridge pairing failed: ${e.message}`);
         return false;
       }
     }
 
-    async function sendTap(platform, deviceId, x, y) {
-      if (!state.bridgeToken && !(await pairLocalBridge())) return;
-      try {
-        const res = await fetch(`${state.bridgeUrl}/tap`, {
+    async function bridgePost(path, payload) {
+      if (!state.bridgeToken && !(await pairLocalBridge())) return null;
+      let res = await fetch(`${state.bridgeUrl}${path}`, {
+        method: "POST",
+        headers: bridgeHeaders(),
+        body: JSON.stringify(payload)
+      });
+      if (res.status === 401) {
+        clearBridgeSession();
+        appendMsg("sys", "Bridge session expired (server restarted). Re-pairing...");
+        if (!(await pairLocalBridge())) return res;
+        res = await fetch(`${state.bridgeUrl}${path}`, {
           method: "POST",
           headers: bridgeHeaders(),
-          body: JSON.stringify({ platform, device_id: deviceId, x, y })
+          body: JSON.stringify(payload)
         });
+      }
+      return res;
+    }
+
+    async function sendTap(platform, deviceId, x, y) {
+      try {
+        const res = await bridgePost("/tap", { platform, device_id: deviceId, x, y });
+        if (!res) return;
         const body = await res.text();
         appendMsg("sys", res.ok ? `Tapped ${platform} (${x}, ${y})` : `Tap rejected (HTTP ${res.status}): ${body}`);
         if (res.ok) {
@@ -769,13 +786,9 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
     }
 
     async function sendSwipe(platform, deviceId, x1, y1, x2, y2) {
-      if (!state.bridgeToken && !(await pairLocalBridge())) return;
       try {
-        const res = await fetch(`${state.bridgeUrl}/swipe`, {
-          method: "POST",
-          headers: bridgeHeaders(),
-          body: JSON.stringify({ platform, device_id: deviceId, x1, y1, x2, y2, duration_ms: 240 })
-        });
+        const res = await bridgePost("/swipe", { platform, device_id: deviceId, x1, y1, x2, y2, duration_ms: 240 });
+        if (!res) return;
         const body = await res.text();
         appendMsg("sys", res.ok ? `Swiped ${platform} (${x1},${y1})→(${x2},${y2})` : `Swipe rejected (HTTP ${res.status}): ${body}`);
         if (res.ok) {
@@ -793,13 +806,9 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
     }
 
     async function sendNav(platform, action, deviceId = "") {
-      if (!state.bridgeToken && !(await pairLocalBridge())) return;
       try {
-        const res = await fetch(`${state.bridgeUrl}/nav`, {
-          method: "POST",
-          headers: bridgeHeaders(),
-          body: JSON.stringify({ platform, device_id: deviceId, action })
-        });
+        const res = await bridgePost("/nav", { platform, device_id: deviceId, action });
+        if (!res) return;
         const body = await res.text();
         appendMsg("sys", res.ok ? `Nav ${platform}/${action} sent` : `Nav rejected (HTTP ${res.status}): ${body}`);
         if (res.ok) {
@@ -811,13 +820,9 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
     }
 
     async function launchAppForDevice(platform, targetId, deviceId = "") {
-      if (!state.bridgeToken && !(await pairLocalBridge())) return;
       try {
-        const res = await fetch(`${state.bridgeUrl}/launch`, {
-          method: "POST",
-          headers: bridgeHeaders(),
-          body: JSON.stringify({ platform, device_id: deviceId, target_id: targetId })
-        });
+        const res = await bridgePost("/launch", { platform, device_id: deviceId, target_id: targetId });
+        if (!res) return;
         appendMsg("sys", `Launch (${platform} -> ${targetId}): HTTP ${res.status} ${await res.text()}`);
         if (res.ok) {
           trackStep({ platform, device_id: deviceId, type: "launch", target_id: targetId, label: `Launch ${platform} ${targetId}` });
@@ -1003,26 +1008,21 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
       if (!recorder.steps.length) return;
       const name = prompt("Name this automation macro:", `flow_${new Date().toISOString().slice(11, 19).replace(/:/g, "")}`);
       if (!name) return;
-      if (!state.bridgeToken) await pairLocalBridge();
       const entry = { name: name.trim(), updated_at: new Date().toISOString(), steps: recorder.steps };
       recorder.saved = [entry, ...recorder.saved.filter(a => a.name !== entry.name)];
       localStorage.setItem("schaffer_automations_v1", JSON.stringify(recorder.saved));
       renderAutomations();
       try {
-        const res = await fetch(`${state.bridgeUrl}/automations`, {
-          method: "POST", headers: bridgeHeaders(), body: JSON.stringify({ name: entry.name, steps: entry.steps })
-        });
-        appendMsg("sys", res.ok ? `Saved "${entry.name}" (${entry.steps.length} steps) to Mac storage & browser.` : `Saved locally; Mac save returned HTTP ${res.status}.`);
+        const res = await bridgePost("/automations", { name: entry.name, steps: entry.steps });
+        appendMsg("sys", res && res.ok ? `Saved "${entry.name}" (${entry.steps.length} steps) to Mac storage & browser.` : `Saved locally; Mac save returned HTTP ${res ? res.status : "unpaired"}.`);
       } catch (_) { appendMsg("sys", `Saved "${entry.name}" to browser storage.`); }
     }
 
     async function replaySavedAutomation(item) {
-      if (!state.bridgeToken && !(await pairLocalBridge())) return;
       appendMsg("sys", `Replaying "${item.name}" (${(item.steps || []).length} steps)...`);
       try {
-        const res = await fetch(`${state.bridgeUrl}/automations/replay`, {
-          method: "POST", headers: bridgeHeaders(), body: JSON.stringify({ steps: item.steps || [] })
-        });
+        const res = await bridgePost("/automations/replay", { steps: item.steps || [] });
+        if (!res) return;
         appendMsg("sys", res.ok ? `Replay "${item.name}" complete: ${await res.text()}` : `Replay failed (HTTP ${res.status})`);
         pollFrames();
       } catch (e) { appendMsg("sys", `Replay failed: ${e.message}`); }
@@ -1032,11 +1032,8 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
       recorder.saved = recorder.saved.filter(a => a.name !== name);
       localStorage.setItem("schaffer_automations_v1", JSON.stringify(recorder.saved));
       renderAutomations();
-      if (!state.bridgeToken) return;
       try {
-        await fetch(`${state.bridgeUrl}/automations/delete`, {
-          method: "POST", headers: bridgeHeaders(), body: JSON.stringify({ name })
-        });
+        await bridgePost("/automations/delete", { name });
       } catch (_) {}
     }
 
