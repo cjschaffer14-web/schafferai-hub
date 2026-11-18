@@ -295,7 +295,7 @@
     <header>
       <div class="brand">
         <h1>Schaffer AI</h1>
-        <span class="version-tag" id="versionTag">v2.5.1</span>
+        <span class="version-tag" id="versionTag">v2.5.2</span>
       </div>
       <div class="header-actions">
         <button class="pill" id="btnMacView" onclick="toggleMacView()">Mac View: Off</button>
@@ -445,6 +445,7 @@
           <button class="pill active" id="btnGameSnake" onclick="selectGame('snake')">Retro Snake</button>
           <button class="pill" id="btnGameBreakout" onclick="selectGame('breakout')">Brick Breaker</button>
           <button class="pill" id="btnGameWasm4" onclick="selectGame('wasm4')">WASM-4 Console</button>
+          <button class="pill" id="btnGameNes" onclick="selectGame('nes')">NES (JSNES)</button>
           <button class="pill" onclick="startArcadeGame()">Restart</button>
         </div>
         <div id="canvasArcadeWrap" style="display:flex; gap:14px; align-items:center; flex-wrap:wrap;">
@@ -460,6 +461,12 @@
           <iframe id="wasm4Frame" title="WASM-4 Official Snake" style="width:100%; height:320px; border:1px solid var(--border); border-radius:10px; background:#050608;"></iframe>
           <span style="font-size:11.5px; color:var(--muted);">
             Official <a href="https://github.com/aduros/wasm4/tree/a79314df03c7c859239f81a3958152c09c3aeaf9/examples/snake" target="_blank" rel="noopener" style="color:var(--text);">WASM-4 Snake example</a> (Bruno Garcia, <a href="./arcade/wasm4-snake/LICENSE.txt" target="_blank" rel="noopener" style="color:var(--text);">ISC License</a>).
+          </span>
+        </div>
+        <div id="nesWrap" style="display:none; flex-direction:column; gap:6px;">
+          <iframe id="nesFrame" title="JSNES 8-Bit Table Tennis" style="width:100%; height:340px; border:1px solid var(--border); border-radius:10px; background:#050608;"></iframe>
+          <span style="font-size:11.5px; color:var(--muted);">
+            <a href="https://github.com/bfirsh/jsnes" target="_blank" rel="noopener" style="color:var(--text);">JSNES</a> (<a href="./arcade/nes-table-tennis/JSNES-LICENSE.txt" target="_blank" rel="noopener" style="color:var(--text);">Apache-2.0</a>) + <a href="https://github.com/mike42/8bit-table-tennis" target="_blank" rel="noopener" style="color:var(--text);">8-Bit Table Tennis</a> (Michael Billington, <a href="./arcade/nes-table-tennis/LICENSE.txt" target="_blank" rel="noopener" style="color:var(--text);">MIT</a>). Supports user-supplied local <code>.nes</code> ROMs.
           </span>
         </div>
       </div>
@@ -1006,6 +1013,7 @@
       if (lower.includes("show mac") || lower === "mac view") { await toggleMacView(true); document.getElementById("macViewCard").scrollIntoView({ behavior: "smooth" }); appendMsg("agent", "Opened Mac View."); return; }
       if (lower.includes("hide mac") || lower.includes("stop mac")) { await toggleMacView(false); appendMsg("agent", "Stopped Mac View."); return; }
       if (lower.includes("wasm") || lower.includes("wasm-4")) { selectGame("wasm4"); document.getElementById("arcadeCard").scrollIntoView({ behavior: "smooth" }); appendMsg("agent", "Opened WASM-4 Console."); return; }
+      if (lower.includes("nes") || lower.includes("tennis") || lower.includes("jsnes")) { selectGame("nes"); document.getElementById("arcadeCard").scrollIntoView({ behavior: "smooth" }); appendMsg("agent", "Opened NES (JSNES) — 8-Bit Table Tennis."); return; }
       if (lower.includes("snake")) { selectGame("snake"); document.getElementById("arcadeCard").scrollIntoView({ behavior: "smooth" }); appendMsg("agent", "Opened Retro Snake."); return; }
       if (lower.includes("breakout") || lower.includes("brick")) { selectGame("breakout"); document.getElementById("arcadeCard").scrollIntoView({ behavior: "smooth" }); appendMsg("agent", "Opened Brick Breaker."); return; }
       if (lower.includes("arcade") || lower.includes("game")) { document.getElementById("arcadeCard").scrollIntoView({ behavior: "smooth" }); appendMsg("agent", "Scrolled to Free Browser Arcade."); return; }
@@ -1198,13 +1206,20 @@
       document.getElementById("btnGameSnake").classList.toggle("active", g === "snake");
       document.getElementById("btnGameBreakout").classList.toggle("active", g === "breakout");
       document.getElementById("btnGameWasm4").classList.toggle("active", g === "wasm4");
+      document.getElementById("btnGameNes").classList.toggle("active", g === "nes");
       const isWasm4 = g === "wasm4";
-      document.getElementById("canvasArcadeWrap").style.display = isWasm4 ? "none" : "flex";
+      const isNes = g === "nes";
+      document.getElementById("canvasArcadeWrap").style.display = (isWasm4 || isNes) ? "none" : "flex";
       document.getElementById("wasm4Wrap").style.display = isWasm4 ? "flex" : "none";
-      const frame = document.getElementById("wasm4Frame");
+      document.getElementById("nesWrap").style.display = isNes ? "flex" : "none";
+      const wasmFrame = document.getElementById("wasm4Frame");
+      const nesFrame = document.getElementById("nesFrame");
       if (isWasm4) {
         clearInterval(arcade.timer);
-        if (!frame.getAttribute("src")) frame.setAttribute("src", "./arcade/wasm4-snake/wasm4-snake.html");
+        if (!wasmFrame.getAttribute("src")) wasmFrame.setAttribute("src", "./arcade/wasm4-snake/wasm4-snake.html");
+      } else if (isNes) {
+        clearInterval(arcade.timer);
+        if (!nesFrame.getAttribute("src")) nesFrame.setAttribute("src", "./arcade/nes-table-tennis/index.html");
       } else startArcadeGame();
     }
 
@@ -1217,6 +1232,10 @@
       clearInterval(arcade.timer);
       if (arcade.game === "wasm4") {
         document.getElementById("wasm4Frame").setAttribute("src", `./arcade/wasm4-snake/wasm4-snake.html?t=${Date.now()}`);
+        return;
+      }
+      if (arcade.game === "nes") {
+        document.getElementById("nesFrame").setAttribute("src", `./arcade/nes-table-tennis/index.html?t=${Date.now()}`);
         return;
       }
       updateArcadeScore(0);

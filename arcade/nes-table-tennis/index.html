@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JSNES — 8-Bit Table Tennis</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #050608;
+      color: #f3f4f6;
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+    }
+    canvas {
+      width: 256px;
+      height: 240px;
+      image-rendering: pixelated;
+      background: #000;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 6px;
+    }
+    .bar {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      font-size: 11.5px;
+      color: #9ca3af;
+    }
+    button, label.btn {
+      background: #171a21;
+      color: #f3f4f6;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 11.5px;
+      cursor: pointer;
+    }
+    button:active { background: #3b82f6; color: #fff; }
+  </style>
+</head>
+<body>
+  <canvas id="nesCanvas" width="256" height="240"></canvas>
+  <div class="bar">
+    <button onpointerdown="btn(jsnes.Controller.BUTTON_START,1)" onpointerup="btn(jsnes.Controller.BUTTON_START,0)">Start (Enter)</button>
+    <button onpointerdown="btn(jsnes.Controller.BUTTON_UP,1)" onpointerup="btn(jsnes.Controller.BUTTON_UP,0)">↑</button>
+    <button onpointerdown="btn(jsnes.Controller.BUTTON_DOWN,1)" onpointerup="btn(jsnes.Controller.BUTTON_DOWN,0)">↓</button>
+    <button onpointerdown="btn(jsnes.Controller.BUTTON_A,1)" onpointerup="btn(jsnes.Controller.BUTTON_A,0)">A (Z)</button>
+    <button onpointerdown="btn(jsnes.Controller.BUTTON_B,1)" onpointerup="btn(jsnes.Controller.BUTTON_B,0)">B (X)</button>
+    <button onclick="loadDefaultRom()">Reset</button>
+    <label class="btn">Load .nes ROM<input type="file" accept=".nes" style="display:none;" onchange="loadLocalFile(event)" /></label>
+  </div>
+  <div class="bar" id="statusBar">Loading 8-Bit Table Tennis...</div>
+
+  <script src="./jsnes.min.js"></script>
+  <script>
+    const canvas = document.getElementById("nesCanvas");
+    const ctx = canvas.getContext("2d");
+    const imageData = ctx.createImageData(256, 240);
+    const buf32 = new Uint32Array(imageData.data.buffer);
+    let animId = null;
+
+    const nes = new jsnes.NES({
+      onFrame(frameBuffer) {
+        for (let i = 0; i < 256 * 240; i++) {
+          buf32[i] = 0xff000000 | frameBuffer[i];
+        }
+        ctx.putImageData(imageData, 0, 0);
+      }
+    });
+
+    function btn(b, down) {
+      if (down) nes.buttonDown(1, b);
+      else nes.buttonUp(1, b);
+    }
+
+    function startLoop(label) {
+      cancelAnimationFrame(animId);
+      document.getElementById("statusBar").textContent = label;
+      function frame() {
+        nes.frame();
+        animId = requestAnimationFrame(frame);
+      }
+      animId = requestAnimationFrame(frame);
+    }
+
+    function bytesToBinaryString(u8) {
+      let s = "";
+      for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
+      return s;
+    }
+
+    async function loadDefaultRom() {
+      try {
+        const res = await fetch("./table_tennis_v1.0.nes");
+        const buf = new Uint8Array(await res.arrayBuffer());
+        nes.loadROM(bytesToBinaryString(buf));
+        startLoop("Playing: 8-Bit Table Tennis (MIT) — Press Enter/Start to play, Up/Down, Z=A");
+      } catch (e) {
+        document.getElementById("statusBar").textContent = "Failed to load ROM: " + e.message;
+      }
+    }
+
+    function loadLocalFile(ev) {
+      const f = ev.target.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        nes.loadROM(bytesToBinaryString(new Uint8Array(reader.result)));
+        startLoop("Playing local ROM: " + f.name);
+      };
+      reader.readAsArrayBuffer(f);
+    }
+
+    const keyMap = {
+      ArrowUp: jsnes.Controller.BUTTON_UP,
+      ArrowDown: jsnes.Controller.BUTTON_DOWN,
+      ArrowLeft: jsnes.Controller.BUTTON_LEFT,
+      ArrowRight: jsnes.Controller.BUTTON_RIGHT,
+      z: jsnes.Controller.BUTTON_A,
+      Z: jsnes.Controller.BUTTON_A,
+      x: jsnes.Controller.BUTTON_B,
+      X: jsnes.Controller.BUTTON_B,
+      Enter: jsnes.Controller.BUTTON_START,
+      Shift: jsnes.Controller.BUTTON_SELECT
+    };
+
+    document.addEventListener("keydown", (e) => {
+      if (keyMap[e.key] !== undefined) { e.preventDefault(); btn(keyMap[e.key], 1); }
+    });
+    document.addEventListener("keyup", (e) => {
+      if (keyMap[e.key] !== undefined) { e.preventDefault(); btn(keyMap[e.key], 0); }
+    });
+
+    loadDefaultRom();
+  </script>
+</body>
+</html>
