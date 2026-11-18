@@ -398,7 +398,7 @@
     <header>
       <div class="brand">
         <h1>Schaffer AI</h1>
-        <span class="version-tag" id="versionTag">v2.2.1</span>
+        <span class="version-tag" id="versionTag">v2.2.2</span>
       </div>
       <div class="header-actions">
         <button class="pill" id="btnGesture" onclick="toggleGesture()">Gesture: Off</button>
@@ -626,8 +626,11 @@ Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasu
         const andCount = (data.android_connected || []).length;
         document.getElementById("valSim").textContent = `${iosCount} iOS · ${andCount} Android`;
         document.getElementById("dotSim").className = `dot ${(iosCount || andCount) ? "ok" : "warn"}`;
-        document.getElementById("iosLabel").textContent = iosCount ? (data.ios_booted[0].name || "Booted") : "Offline";
-        document.getElementById("androidLabel").textContent = andCount ? (data.android_connected[0]?.id || data.android_connected[0] || "Connected") : "Offline";
+        const iosName = iosCount ? (data.ios_booted[0].name || "Booted") : "Offline";
+        const andName = andCount ? (data.android_connected[0]?.id || data.android_connected[0] || "Connected") : "Offline";
+        state.deviceNames = { ios: iosName, android: andName };
+        if (!document.getElementById("iosImg").dataset.objUrl) document.getElementById("iosLabel").textContent = iosName;
+        if (!document.getElementById("androidImg").dataset.objUrl) document.getElementById("androidLabel").textContent = andName;
         return data;
       } catch (_) {
         document.getElementById("valSim").textContent = "Bridge unreachable";
@@ -636,33 +639,70 @@ Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasu
       }
     }
 
-    async function pollFrames() {
-      if (!state.streaming) return;
-      for (const platform of ["ios", "android"]) {
-        const img = document.getElementById(`${platform}Img`);
-        const empty = document.getElementById(`${platform}Empty`);
-        try {
-          const res = await fetch(`${state.bridgeUrl}/frame?platform=${platform}&t=${Date.now()}`, { signal: AbortSignal.timeout(2500) });
-          if (!res.ok) throw new Error("not ok");
-          const blob = await res.blob();
-          const url = URL.createObjectURL(blob);
-          const prev = img.dataset.objUrl;
-          img.src = url;
-          img.dataset.objUrl = url;
+    const frameState = {
+      inFlight: { ios: false, android: false },
+      timers: { ios: null, android: null }
+    };
+
+    async function capturePlatformFrame(platform) {
+      if (!state.streaming || frameState.inFlight[platform]) return;
+      frameState.inFlight[platform] = true;
+      const img = document.getElementById(`${platform}Img`);
+      const empty = document.getElementById(`${platform}Empty`);
+      const label = document.getElementById(`${platform}Label`);
+      const devName = (state.deviceNames && state.deviceNames[platform]) || platform;
+
+      if (!img.dataset.objUrl) {
+        label.textContent = `${devName} · Connecting...`;
+      }
+
+      try {
+        const res = await fetch(`${state.bridgeUrl}/frame?platform=${platform}&t=${Date.now()}`, {
+          signal: AbortSignal.timeout(10000)
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const prev = img.dataset.objUrl;
+        img.src = url;
+        img.dataset.objUrl = url;
+        img.style.display = "block";
+        empty.style.display = "none";
+        label.textContent = `${devName} · Live`;
+        if (prev) URL.revokeObjectURL(prev);
+      } catch (_) {
+        if (img.dataset.objUrl) {
           img.style.display = "block";
           empty.style.display = "none";
-          if (prev) URL.revokeObjectURL(prev);
-        } catch (_) {
+          label.textContent = `${devName} · Stale (retrying)`;
+        } else {
           img.style.display = "none";
           empty.style.display = "flex";
+          label.textContent = `${devName} · Offline/Timeout`;
+        }
+      } finally {
+        frameState.inFlight[platform] = false;
+        if (state.streaming) {
+          clearTimeout(frameState.timers[platform]);
+          frameState.timers[platform] = setTimeout(() => capturePlatformFrame(platform), 900);
         }
       }
+    }
+
+    function pollFrames() {
+      capturePlatformFrame("ios");
+      capturePlatformFrame("android");
     }
 
     function toggleStream() {
       state.streaming = !state.streaming;
       document.getElementById("btnStream").textContent = state.streaming ? "Pause Stream" : "Resume Stream";
-      if (state.streaming) pollFrames();
+      if (state.streaming) {
+        pollFrames();
+      } else {
+        clearTimeout(frameState.timers.ios);
+        clearTimeout(frameState.timers.android);
+      }
     }
 
     function bridgeHeaders() {
@@ -850,7 +890,6 @@ Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasu
 
     initConfigInputs();
     refreshAll();
-    setInterval(pollFrames, 1800);
     setInterval(loadStatus, 15000);
   </script>
 </body>
