@@ -1,22 +1,22 @@
 {
   "version": "v2.2.0",
-  "updated_at": "2026-11-18T02:39:00Z",
+  "updated_at": "2026-11-18T03:03:30Z",
   "systems": {
     "apex": {
       "status": "warn",
-      "summary": "Feed HTTP 403 / Stale (Blocked on billing)"
+      "summary": "Blocked by choice (paid GCP billing kept OFF)"
     },
     "billing": {
       "status": "warn",
-      "summary": "Closed — awaiting Chris's paid upgrade"
+      "summary": "Kept OFF by Chris (do not activate)"
     },
     "domain": {
-      "status": "warn",
-      "summary": "v2.2.0 HTTP 200 (HTTPS eligible, cert pending)"
+      "status": "ok",
+      "summary": "HTTPS healthy & enforced (301 HTTP→HTTPS)"
     },
     "clasp": {
       "status": "ok",
-      "summary": "Synced (4/4 live Apps Script files match)"
+      "summary": "Complete (4/4 live Apps Script files match)"
     }
   }
 }
