@@ -48,11 +48,11 @@
 <body>
   <canvas id="nesCanvas" width="256" height="240"></canvas>
   <div class="bar">
-    <button onpointerdown="btn(jsnes.Controller.BUTTON_START,1)" onpointerup="btn(jsnes.Controller.BUTTON_START,0)">Start (Enter)</button>
-    <button onpointerdown="btn(jsnes.Controller.BUTTON_UP,1)" onpointerup="btn(jsnes.Controller.BUTTON_UP,0)">↑</button>
-    <button onpointerdown="btn(jsnes.Controller.BUTTON_DOWN,1)" onpointerup="btn(jsnes.Controller.BUTTON_DOWN,0)">↓</button>
-    <button onpointerdown="btn(jsnes.Controller.BUTTON_A,1)" onpointerup="btn(jsnes.Controller.BUTTON_A,0)">A (Z)</button>
-    <button onpointerdown="btn(jsnes.Controller.BUTTON_B,1)" onpointerup="btn(jsnes.Controller.BUTTON_B,0)">B (X)</button>
+    <button data-button="BUTTON_START">Start (Enter)</button>
+    <button data-button="BUTTON_UP">↑</button>
+    <button data-button="BUTTON_DOWN">↓</button>
+    <button data-button="BUTTON_A">A (Z)</button>
+    <button data-button="BUTTON_B">B (X)</button>
     <button onclick="loadDefaultRom()">Reset</button>
     <label class="btn">Load .nes ROM<input type="file" accept=".nes" style="display:none;" onchange="loadLocalFile(event)" /></label>
   </div>
@@ -75,10 +75,28 @@
       }
     });
 
+    const pressedAt = {}, releaseTimers = {};
     function btn(b, down) {
-      if (down) nes.buttonDown(1, b);
-      else nes.buttonUp(1, b);
+      clearTimeout(releaseTimers[b]);
+      if (down) {
+        pressedAt[b] = performance.now();
+        nes.buttonDown(1, b);
+      } else {
+        // A semantic click or short key press can end before the next NES frame.
+        const delay = Math.max(0, 80 - (performance.now() - (pressedAt[b] || 0)));
+        releaseTimers[b] = setTimeout(() => nes.buttonUp(1, b), delay);
+      }
     }
+    for (const control of document.querySelectorAll("button[data-button]")) {
+      const b = jsnes.Controller[control.dataset.button];
+      control.addEventListener("pointerdown", (e) => { control.setPointerCapture(e.pointerId); btn(b, 1); });
+      control.addEventListener("pointerup", () => btn(b, 0));
+      control.addEventListener("pointercancel", () => btn(b, 0));
+      control.addEventListener("click", () => { btn(b, 1); btn(b, 0); });
+    }
+    window.addEventListener("blur", () => {
+      for (const b of Object.values(keyMap)) { clearTimeout(releaseTimers[b]); nes.buttonUp(1, b); }
+    });
 
     function startLoop(label) {
       cancelAnimationFrame(animId);

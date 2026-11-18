@@ -296,7 +296,7 @@
     <header>
       <div class="brand">
         <h1>Schaffer AI</h1>
-        <span class="version-tag" id="versionTag">v2.6.2</span>
+        <span class="version-tag" id="versionTag">v2.6.3</span>
       </div>
       <div class="header-actions">
         <button class="pill" id="btnMacView" onclick="toggleMacView()">Mac View: Off</button>
@@ -331,7 +331,7 @@
         <button class="pill" onclick="runCommandText('/requests')">Queue</button>
         <button class="pill" onclick="runCommandText('/fulfill c@schafferai.com')">Build, Install & Email</button>
         <button class="pill" onclick="runCommandText('/devices')">Devices</button>
-        <a class="pill" href="https://remotedesktop.google.com/access" target="_blank" rel="noopener">Connect to my Mac</a>
+        <a class="pill" style="color:var(--text);text-decoration:none;" href="https://remotedesktop.google.com/access" target="_blank" rel="noopener">Connect to my Mac</a>
       </div>
       <div class="navigator-log" id="agentLog">
         <div class="msg sys">Site Navigator ready. Type naturally or use /debug, /devices, /launch, /nav, /tap, /gesture. (Always-Free Mode: paid GCP billing OFF.)</div>
@@ -902,7 +902,7 @@
 
     async function pairLocalBridge() {
       try {
-        const res = await fetch(`${state.bridgeUrl}/pair`, { method: "POST" });
+        const res = await fetch(`${state.bridgeUrl}/pair`, { method: "POST", signal: AbortSignal.timeout(5000) });
         const data = await res.json();
         if (!res.ok || !data.token) throw new Error(data.error || `HTTP ${res.status}`);
         state.bridgeToken = data.token;
@@ -913,7 +913,7 @@
         return true;
       } catch (e) {
         clearBridgeSession();
-        appendMsg("sys", `Bridge pairing failed: ${e.message}`);
+        appendMsg("sys", `Mac connection unavailable. From another computer, use Connect to my Mac. (${e.message})`);
         return false;
       }
     }
