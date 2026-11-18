@@ -1,18 +1,22 @@
 {
   "version": "v2.2.0",
-  "updated_at": "2026-11-18T02:00:00Z",
+  "updated_at": "2026-11-18T02:39:00Z",
   "systems": {
     "apex": {
       "status": "warn",
-      "summary": "Feed HTTP 403 / Stale (Executor not_loaded)"
+      "summary": "Feed HTTP 403 / Stale (Blocked on billing)"
     },
     "billing": {
-      "status": "err",
-      "summary": "BILLING_DISABLED (alert-maker-509913-m7)"
+      "status": "warn",
+      "summary": "Closed — awaiting Chris's paid upgrade"
     },
     "domain": {
       "status": "warn",
-      "summary": "schafferai.com HTTP 200 (TLS pending)"
+      "summary": "v2.2.0 HTTP 200 (HTTPS eligible, cert pending)"
+    },
+    "clasp": {
+      "status": "ok",
+      "summary": "Synced (4/4 live Apps Script files match)"
     }
   }
 }
