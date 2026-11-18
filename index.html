@@ -398,7 +398,7 @@
     <header>
       <div class="brand">
         <h1>Schaffer AI</h1>
-        <span class="version-tag" id="versionTag">v2.2.4</span>
+        <span class="version-tag" id="versionTag">v2.2.5</span>
       </div>
       <div class="header-actions">
         <button class="pill" id="btnGesture" onclick="toggleGesture()">Gesture: Off</button>
@@ -459,6 +459,8 @@
           <span class="section-title">Live Simulators (Local Bridge)</span>
           <div style="display:flex; gap:6px; flex-wrap:wrap;">
             <button class="pill" onclick="pairLocalBridge()" id="btnQuickPair">Pair Bridge</button>
+            <button class="pill" onclick="toggleRecording()" id="btnRecord">Record</button>
+            <button class="pill" onclick="saveCurrentRecording()" id="btnSaveMacro" style="display:none;">Save Macro</button>
             <button class="pill" onclick="toggleStream()" id="btnStream">Pause Stream</button>
             <button class="pill" onclick="runCommandText('/devices')">Devices</button>
           </div>
@@ -496,6 +498,16 @@
               <button class="pill" onclick="sendNav('android', 'recents')">Recents</button>
               <button class="pill" onclick="runCommandText('/launch android com.android.settings')">Settings</button>
             </div>
+          </div>
+        </div>
+
+        <div class="stat-card" style="margin-top:6px;">
+          <div class="stat-label">
+            <span>AI Tracking &amp; Saved Automations (Persistent Mac + Local Storage)</span>
+            <span id="recStatus">Idle · 0 steps</span>
+          </div>
+          <div id="automationsList" style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;">
+            <span style="font-size:12px; color:var(--muted);">No saved automations yet. Click Record, interact with iOS/Android, then Save Macro.</span>
           </div>
         </div>
       </section>
@@ -754,7 +766,10 @@ Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasu
         });
         const body = await res.text();
         appendMsg("sys", res.ok ? `Nav ${platform}/${action} sent` : `Nav rejected (HTTP ${res.status}): ${body}`);
-        if (res.ok) setTimeout(() => capturePlatformFrame(platform), 350);
+        if (res.ok) {
+          trackStep({ platform, type: "nav", action, ai_label: `${platform} nav ${action}` });
+          setTimeout(() => capturePlatformFrame(platform), 350);
+        }
       } catch (_) {
         appendMsg("sys", `Nav failed on ${platform}: Mac bridge unreachable.`);
       }
@@ -789,7 +804,10 @@ Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasu
         });
         const body = await res.text();
         appendMsg("sys", res.ok ? `Tapped ${platform} at (${x}, ${y})` : `Tap rejected (HTTP ${res.status}): ${body}`);
-        if (res.ok && platform === "android") setTimeout(() => capturePlatformFrame("android"), 400);
+        if (res.ok) {
+          trackStep({ platform, type: "tap", x, y, ai_label: `Tap ${platform} (${x}, ${y})` });
+          if (platform === "android") setTimeout(() => capturePlatformFrame("android"), 400);
+        }
       } catch (_) {
         appendMsg("sys", `Tap failed on ${platform}: Mac bridge unreachable.`);
       }
@@ -863,6 +881,10 @@ Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasu
             body: JSON.stringify({ platform, target_id })
           });
           appendMsg("agent", `Launch (${platform} -> ${target_id}): HTTP ${res.status}\n${await res.text()}`);
+          if (res.ok) {
+            trackStep({ platform, type: "launch", target_id, ai_label: `Launch ${platform} ${target_id}` });
+            setTimeout(() => capturePlatformFrame(platform), 500);
+          }
         } catch {
           appendMsg("agent", `Could not reach Mac bridge at ${state.bridgeUrl}.`);
         }
@@ -945,9 +967,147 @@ Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasu
       mode.textContent = "Local Voice Active";
     }
 
+    const recorder = {
+      active: false,
+      steps: [],
+      lastTs: 0,
+      saved: []
+    };
+
+    function toggleRecording() {
+      recorder.active = !recorder.active;
+      const btn = document.getElementById("btnRecord");
+      const saveBtn = document.getElementById("btnSaveMacro");
+      if (recorder.active) {
+        recorder.steps = [];
+        recorder.lastTs = Date.now();
+        btn.classList.add("active");
+        btn.textContent = "Stop Rec";
+        saveBtn.style.display = "none";
+        document.getElementById("recStatus").textContent = "Recording · 0 steps";
+        appendMsg("sys", "AI action tracking started. Taps, navs, and app launches on iOS & Android are being recorded.");
+      } else {
+        btn.classList.remove("active");
+        btn.textContent = "Record";
+        saveBtn.style.display = recorder.steps.length ? "inline-flex" : "none";
+        document.getElementById("recStatus").textContent = `Stopped · ${recorder.steps.length} steps`;
+        appendMsg("sys", `Recording stopped (${recorder.steps.length} tracked steps). Click Save Macro to persist.`);
+      }
+    }
+
+    function trackStep(step) {
+      if (!recorder.active) return;
+      const now = Date.now();
+      const delay_ms = recorder.steps.length ? Math.min(now - recorder.lastTs, 5000) : 0;
+      recorder.lastTs = now;
+      recorder.steps.push({ ...step, delay_ms, ts: new Date(now).toISOString() });
+      document.getElementById("recStatus").textContent = `Recording · ${recorder.steps.length} steps`;
+      document.getElementById("btnSaveMacro").style.display = "inline-flex";
+    }
+
+    async function loadAutomations() {
+      let localList = [];
+      try { localList = JSON.parse(localStorage.getItem("schaffer_automations_v1") || "[]"); } catch (_) {}
+      try {
+        const res = await fetch(`${state.bridgeUrl}/automations`, { signal: AbortSignal.timeout(2500) });
+        if (res.ok) {
+          const data = await res.json();
+          recorder.saved = data.automations || [];
+          localStorage.setItem("schaffer_automations_v1", JSON.stringify(recorder.saved));
+        } else {
+          recorder.saved = localList;
+        }
+      } catch (_) {
+        recorder.saved = localList;
+      }
+      renderAutomations();
+    }
+
+    function renderAutomations() {
+      const box = document.getElementById("automationsList");
+      if (!recorder.saved.length) {
+        box.innerHTML = `<span style="font-size:12px; color:var(--muted);">No saved automations yet. Click Record, interact with iOS/Android, then Save Macro.</span>`;
+        return;
+      }
+      box.innerHTML = "";
+      for (const item of recorder.saved) {
+        const wrap = document.createElement("div");
+        wrap.style.cssText = "display:inline-flex; align-items:center; gap:4px; background:var(--surface-2); border:1px solid var(--border); border-radius:999px; padding:3px 8px; font-size:12px;";
+        const runBtn = document.createElement("button");
+        runBtn.className = "pill";
+        runBtn.style.cssText = "border:none; padding:2px 6px; background:transparent;";
+        runBtn.textContent = `▶ ${item.name} (${(item.steps || []).length})`;
+        runBtn.onclick = () => replaySavedAutomation(item);
+        const delBtn = document.createElement("button");
+        delBtn.className = "pill";
+        delBtn.style.cssText = "border:none; padding:2px 5px; background:transparent; color:var(--muted);";
+        delBtn.textContent = "×";
+        delBtn.onclick = () => deleteSavedAutomation(item.name);
+        wrap.appendChild(runBtn);
+        wrap.appendChild(delBtn);
+        box.appendChild(wrap);
+      }
+    }
+
+    async function saveCurrentRecording() {
+      if (!recorder.steps.length) return;
+      const name = prompt("Name this automation macro:", `flow_${new Date().toISOString().slice(11, 19).replace(/:/g, "")}`);
+      if (!name) return;
+      if (!state.bridgeToken) await pairLocalBridge();
+      const entry = { name: name.trim(), updated_at: new Date().toISOString(), steps: recorder.steps };
+      recorder.saved = [entry, ...recorder.saved.filter(a => a.name !== entry.name)];
+      localStorage.setItem("schaffer_automations_v1", JSON.stringify(recorder.saved));
+      renderAutomations();
+      try {
+        const res = await fetch(`${state.bridgeUrl}/automations`, {
+          method: "POST",
+          headers: bridgeHeaders(),
+          body: JSON.stringify({ name: entry.name, steps: entry.steps })
+        });
+        appendMsg("sys", res.ok ? `Saved "${entry.name}" (${entry.steps.length} steps) to Mac storage & browser.` : `Saved locally; Mac disk save returned HTTP ${res.status}.`);
+      } catch (_) {
+        appendMsg("sys", `Saved "${entry.name}" to browser storage (Mac bridge offline).`);
+      }
+    }
+
+    async function replaySavedAutomation(item) {
+      if (!state.bridgeToken) {
+        const ok = await pairLocalBridge();
+        if (!ok) return;
+      }
+      appendMsg("sys", `Replaying "${item.name}" (${(item.steps || []).length} steps)...`);
+      try {
+        const res = await fetch(`${state.bridgeUrl}/automations/replay`, {
+          method: "POST",
+          headers: bridgeHeaders(),
+          body: JSON.stringify({ steps: item.steps || [] })
+        });
+        const body = await res.text();
+        appendMsg("sys", res.ok ? `Replay "${item.name}" complete: ${body}` : `Replay failed (HTTP ${res.status}): ${body}`);
+        pollFrames();
+      } catch (e) {
+        appendMsg("sys", `Replay failed: ${e.message}`);
+      }
+    }
+
+    async function deleteSavedAutomation(name) {
+      recorder.saved = recorder.saved.filter(a => a.name !== name);
+      localStorage.setItem("schaffer_automations_v1", JSON.stringify(recorder.saved));
+      renderAutomations();
+      if (!state.bridgeToken) return;
+      try {
+        await fetch(`${state.bridgeUrl}/automations/delete`, {
+          method: "POST",
+          headers: bridgeHeaders(),
+          body: JSON.stringify({ name })
+        });
+      } catch (_) {}
+    }
+
     function refreshAll() {
       loadStatus();
       checkDevices();
+      loadAutomations();
       pollFrames();
     }
 
