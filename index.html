@@ -262,7 +262,7 @@
     <header>
       <div class="brand">
         <h1>Schaffer AI</h1>
-        <span class="version-tag" id="versionTag">v2.3.3</span>
+        <span class="version-tag" id="versionTag">v2.3.4</span>
       </div>
       <div class="header-actions">
         <button class="pill" id="btnGesture" onclick="toggleGesture()">Gesture: Off</button>
@@ -676,13 +676,16 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
       const label = document.getElementById(`lbl_${safeId}`);
       if (!img) return;
       if (!state.streaming) {
-        img.src = "";
+        img.onerror = null;
+        img.removeAttribute("src");
+        img.dataset.streamActive = "0";
         label.textContent = "Paused";
         return;
       }
       const streamUrl = `${state.bridgeUrl}/stream?platform=${encodeURIComponent(dev.platform)}&device_id=${encodeURIComponent(dev.deviceId)}&t=${Date.now()}`;
       if (img.dataset.streamActive === "1" && img.src.includes("/stream?")) return;
       img.onload = () => {
+        if (!state.streaming) return;
         img.style.display = "block";
         empty.style.display = "none";
         label.textContent = "Live (MJPEG)";
@@ -690,6 +693,10 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
       };
       img.onerror = () => {
         img.dataset.streamActive = "0";
+        if (!state.streaming) {
+          label.textContent = "Paused";
+          return;
+        }
         if (!img.naturalWidth) {
           img.style.display = "none";
           empty.style.display = "flex";
