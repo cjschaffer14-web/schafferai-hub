@@ -1,5 +1,6 @@
 # SchafferAI Hub — Iteration Log
 
+- **v2.6.0 (2026-11-17)**: Wired local `$0` end-to-end pipeline in `simulator_bridge.py` & Site Navigator: `GET /apex/status` (read-only `lean_dag` gate), `POST /build` (Android SDK `aapt2`/`javac`/`d8`/`apksigner` APK build + `adb install` + launch), `POST /email` (local `gmail` CLI), and 2.5× drag-swipe amplification for reliable Android list scrolling.
 - **v2.5.4 (2026-11-17)**: Integrated authenticated local Android Emulator gRPC screenshot capture (`127.0.0.1:8554`, `RGB888 540x1200` + Pillow JPEG ~`9.5ms`, ~25 FPS `/stream` pacing) with automatic ADB fallback and full-res `1080x2400` tap mapping; constrained `.sim-unit` (`max-width: 260px`) and `.sim-screen` (`max-height: 58vh`) so the phone fits cleanly within the viewport without trapping page scroll.
 - **v2.5.3 (2026-11-17)**: Added `$0` weekly GitHub Actions arcade workflow (`.github/workflows/weekly-arcade.yml`), `POST /request` local Hermes queue (`~/.schafferai/requests.json`), and `request game` / `request app` routing in **Site Navigator** with cloud GitHub Issue fallback.
 - **v2.5.2 (2026-11-17)**: Embedded **JSNES** (Apache-2.0) + **8-Bit Table Tennis** (`mike42/8bit-table-tennis`, MIT) locally at `./arcade/nes-table-tennis/` with full licenses/attribution and optional local `.nes` ROM loader.

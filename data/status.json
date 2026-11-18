@@ -1,10 +1,10 @@
 {
-  "version": "v2.5.4",
-  "updated_at": "2026-11-18T04:53:00Z",
+  "version": "v2.6.0",
+  "updated_at": "2026-11-18T05:11:00Z",
   "systems": {
     "apex": {
-      "status": "warn",
-      "summary": "Cloud secrets blocked (Always-Free mode, billing OFF)"
+      "status": "ok",
+      "summary": "Local Read-Only DAG Loaded (Billing OFF)"
     },
     "billing": {
       "status": "ok",

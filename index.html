@@ -296,7 +296,7 @@
     <header>
       <div class="brand">
         <h1>Schaffer AI</h1>
-        <span class="version-tag" id="versionTag">v2.5.4</span>
+        <span class="version-tag" id="versionTag">v2.6.0</span>
       </div>
       <div class="header-actions">
         <button class="pill" id="btnMacView" onclick="toggleMacView()">Mac View: Off</button>
@@ -738,8 +738,12 @@
         const p1 = mapClientToDevice(img, start.x, start.y);
         const p2 = mapClientToDevice(img, ev.clientX, ev.clientY);
         if (!p1 || !p2) return;
-        if (Math.hypot(dx, dy) >= 15 && dev.platform === "android") {
-          sendSwipe(dev.platform, dev.deviceId, p1.x, p1.y, p2.x, p2.y);
+        if (Math.hypot(dx, dy) >= 12 && dev.platform === "android") {
+          const sx = p2.x - p1.x;
+          const sy = p2.y - p1.y;
+          const tx = Math.max(0, Math.min(1080, Math.round(p1.x + sx * 2.5)));
+          const ty = Math.max(0, Math.min(2400, Math.round(p1.y + sy * 2.5)));
+          sendSwipe(dev.platform, dev.deviceId, p1.x, p1.y, tx, ty);
         } else {
           sendTap(dev.platform, dev.deviceId, p2.x, p2.y);
         }
@@ -1068,8 +1072,36 @@
         await sendTap(platform, "", x, y);
         return;
       }
-      if (lower.startsWith("/build")) { appendMsg("agent", "Unavailable: /build orchestration is not wired in simulator_bridge.py."); return; }
-      if (lower.startsWith("/apex") || lower.startsWith("/treasury")) {
+      if (lower.startsWith("/build")) {
+        const [, platform = "android", name = "ApexViewer", ...rest] = text.split(/\s+/);
+        appendMsg("sys", `Building & installing ${platform} app "${name}"...`);
+        try {
+          const res = await bridgePost("/build", { platform, name, prompt: rest.join(" ") });
+          if (!res) return;
+          appendMsg("agent", `Build (${platform}): HTTP ${res.status}\n${await res.text()}`);
+        } catch (e) { appendMsg("agent", `Build failed: ${e.message}`); }
+        return;
+      }
+      if (lower.startsWith("/email")) {
+        const rawArgs = text.slice(6).trim();
+        const [left, body = "Sent from SchafferAI Site Navigator"] = rawArgs.split("|").map(s => s.trim());
+        const [to = "", ...subjParts] = (left || "").split(/\s+/);
+        if (!to) { appendMsg("agent", "Usage: /email <to@example.com> <subject> | <body>"); return; }
+        try {
+          const res = await bridgePost("/email", { to, subject: subjParts.join(" ") || "SchafferAI Update", body });
+          if (!res) return;
+          appendMsg("agent", `Email (${to}): HTTP ${res.status}\n${await res.text()}`);
+        } catch (e) { appendMsg("agent", `Email failed: ${e.message}`); }
+        return;
+      }
+      if (lower === "/apex status" || lower === "apex status" || lower.startsWith("/apex")) {
+        try {
+          const r = await fetch(`${state.bridgeUrl}/apex/status`, { signal: AbortSignal.timeout(5000) });
+          appendMsg("agent", `Local APEX (Always-Free Read-Only) -> HTTP ${r.status}\n${await r.text()}`);
+        } catch (e) { appendMsg("agent", `Local bridge unreachable: ${e.message}`); }
+        return;
+      }
+      if (lower.startsWith("/treasury")) {
         const action = text.split(/\s+/)[1] || "status";
         try { const r = await callGateway("/treasury", { action }); appendMsg("agent", `Gateway /treasury (${action}) -> HTTP ${r.status}\n${JSON.stringify(r.data, null, 2)}`); }
         catch (e) { appendMsg("agent", `Gateway unreachable: ${e.message}`); }
