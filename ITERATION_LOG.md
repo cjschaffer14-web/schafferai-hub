@@ -1,5 +1,6 @@
 # SchafferAI Hub — Iteration Log
 
+- **v2.3.5 (2026-11-17)**: Added opt-in **Mac View** (`Mac View: Off/On` toggle, `platform=mac` via `/usr/sbin/screencapture -x -t jpg` at `0.6s` MJPEG pacing) so Chris can view his Mac display directly from the webpage with 0% CPU when toggled off.
 - **v2.3.4 (2026-11-17)**: Fixed `Pause Stream` overwriting `Paused` with `Stream error (retrying)` by clearing `img.onerror` / guarding `!state.streaming` and calling `removeAttribute("src")`.
 - **v2.3.3 (2026-11-17)**: Added per-device `Shut Down` (`POST /shutdown`) buttons in the UI and reduced MJPEG capture CPU load (`0.45s` iOS / `0.15s` Android pacing) after shutting down extra booted iOS Simulators (`iPad mini`, `iPhone Duo`) to restore system responsiveness.
 - **v2.3.2 (2026-11-17)**: Switched live simulator display from JS `fetch()` polling to continuous native MJPEG streaming (`GET /stream` `multipart/x-mixed-replace`) with zero inter-frame polling gap and C-speed `memoryview.cast("I")` Android PNG encoding (`15ms` encode).

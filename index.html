@@ -262,9 +262,10 @@
     <header>
       <div class="brand">
         <h1>Schaffer AI</h1>
-        <span class="version-tag" id="versionTag">v2.3.4</span>
+        <span class="version-tag" id="versionTag">v2.3.5</span>
       </div>
       <div class="header-actions">
+        <button class="pill" id="btnMacView" onclick="toggleMacView()">Mac View: Off</button>
         <button class="pill" id="btnGesture" onclick="toggleGesture()">Gesture: Off</button>
         <button class="pill" id="btnVoice" onclick="toggleVoice()">Voice (Local)</button>
         <button class="pill" onclick="refreshAll()">Refresh</button>
@@ -329,6 +330,18 @@
             <button class="pill" onclick="saveCurrentRecording()" id="btnSaveMacro" style="display:none;">Save Macro</button>
             <button class="pill" onclick="toggleStream()" id="btnStream">Pause Stream</button>
           </div>
+        </div>
+
+        <div id="macViewCard" style="display:none; flex-direction:column; gap:8px;">
+          <div class="sim-meta">
+            <strong>Mac Display (Live View)</strong>
+            <span id="macViewLabel">Off</span>
+          </div>
+          <div style="width:100%; aspect-ratio:16/10; border-radius:14px; overflow:hidden; position:relative; border:1px solid var(--border);">
+            <img id="macViewImg" alt="Mac Display" style="width:100%; height:100%; object-fit:contain; display:none;" />
+            <div class="sim-placeholder" id="macViewEmpty">Connecting to Mac Display stream...</div>
+          </div>
+          <span style="font-size:11.5px; color:var(--muted);">Read-only Mac display mirror (requires macOS Screen Recording permission for the bridge terminal).</span>
         </div>
 
         <div class="sim-grid" id="simGrid">
@@ -709,6 +722,41 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
 
     function pollFrames() {
       for (const dev of frameState.devices) captureDeviceFrame(dev);
+    }
+
+    let macViewActive = false;
+    function toggleMacView() {
+      macViewActive = !macViewActive;
+      const btn = document.getElementById("btnMacView");
+      const card = document.getElementById("macViewCard");
+      const img = document.getElementById("macViewImg");
+      const empty = document.getElementById("macViewEmpty");
+      const lbl = document.getElementById("macViewLabel");
+      btn.textContent = macViewActive ? "Mac View: On" : "Mac View: Off";
+      btn.classList.toggle("active", macViewActive);
+      card.style.display = macViewActive ? "flex" : "none";
+      if (!macViewActive) {
+        img.onerror = null;
+        img.removeAttribute("src");
+        img.style.display = "none";
+        lbl.textContent = "Off";
+        return;
+      }
+      lbl.textContent = "Connecting...";
+      empty.style.display = "flex";
+      img.onload = () => {
+        if (!macViewActive) return;
+        img.style.display = "block";
+        empty.style.display = "none";
+        lbl.textContent = "Live (MJPEG)";
+      };
+      img.onerror = () => {
+        if (!macViewActive) return;
+        img.style.display = "none";
+        empty.style.display = "flex";
+        lbl.textContent = "Unavailable (check bridge/Screen Recording)";
+      };
+      img.src = `${state.bridgeUrl}/stream?platform=mac&t=${Date.now()}`;
     }
 
     function toggleStream() {
