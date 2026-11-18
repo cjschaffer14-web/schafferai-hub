@@ -1,5 +1,6 @@
 # SchafferAI Hub — Iteration Log
 
+- **v2.4.0 (2026-11-17)**: Fixed MJPEG `onerror` auto-reconnect with exponential backoff (`1.5s`→`10s`) after bridge restarts; added **Remote Mac Portal** card (loopback-vs-remote clarity + Chrome Remote Desktop link); added **Free Browser Arcade** ($0 Retro Snake & Brick Breaker with keyboard/mouse/touch controls + local high score).
 - **v2.3.6 (2026-11-17)**: Required paired session token + allowed origin on `platform=mac` (`/frame` & `/stream`), lowered Mac View FPS (`0.85s` MJPEG pacing), and added visible `Stop Mac View` control inside the Mac Display card.
 - **v2.3.5 (2026-11-17)**: Added opt-in **Mac View** (`Mac View: Off/On` toggle, `platform=mac` via `/usr/sbin/screencapture -x -t jpg` at `0.6s` MJPEG pacing) so Chris can view his Mac display directly from the webpage with 0% CPU when toggled off.
 - **v2.3.4 (2026-11-17)**: Fixed `Pause Stream` overwriting `Paused` with `Stream error (retrying)` by clearing `img.onerror` / guarding `!state.streaming` and calling `removeAttribute("src")`.
