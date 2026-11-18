@@ -398,7 +398,7 @@
     <header>
       <div class="brand">
         <h1>Schaffer AI</h1>
-        <span class="version-tag" id="versionTag">v2.2.6</span>
+        <span class="version-tag" id="versionTag">v2.2.7</span>
       </div>
       <div class="header-actions">
         <button class="pill" id="btnGesture" onclick="toggleGesture()">Gesture: Off</button>
@@ -534,7 +534,7 @@
         </div>
 
         <div class="agent-log" id="agentLog">
-          <div class="msg sys">Implemented local commands: /devices | /launch &lt;ios|android&gt; &lt;id&gt; | /gesture &lt;on|off|0.65&gt;.
+          <div class="msg sys">Implemented local commands: /devices | /launch &lt;ios|android&gt; &lt;id&gt; | /nav &lt;ios|android&gt; &lt;home|back|recents|focus&gt; | /tap android &lt;x&gt; &lt;y&gt; | /gesture &lt;on|off|0.65&gt;.
 Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasury, /reconcile &amp; Hermes cloud chat (GCP billing kept OFF + requires Bearer auth).</div>
         </div>
 
@@ -887,8 +887,8 @@ Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasu
           return;
         }
         if (!state.bridgeToken) {
-          appendMsg("agent", "Pair required: paste the Local Bridge Session Token from simulator_bridge.py into Session & Endpoints before calling /launch.");
-          return;
+          const ok = await pairLocalBridge();
+          if (!ok) return;
         }
         try {
           const res = await fetch(`${state.bridgeUrl}/launch`, {
@@ -898,12 +898,52 @@ Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasu
           });
           appendMsg("agent", `Launch (${platform} -> ${target_id}): HTTP ${res.status}\n${await res.text()}`);
           if (res.ok) {
-            trackStep({ platform, type: "launch", target_id, ai_label: `Launch ${platform} ${target_id}` });
+            trackStep({ platform, type: "launch", target_id, label: `Launch ${platform} ${target_id}` });
             setTimeout(() => capturePlatformFrame(platform), 500);
           }
         } catch {
           appendMsg("agent", `Could not reach Mac bridge at ${state.bridgeUrl}.`);
         }
+        return;
+      }
+
+      if (lower.startsWith("/nav")) {
+        const [, platform = "android", action = "home"] = text.split(/\s+/);
+        await sendNav(platform, action);
+        return;
+      }
+
+      if (lower.startsWith("/tap")) {
+        const [, platform = "android", xs = "", ys = ""] = text.split(/\s+/);
+        const x = parseInt(xs, 10);
+        const y = parseInt(ys, 10);
+        if (isNaN(x) || isNaN(y)) {
+          appendMsg("agent", "Usage: /tap <android|ios> <x> <y>");
+          return;
+        }
+        if (!state.bridgeToken) {
+          const ok = await pairLocalBridge();
+          if (!ok) return;
+        }
+        try {
+          const res = await fetch(`${state.bridgeUrl}/tap`, {
+            method: "POST",
+            headers: bridgeHeaders(),
+            body: JSON.stringify({ platform, x, y })
+          });
+          appendMsg("agent", `Tap (${platform} ${x},${y}): HTTP ${res.status}\n${await res.text()}`);
+          if (res.ok) {
+            trackStep({ platform, type: "tap", x, y, label: `Tap ${platform} (${x}, ${y})` });
+            if (platform === "android") setTimeout(() => capturePlatformFrame("android"), 400);
+          }
+        } catch {
+          appendMsg("agent", `Could not reach Mac bridge at ${state.bridgeUrl}.`);
+        }
+        return;
+      }
+
+      if (lower === "/help" || lower === "help") {
+        appendMsg("agent", "Local commands: /devices | /launch <ios|android> <id> | /nav <ios|android> <home|back|recents|focus> | /tap <android|ios> <x> <y> | /gesture <on|off|0.65>");
         return;
       }
 

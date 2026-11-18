@@ -1,5 +1,6 @@
 # SchafferAI Hub — Iteration Log
 
+- **v2.2.7 (2026-11-17)**: Fixed `/launch` in the Local Command Console to auto-pair via `POST /pair` (matching tap/nav), added `/nav`, `/tap`, and `/help` console commands, and renamed internal `ai_label` to `label`.
 - **v2.2.6 (2026-11-17)**: Fixed false `Bridge unreachable` status during active streaming (raised `/devices` timeout to 8s and preserved `ok` when frames are live); relabeled deterministic event recorder honestly as `Action Recording` with explicit `AI vision screen tracking: unavailable (no local vision model wired)`; added visible iOS direct-tap limitation note in UI.
 - **v2.2.5 (2026-11-17)**: Added persistent automation storage (`~/.schafferai/automations.json` + `localStorage` fallback) and AI action tracking/recording (`Record` / `Save Macro` / `Replay` / `Delete`) across iOS & Android taps, navs, and app launches.
 - **v2.2.4 (2026-11-17)**: Added one-click `Pair Bridge` (`POST /pair` restricted to allowlisted UI origins), `POST /nav` (`Home`/`Back`/`Recents` on Android, `Focus Window` on iOS), and exact `naturalWidth`×`naturalHeight` `object-fit: contain` tap coordinate mapping so both simulators are directly usable from `https://schafferai.com/`.
