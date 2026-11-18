@@ -398,7 +398,7 @@
     <header>
       <div class="brand">
         <h1>Schaffer AI</h1>
-        <span class="version-tag" id="versionTag">v2.2.3</span>
+        <span class="version-tag" id="versionTag">v2.2.4</span>
       </div>
       <div class="header-actions">
         <button class="pill" id="btnGesture" onclick="toggleGesture()">Gesture: Off</button>
@@ -457,7 +457,8 @@
       <section class="sim-section">
         <div class="section-head">
           <span class="section-title">Live Simulators (Local Bridge)</span>
-          <div style="display:flex; gap:6px;">
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="pill" onclick="pairLocalBridge()" id="btnQuickPair">Pair Bridge</button>
             <button class="pill" onclick="toggleStream()" id="btnStream">Pause Stream</button>
             <button class="pill" onclick="runCommandText('/devices')">Devices</button>
           </div>
@@ -473,6 +474,11 @@
               <img id="iosImg" alt="iOS Simulator" style="display:none;" />
               <div class="sim-placeholder" id="iosEmpty">Start simulator_bridge.py on Mac (127.0.0.1:8765) to stream iOS Simulator</div>
             </div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button class="pill" onclick="sendNav('ios', 'focus')">Focus Window</button>
+              <button class="pill" onclick="runCommandText('/launch ios com.apple.Preferences')">Settings</button>
+              <button class="pill" onclick="runCommandText('/launch ios com.apple.mobilesafari')">Safari</button>
+            </div>
           </div>
 
           <div class="sim-unit">
@@ -483,6 +489,12 @@
             <div class="sim-screen" onclick="handleSimTap(event, 'android')">
               <img id="androidImg" alt="Android Emulator" style="display:none;" />
               <div class="sim-placeholder" id="androidEmpty">Start simulator_bridge.py on Mac (127.0.0.1:8765) to stream Android Emulator</div>
+            </div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button class="pill" onclick="sendNav('android', 'home')">Home</button>
+              <button class="pill" onclick="sendNav('android', 'back')">Back</button>
+              <button class="pill" onclick="sendNav('android', 'recents')">Recents</button>
+              <button class="pill" onclick="runCommandText('/launch android com.android.settings')">Settings</button>
             </div>
           </div>
         </div>
@@ -712,14 +724,63 @@ Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasu
       return headers;
     }
 
+    async function pairLocalBridge() {
+      try {
+        const res = await fetch(`${state.bridgeUrl}/pair`, { method: "POST" });
+        const data = await res.json();
+        if (!res.ok || !data.token) throw new Error(data.error || `HTTP ${res.status}`);
+        state.bridgeToken = data.token;
+        sessionStorage.setItem("schaffer_bridge_token", data.token);
+        document.getElementById("bridgeTokenInput").value = data.token;
+        updatePairBadge();
+        appendMsg("sys", "Local bridge paired for this browser session. Tap, nav, and /launch are now enabled.");
+        return true;
+      } catch (e) {
+        appendMsg("sys", `Bridge pairing failed: ${e.message}. Ensure simulator_bridge.py is running on ${state.bridgeUrl}.`);
+        return false;
+      }
+    }
+
+    async function sendNav(platform, action) {
+      if (!state.bridgeToken) {
+        const ok = await pairLocalBridge();
+        if (!ok) return;
+      }
+      try {
+        const res = await fetch(`${state.bridgeUrl}/nav`, {
+          method: "POST",
+          headers: bridgeHeaders(),
+          body: JSON.stringify({ platform, action })
+        });
+        const body = await res.text();
+        appendMsg("sys", res.ok ? `Nav ${platform}/${action} sent` : `Nav rejected (HTTP ${res.status}): ${body}`);
+        if (res.ok) setTimeout(() => capturePlatformFrame(platform), 350);
+      } catch (_) {
+        appendMsg("sys", `Nav failed on ${platform}: Mac bridge unreachable.`);
+      }
+    }
+
     async function handleSimTap(event, platform) {
       if (!state.bridgeToken) {
-        appendMsg("sys", `Tap blocked locally: paste your Local Bridge Session Token in "Session & Endpoints" to authorize /tap.`);
+        const ok = await pairLocalBridge();
+        if (!ok) return;
+      }
+      const img = document.getElementById(`${platform}Img`);
+      if (!img || !img.naturalWidth || !img.naturalHeight) {
+        appendMsg("sys", `No live frame loaded for ${platform} yet.`);
         return;
       }
-      const rect = event.currentTarget.getBoundingClientRect();
-      const x = Math.round(((event.clientX - rect.left) / rect.width) * 1080);
-      const y = Math.round(((event.clientY - rect.top) / rect.height) * 2340);
+      const rect = img.getBoundingClientRect();
+      const scale = Math.min(rect.width / img.naturalWidth, rect.height / img.naturalHeight);
+      const renderedW = img.naturalWidth * scale;
+      const renderedH = img.naturalHeight * scale;
+      const offsetX = rect.left + (rect.width - renderedW) / 2;
+      const offsetY = rect.top + (rect.height - renderedH) / 2;
+      const relX = (event.clientX - offsetX) / renderedW;
+      const relY = (event.clientY - offsetY) / renderedH;
+      if (relX < 0 || relX > 1 || relY < 0 || relY > 1) return;
+      const x = Math.round(relX * img.naturalWidth);
+      const y = Math.round(relY * img.naturalHeight);
       try {
         const res = await fetch(`${state.bridgeUrl}/tap`, {
           method: "POST",
@@ -728,6 +789,7 @@ Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasu
         });
         const body = await res.text();
         appendMsg("sys", res.ok ? `Tapped ${platform} at (${x}, ${y})` : `Tap rejected (HTTP ${res.status}): ${body}`);
+        if (res.ok && platform === "android") setTimeout(() => capturePlatformFrame("android"), 400);
       } catch (_) {
         appendMsg("sys", `Tap failed on ${platform}: Mac bridge unreachable.`);
       }

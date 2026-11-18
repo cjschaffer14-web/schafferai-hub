@@ -1,5 +1,6 @@
 # SchafferAI Hub — Iteration Log
 
+- **v2.2.4 (2026-11-17)**: Added one-click `Pair Bridge` (`POST /pair` restricted to allowlisted UI origins), `POST /nav` (`Home`/`Back`/`Recents` on Android, `Focus Window` on iOS), and exact `naturalWidth`×`naturalHeight` `object-fit: contain` tap coordinate mapping so both simulators are directly usable from `https://schafferai.com/`.
 - **v2.2.3 (2026-11-17)**: Added per-platform capture lock, short-TTL frame cache (`0.8s`), 12s backend capture timeout, and last-good stale fallback (`X-Frame-Stale: 1`, `503` if uncaptured) in `simulator_bridge.py`; aligned frontend `/frame` timeout (`14s`) and stale-cached status label.
 - **v2.2.2 (2026-11-17)**: Fixed Android frame timeout (`AbortSignal.timeout(10000)` aligned with backend 8s `capture_frame`), replaced overlapping `setInterval` with one in-flight capture per platform, and retained last good frame with honest `Connecting...` / `Live` / `Stale (retrying)` / `Offline/Timeout` status labels.
 - **v2.2.1 (2026-11-17)**: Hardened `simulator_bridge.py` CORS to explicit UI origins and added ephemeral `X-Bridge-Token` / `Bearer` session protection for `/tap` and `/launch`; updated UI for truthful local-vs-unavailable action labels (`/build` not wired, Hermes/APEX blocked while paid GCP billing is kept OFF) and session-only token storage.
