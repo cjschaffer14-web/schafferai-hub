@@ -1,14 +1,14 @@
 {
   "version": "v2.3.3",
-  "updated_at": "2026-11-18T04:08:00Z",
+  "updated_at": "2026-11-18T04:11:00Z",
   "systems": {
     "apex": {
       "status": "warn",
-      "summary": "Blocked by choice (paid GCP billing kept OFF)"
+      "summary": "Cloud secrets blocked (Always-Free mode, billing OFF)"
     },
     "billing": {
-      "status": "warn",
-      "summary": "Kept OFF by Chris (do not activate)"
+      "status": "ok",
+      "summary": "Always-Free Mode (Paid billing permanently OFF)"
     },
     "domain": {
       "status": "ok",
