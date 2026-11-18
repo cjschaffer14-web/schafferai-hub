@@ -1,5 +1,6 @@
 # SchafferAI Hub — Iteration Log
 
+- **v2.5.3 (2026-11-17)**: Added `$0` weekly GitHub Actions arcade workflow (`.github/workflows/weekly-arcade.yml`), `POST /request` local Hermes queue (`~/.schafferai/requests.json`), and `request game` / `request app` routing in **Site Navigator** with cloud GitHub Issue fallback.
 - **v2.5.2 (2026-11-17)**: Embedded **JSNES** (Apache-2.0) + **8-Bit Table Tennis** (`mike42/8bit-table-tennis`, MIT) locally at `./arcade/nes-table-tennis/` with full licenses/attribution and optional local `.nes` ROM loader.
 - **v2.5.1 (2026-11-17)**: Renamed top control bar to **Site Navigator** with user-configurable `Rename` support (`localStorage`), tightened layout padding/log height for easier debugging.
 - **v2.5.0 (2026-11-17)**: Elevated the top rounded text + voice bar with natural-language site configuration, site description, and live `/debug` diagnostics + optional speech replies; added `setPointerCapture` + visual tap/swipe ripple feedback on simulator screens.

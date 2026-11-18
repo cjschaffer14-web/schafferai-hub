@@ -295,7 +295,7 @@
     <header>
       <div class="brand">
         <h1>Schaffer AI</h1>
-        <span class="version-tag" id="versionTag">v2.5.2</span>
+        <span class="version-tag" id="versionTag">v2.5.3</span>
       </div>
       <div class="header-actions">
         <button class="pill" id="btnMacView" onclick="toggleMacView()">Mac View: Off</button>
@@ -1025,6 +1025,17 @@
       if (lower.includes("scroll down")) { const d = frameState.devices.find(x => x.platform === "android"); if (d) await scrollDevice("android", d.deviceId, "down"); appendMsg("agent", d ? "Scrolled Android down." : "No Android emulator connected."); return; }
       if (lower.includes("scroll up")) { const d = frameState.devices.find(x => x.platform === "android"); if (d) await scrollDevice("android", d.deviceId, "up"); appendMsg("agent", d ? "Scrolled Android up." : "No Android emulator connected."); return; }
 
+      if (lower.startsWith("request game") || lower.startsWith("request app") || lower.startsWith("make a game") || lower.startsWith("build app")) {
+        const idea = text.replace(/^(request game|request app|make a game|build app)[:\s]*/i, "").trim() || text;
+        let macStatus = "Mac bridge offline (saved locally in browser).";
+        try {
+          const r = await bridgePost("/request", { prompt: idea });
+          if (r && r.ok) macStatus = "Queued on Mac (~/.schafferai/requests.json for Hermes/Codex).";
+        } catch (_) {}
+        const issueUrl = `https://github.com/cjschaffer14-web/schafferai-hub/issues/new?title=${encodeURIComponent("[App/Game Request] " + idea.slice(0, 60))}&body=${encodeURIComponent("Requested via Site Navigator:\n\n" + idea)}`;
+        appendMsg("agent", `Request logged: "${idea}"\n- Mac: ${macStatus}\n- $0 Cloud Queue: Open GitHub Issue to trigger cloud build:\n${issueUrl}`);
+        return;
+      }
       if (lower.startsWith("/devices") || lower === "simulators" || lower === "devices") {
         const devs = await checkDevices();
         appendMsg("agent", devs ? JSON.stringify(devs, null, 2) : `Mac bridge unreachable at ${state.bridgeUrl}.`);
