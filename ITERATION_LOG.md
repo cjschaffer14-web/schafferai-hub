@@ -1,5 +1,6 @@
 # SchafferAI Hub — Iteration Log
 
+- **v2.3.2 (2026-11-17)**: Switched live simulator display from JS `fetch()` polling to continuous native MJPEG streaming (`GET /stream` `multipart/x-mixed-replace`) with zero inter-frame polling gap and C-speed `memoryview.cast("I")` Android PNG encoding (`15ms` encode).
 - **v2.3.1 (2026-11-17)**: Fixed stale-session `401` after `simulator_bridge.py` restarts via `bridgePost()` helper (clears stale `sessionStorage` token, re-pairs via `POST /pair`, and retries once automatically).
 - **v2.3.0 (2026-11-17)**: General multi-emulator architecture & scroll/swipe support: dynamic multi-device grid rendering all booted iOS + Android instances, `+ Boot Emulator` picker (`GET /available`, `POST /boot`), drag-to-swipe + mouse-wheel scrolling + `Scroll ↓`/`Scroll ↑` buttons (`POST /swipe`), and per-device `device_id` routing in `simulator_bridge.py`.
 - **v2.2.8 (2026-11-17)**: Sped up Android capture ~16x (~0.43s vs 7.3s) via raw `adb exec-out screencap` + 2x-downsampled fast PNG (`X-Device-Width`/`X-Device-Height` tap scaling), switched iOS capture to JPEG (13x smaller payload), lowered cache TTL & frontend poll interval to `250ms`.

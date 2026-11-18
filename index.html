@@ -262,7 +262,7 @@
     <header>
       <div class="brand">
         <h1>Schaffer AI</h1>
-        <span class="version-tag" id="versionTag">v2.3.1</span>
+        <span class="version-tag" id="versionTag">v2.3.2</span>
       </div>
       <div class="header-actions">
         <button class="pill" id="btnGesture" onclick="toggleGesture()">Gesture: Off</button>
@@ -626,8 +626,9 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
       const offsetY = rect.top + (rect.height - renderedH) / 2;
       const relX = Math.max(0, Math.min(1, (clientX - offsetX) / renderedW));
       const relY = Math.max(0, Math.min(1, (clientY - offsetY) / renderedH));
-      const targetW = parseInt(img.dataset.devW, 10) || img.naturalWidth;
-      const targetH = parseInt(img.dataset.devH, 10) || img.naturalHeight;
+      const isHalfAndroid = img.id.includes("android_") && img.naturalWidth <= 600;
+      const targetW = parseInt(img.dataset.devW, 10) || (isHalfAndroid ? img.naturalWidth * 2 : img.naturalWidth);
+      const targetH = parseInt(img.dataset.devH, 10) || (isHalfAndroid ? img.naturalHeight * 2 : img.naturalHeight);
       return { x: Math.round(relX * targetW), y: Math.round(relY * targetH) };
     }
 
@@ -658,55 +659,35 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
       }
     }
 
-    async function captureDeviceFrame(dev) {
-      if (!state.streaming || frameState.inFlight[dev.key]) return;
-      frameState.inFlight[dev.key] = true;
+    function captureDeviceFrame(dev) {
       const safeId = dev.key.replace(/[^a-zA-Z0-9_-]/g, "_");
       const img = document.getElementById(`img_${safeId}`);
       const empty = document.getElementById(`emp_${safeId}`);
       const label = document.getElementById(`lbl_${safeId}`);
-      if (!img) { frameState.inFlight[dev.key] = false; return; }
-
-      try {
-        const res = await fetch(`${state.bridgeUrl}/frame?platform=${encodeURIComponent(dev.platform)}&device_id=${encodeURIComponent(dev.deviceId)}&t=${Date.now()}`, {
-          signal: AbortSignal.timeout(14000)
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const isStale = res.headers.get("X-Frame-Stale") === "1";
-        const devW = res.headers.get("X-Device-Width");
-        const devH = res.headers.get("X-Device-Height");
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const prev = img.dataset.objUrl;
-        img.src = url;
-        img.dataset.objUrl = url;
-        if (devW && devH) { img.dataset.devW = devW; img.dataset.devH = devH; }
+      if (!img) return;
+      if (!state.streaming) {
+        img.src = "";
+        label.textContent = "Paused";
+        return;
+      }
+      const streamUrl = `${state.bridgeUrl}/stream?platform=${encodeURIComponent(dev.platform)}&device_id=${encodeURIComponent(dev.deviceId)}&t=${Date.now()}`;
+      if (img.dataset.streamActive === "1" && img.src.includes("/stream?")) return;
+      img.onload = () => {
         img.style.display = "block";
         empty.style.display = "none";
-        label.textContent = isStale ? "Stale (cached)" : "Live";
+        label.textContent = "Live (MJPEG)";
         frameState.lastFrameOkAt = Date.now();
-        if (document.getElementById("valSim").textContent === "Bridge unreachable") {
-          document.getElementById("valSim").textContent = "Streaming (Bridge Live)";
-          document.getElementById("dotSim").className = "dot ok";
-        }
-        if (prev) URL.revokeObjectURL(prev);
-      } catch (_) {
-        if (img.dataset.objUrl) {
-          img.style.display = "block";
-          empty.style.display = "none";
-          label.textContent = "Stale (retrying)";
-        } else {
+      };
+      img.onerror = () => {
+        img.dataset.streamActive = "0";
+        if (!img.naturalWidth) {
           img.style.display = "none";
           empty.style.display = "flex";
-          label.textContent = "Offline/Timeout";
+          label.textContent = "Stream error (retrying)";
         }
-      } finally {
-        frameState.inFlight[dev.key] = false;
-        if (state.streaming && frameState.devices.some(d => d.key === dev.key)) {
-          clearTimeout(frameState.timers[dev.key]);
-          frameState.timers[dev.key] = setTimeout(() => captureDeviceFrame(dev), 250);
-        }
-      }
+      };
+      img.dataset.streamActive = "1";
+      img.src = streamUrl;
     }
 
     function pollFrames() {
@@ -716,8 +697,12 @@ Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; He
     function toggleStream() {
       state.streaming = !state.streaming;
       document.getElementById("btnStream").textContent = state.streaming ? "Pause Stream" : "Resume Stream";
-      if (state.streaming) pollFrames();
-      else Object.values(frameState.timers).forEach(clearTimeout);
+      for (const dev of frameState.devices) {
+        const safeId = dev.key.replace(/[^a-zA-Z0-9_-]/g, "_");
+        const img = document.getElementById(`img_${safeId}`);
+        if (img) img.dataset.streamActive = "0";
+      }
+      pollFrames();
     }
 
     function bridgeHeaders() {
