@@ -1,6 +1,6 @@
 {
-  "version": "v2.2.0",
-  "updated_at": "2026-11-18T03:03:30Z",
+  "version": "v2.2.1",
+  "updated_at": "2026-11-18T03:07:00Z",
   "systems": {
     "apex": {
       "status": "warn",

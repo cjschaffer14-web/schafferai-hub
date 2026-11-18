@@ -42,7 +42,6 @@
       gap: 20px;
     }
 
-    /* Header */
     header {
       display: flex;
       align-items: center;
@@ -82,7 +81,6 @@
       flex-wrap: wrap;
     }
 
-    /* Modern Flat / Pill Buttons */
     button, .btn {
       appearance: none;
       background: var(--surface-2);
@@ -128,10 +126,9 @@
       background: rgba(59, 130, 246, 0.12);
     }
 
-    /* Status Strip */
     .status-strip {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
       gap: 10px;
     }
 
@@ -154,7 +151,7 @@
     }
 
     .stat-value {
-      font-size: 13.5px;
+      font-size: 13px;
       font-weight: 600;
       display: flex;
       align-items: center;
@@ -172,7 +169,6 @@
     .dot.warn { background: var(--warn); }
     .dot.err { background: var(--err); }
 
-    /* Main Workspace Grid */
     .workspace {
       display: grid;
       grid-template-columns: 1.15fr 0.85fr;
@@ -184,7 +180,6 @@
       .workspace { grid-template-columns: 1fr; }
     }
 
-    /* Borderless Simulators */
     .sim-section {
       display: flex;
       flex-direction: column;
@@ -237,7 +232,6 @@
       font-weight: 500;
     }
 
-    /* Pure borderless screen surface — no heavy dark square box or bezel */
     .sim-screen {
       width: 100%;
       aspect-ratio: 9 / 19.5;
@@ -274,7 +268,6 @@
       border-radius: 18px;
     }
 
-    /* Agent Console (Text + Voice) */
     .agent-panel {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -358,7 +351,7 @@
       background: var(--surface);
     }
 
-    input[type="text"], input[type="url"] {
+    input[type="text"], input[type="url"], input[type="password"] {
       flex: 1;
       background: var(--bg);
       color: var(--text);
@@ -374,7 +367,6 @@
       border-color: var(--border-strong);
     }
 
-    /* Config Drawer */
     .config-bar {
       display: none;
       background: var(--surface);
@@ -382,7 +374,7 @@
       border-radius: var(--radius);
       padding: 14px;
       gap: 12px;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     }
 
     .config-bar.open {
@@ -406,49 +398,57 @@
     <header>
       <div class="brand">
         <h1>Schaffer AI</h1>
-        <span class="version-tag" id="versionTag">v2.2.0</span>
+        <span class="version-tag" id="versionTag">v2.2.1</span>
       </div>
       <div class="header-actions">
         <button class="pill" id="btnGesture" onclick="toggleGesture()">Gesture: Off</button>
-        <button class="pill" id="btnVoice" onclick="toggleVoice()">Voice</button>
+        <button class="pill" id="btnVoice" onclick="toggleVoice()">Voice (Local)</button>
         <button class="pill" onclick="refreshAll()">Refresh</button>
-        <button class="pill" onclick="toggleConfig()">Endpoints</button>
+        <button class="pill" id="btnPairStatus" onclick="toggleConfig()">Session & Endpoints</button>
       </div>
     </header>
 
     <div class="config-bar" id="configBar">
       <div class="field">
-        <label>Mac / Simulator Bridge URL</label>
+        <label>Mac Simulator Bridge URL</label>
         <input type="url" id="bridgeUrlInput" placeholder="http://127.0.0.1:8765" />
       </div>
       <div class="field">
-        <label>Cloud Run / Hermes Gateway URL</label>
+        <label>Local Bridge Session Token (session-only, for /tap &amp; /launch)</label>
+        <input type="password" id="bridgeTokenInput" placeholder="Paste token from simulator_bridge.py" />
+      </div>
+      <div class="field">
+        <label>Cloud Run Gateway URL (Blocked while billing OFF)</label>
         <input type="url" id="gatewayUrlInput" placeholder="https://schafferai-treasury-webhook-rtr25d4k5q-uc.a.run.app" />
+      </div>
+      <div class="field">
+        <label>Gateway Bearer Token (session-only, optional)</label>
+        <input type="password" id="gatewayTokenInput" placeholder="Requires active GCP auth" />
       </div>
       <div class="field">
         <label>MediaPipe Sensitivity (0.1 – 1.0)</label>
         <input type="text" id="gestureSensInput" placeholder="0.65" />
       </div>
       <div class="field" style="justify-content: flex-end;">
-        <button class="primary" onclick="saveConfig()">Save Config</button>
+        <button class="primary" onclick="saveConfig()">Save Session Config</button>
       </div>
     </div>
 
     <section class="status-strip" id="statusStrip">
       <div class="stat-card">
-        <div class="stat-label">APEX Feed</div>
-        <div class="stat-value"><span class="dot warn" id="dotApex"></span><span id="valApex">Loading...</span></div>
+        <div class="stat-label">GCP Billing &amp; APEX</div>
+        <div class="stat-value"><span class="dot warn" id="dotBilling"></span><span id="valBilling">Loading...</span></div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">GCP Billing</div>
-        <div class="stat-value"><span class="dot err" id="dotBilling"></span><span id="valBilling">Loading...</span></div>
+        <div class="stat-label">Domain &amp; TLS</div>
+        <div class="stat-value"><span class="dot ok" id="dotDomain"></span><span id="valDomain">Loading...</span></div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Domain & TLS</div>
-        <div class="stat-value"><span class="dot warn" id="dotDomain"></span><span id="valDomain">Loading...</span></div>
+        <div class="stat-label">Apps Script (clasp)</div>
+        <div class="stat-value"><span class="dot ok" id="dotClasp"></span><span id="valClasp">Loading...</span></div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Simulators</div>
+        <div class="stat-label">Local Simulators</div>
         <div class="stat-value"><span class="dot" id="dotSim"></span><span id="valSim">Checking...</span></div>
       </div>
     </section>
@@ -456,7 +456,7 @@
     <main class="workspace">
       <section class="sim-section">
         <div class="section-head">
-          <span class="section-title">Live Simulators</span>
+          <span class="section-title">Live Simulators (Local Bridge)</span>
           <div style="display:flex; gap:6px;">
             <button class="pill" onclick="toggleStream()" id="btnStream">Pause Stream</button>
             <button class="pill" onclick="runCommandText('/devices')">Devices</button>
@@ -471,7 +471,7 @@
             </div>
             <div class="sim-screen" onclick="handleSimTap(event, 'ios')">
               <img id="iosImg" alt="iOS Simulator" style="display:none;" />
-              <div class="sim-placeholder" id="iosEmpty">Connect Mac Bridge (`http://127.0.0.1:8765`) to stream iPhone 18 Pro</div>
+              <div class="sim-placeholder" id="iosEmpty">Start simulator_bridge.py on Mac (127.0.0.1:8765) to stream iOS Simulator</div>
             </div>
           </div>
 
@@ -482,7 +482,7 @@
             </div>
             <div class="sim-screen" onclick="handleSimTap(event, 'android')">
               <img id="androidImg" alt="Android Emulator" style="display:none;" />
-              <div class="sim-placeholder" id="androidEmpty">Connect Mac Bridge (`http://127.0.0.1:8765`) to stream Android API 37</div>
+              <div class="sim-placeholder" id="androidEmpty">Start simulator_bridge.py on Mac (127.0.0.1:8765) to stream Android Emulator</div>
             </div>
           </div>
         </div>
@@ -492,26 +492,27 @@
         <div class="agent-header">
           <div class="agent-header-title">
             <span class="dot ok"></span>
-            Text & Voice Agent
+            Local Command Console
           </div>
-          <span style="font-size:11.5px; color:var(--muted);" id="agentModeLabel">Ready</span>
+          <span style="font-size:11.5px; color:var(--muted);" id="agentModeLabel">Local Bridge Only</span>
         </div>
 
         <div class="quick-chips">
-          <button class="pill" onclick="runCommandText('/apex status')">APEX Status</button>
           <button class="pill" onclick="runCommandText('/devices')">Simulators</button>
           <button class="pill" onclick="runCommandText('/gesture toggle')">MediaPipe</button>
-          <button class="pill" onclick="runCommandText('/build ios app')">Build iOS</button>
-          <button class="pill" onclick="runCommandText('/build android app')">Build Android</button>
+          <button class="pill" onclick="runCommandText('/launch ios com.apple.Preferences')">Launch iOS Settings</button>
+          <button class="pill" onclick="runCommandText('/apex status')">APEX (Billing Off)</button>
+          <button class="pill" onclick="runCommandText('/build ios app')">Build (Not Wired)</button>
         </div>
 
         <div class="agent-log" id="agentLog">
-          <div class="msg sys">Commands: /apex status | /treasury status | /reconcile &lt;id&gt; | /devices | /launch &lt;ios|android&gt; &lt;id&gt; | /build &lt;ios|android&gt; &lt;target&gt; | /gesture &lt;on|off|0.65&gt;</div>
+          <div class="msg sys">Implemented local commands: /devices | /launch &lt;ios|android&gt; &lt;id&gt; | /gesture &lt;on|off|0.65&gt;.
+Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasury, /reconcile &amp; Hermes cloud chat (GCP billing kept OFF + requires Bearer auth).</div>
         </div>
 
         <form class="agent-input-row" onsubmit="handleAgentSubmit(event)">
-          <input type="text" id="agentInput" placeholder="Configure APEX, MediaPipe, Mac/Hermes, or build & run app..." autocomplete="off" />
-          <button type="submit" class="primary">Send</button>
+          <input type="text" id="agentInput" placeholder="Enter /devices, /launch, /gesture (Hermes chat not connected)..." autocomplete="off" />
+          <button type="submit" class="primary">Run</button>
         </form>
       </section>
     </main>
@@ -523,7 +524,9 @@
 
     const state = {
       bridgeUrl: localStorage.getItem("schaffer_bridge_url") || DEFAULT_BRIDGE,
+      bridgeToken: sessionStorage.getItem("schaffer_bridge_token") || "",
       gatewayUrl: localStorage.getItem("schaffer_gateway_url") || DEFAULT_GATEWAY,
+      gatewayToken: sessionStorage.getItem("schaffer_gateway_token") || "",
       gestureEnabled: localStorage.getItem("schaffer_gesture_on") === "true",
       gestureSens: localStorage.getItem("schaffer_gesture_sens") || "0.65",
       streaming: true,
@@ -533,9 +536,18 @@
 
     function initConfigInputs() {
       document.getElementById("bridgeUrlInput").value = state.bridgeUrl;
+      document.getElementById("bridgeTokenInput").value = state.bridgeToken;
       document.getElementById("gatewayUrlInput").value = state.gatewayUrl;
+      document.getElementById("gatewayTokenInput").value = state.gatewayToken;
       document.getElementById("gestureSensInput").value = state.gestureSens;
       updateGestureButton();
+      updatePairBadge();
+    }
+
+    function updatePairBadge() {
+      const btn = document.getElementById("btnPairStatus");
+      btn.textContent = state.bridgeToken ? "Session: Paired" : "Session & Endpoints";
+      btn.classList.toggle("active", Boolean(state.bridgeToken));
     }
 
     function toggleConfig() {
@@ -544,13 +556,22 @@
 
     function saveConfig() {
       state.bridgeUrl = (document.getElementById("bridgeUrlInput").value || DEFAULT_BRIDGE).replace(/\/+$/, "");
+      state.bridgeToken = (document.getElementById("bridgeTokenInput").value || "").trim();
       state.gatewayUrl = (document.getElementById("gatewayUrlInput").value || DEFAULT_GATEWAY).replace(/\/+$/, "");
+      state.gatewayToken = (document.getElementById("gatewayTokenInput").value || "").trim();
       state.gestureSens = document.getElementById("gestureSensInput").value || "0.65";
+
       localStorage.setItem("schaffer_bridge_url", state.bridgeUrl);
       localStorage.setItem("schaffer_gateway_url", state.gatewayUrl);
       localStorage.setItem("schaffer_gesture_sens", state.gestureSens);
+      if (state.bridgeToken) sessionStorage.setItem("schaffer_bridge_token", state.bridgeToken);
+      else sessionStorage.removeItem("schaffer_bridge_token");
+      if (state.gatewayToken) sessionStorage.setItem("schaffer_gateway_token", state.gatewayToken);
+      else sessionStorage.removeItem("schaffer_gateway_token");
+
+      updatePairBadge();
       toggleConfig();
-      appendMsg("sys", `Saved endpoints. Bridge: ${state.bridgeUrl} | Gateway: ${state.gatewayUrl}`);
+      appendMsg("sys", `Saved session config. Bridge: ${state.bridgeUrl} (${state.bridgeToken ? "paired" : "unpaired"})`);
       refreshAll();
     }
 
@@ -564,7 +585,7 @@
       state.gestureEnabled = typeof forceVal === "boolean" ? forceVal : !state.gestureEnabled;
       localStorage.setItem("schaffer_gesture_on", String(state.gestureEnabled));
       updateGestureButton();
-      appendMsg("agent", `MediaPipe hand-tracking ${state.gestureEnabled ? "enabled" : "disabled"} (sensitivity ${state.gestureSens}).`);
+      appendMsg("agent", `MediaPipe local preference ${state.gestureEnabled ? "enabled" : "disabled"} (sensitivity ${state.gestureSens}).`);
     }
 
     function appendMsg(role, text) {
@@ -581,19 +602,19 @@
         const res = await fetch(`./data/status.json?t=${Date.now()}`);
         if (!res.ok) return;
         const data = await res.json();
-        document.getElementById("versionTag").textContent = data.version || "v2.2.0";
-
-        const apex = data.systems?.apex || {};
-        document.getElementById("valApex").textContent = apex.summary || "Check required";
-        document.getElementById("dotApex").className = `dot ${apex.status || "warn"}`;
+        document.getElementById("versionTag").textContent = data.version || "v2.2.1";
 
         const billing = data.systems?.billing || {};
-        document.getElementById("valBilling").textContent = billing.summary || "BILLING_DISABLED";
-        document.getElementById("dotBilling").className = `dot ${billing.status || "err"}`;
+        document.getElementById("valBilling").textContent = billing.summary || "Kept OFF by Chris";
+        document.getElementById("dotBilling").className = `dot ${billing.status || "warn"}`;
 
         const domain = data.systems?.domain || {};
-        document.getElementById("valDomain").textContent = domain.summary || "HTTP 200";
-        document.getElementById("dotDomain").className = `dot ${domain.status || "warn"}`;
+        document.getElementById("valDomain").textContent = domain.summary || "HTTPS healthy";
+        document.getElementById("dotDomain").className = `dot ${domain.status || "ok"}`;
+
+        const clasp = data.systems?.clasp || {};
+        document.getElementById("valClasp").textContent = clasp.summary || "Complete";
+        document.getElementById("dotClasp").className = `dot ${clasp.status || "ok"}`;
       } catch (_) {}
     }
 
@@ -605,8 +626,8 @@
         const andCount = (data.android_connected || []).length;
         document.getElementById("valSim").textContent = `${iosCount} iOS · ${andCount} Android`;
         document.getElementById("dotSim").className = `dot ${(iosCount || andCount) ? "ok" : "warn"}`;
-        document.getElementById("iosLabel").textContent = iosCount ? data.ios_booted[0].name || "Booted" : "Offline";
-        document.getElementById("androidLabel").textContent = andCount ? data.android_connected[0].id || "Connected" : "Offline";
+        document.getElementById("iosLabel").textContent = iosCount ? (data.ios_booted[0].name || "Booted") : "Offline";
+        document.getElementById("androidLabel").textContent = andCount ? (data.android_connected[0]?.id || data.android_connected[0] || "Connected") : "Offline";
         return data;
       } catch (_) {
         document.getElementById("valSim").textContent = "Bridge unreachable";
@@ -644,26 +665,50 @@
       if (state.streaming) pollFrames();
     }
 
+    function bridgeHeaders() {
+      const headers = { "Content-Type": "application/json" };
+      if (state.bridgeToken) headers["X-Bridge-Token"] = state.bridgeToken;
+      return headers;
+    }
+
     async function handleSimTap(event, platform) {
+      if (!state.bridgeToken) {
+        appendMsg("sys", `Tap blocked locally: paste your Local Bridge Session Token in "Session & Endpoints" to authorize /tap.`);
+        return;
+      }
       const rect = event.currentTarget.getBoundingClientRect();
       const x = Math.round(((event.clientX - rect.left) / rect.width) * 1080);
       const y = Math.round(((event.clientY - rect.top) / rect.height) * 2340);
       try {
         const res = await fetch(`${state.bridgeUrl}/tap`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: bridgeHeaders(),
           body: JSON.stringify({ platform, x, y })
         });
-        if (res.ok) appendMsg("sys", `Tapped ${platform} at (${x}, ${y})`);
-      } catch (err) {
+        const body = await res.text();
+        appendMsg("sys", res.ok ? `Tapped ${platform} at (${x}, ${y})` : `Tap rejected (HTTP ${res.status}): ${body}`);
+      } catch (_) {
         appendMsg("sys", `Tap failed on ${platform}: Mac bridge unreachable.`);
       }
     }
 
     async function callGateway(path, payload) {
+      if (!state.gatewayToken) {
+        return {
+          ok: false,
+          status: 401,
+          data: {
+            blocked: true,
+            reason: "Paid GCP billing is kept OFF by Chris and no session Gateway Bearer token is configured in Session & Endpoints."
+          }
+        };
+      }
       const res = await fetch(`${state.gatewayUrl}${path}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${state.gatewayToken}`
+        },
         body: JSON.stringify(payload)
       });
       const text = await res.text();
@@ -677,7 +722,7 @@
       appendMsg("user", text);
       const lower = text.toLowerCase();
 
-      if (lower.startsWith("/devices") || lower.includes("list devices") || lower.includes("simulators")) {
+      if (lower.startsWith("/devices") || lower === "simulators") {
         const devs = await checkDevices();
         appendMsg("agent", devs ? JSON.stringify(devs, null, 2) : `Mac bridge unreachable at ${state.bridgeUrl}. Start simulator_bridge.py on your Mac.`);
         return;
@@ -704,10 +749,14 @@
           appendMsg("agent", "Usage: /launch <ios|android> <bundle_or_package_id>");
           return;
         }
+        if (!state.bridgeToken) {
+          appendMsg("agent", "Pair required: paste the Local Bridge Session Token from simulator_bridge.py into Session & Endpoints before calling /launch.");
+          return;
+        }
         try {
           const res = await fetch(`${state.bridgeUrl}/launch`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: bridgeHeaders(),
             body: JSON.stringify({ platform, target_id })
           });
           appendMsg("agent", `Launch (${platform} -> ${target_id}): HTTP ${res.status}\n${await res.text()}`);
@@ -718,18 +767,7 @@
       }
 
       if (lower.startsWith("/build")) {
-        const [, platform = "ios", target = "app"] = text.split(/\s+/);
-        appendMsg("agent", `Dispatching ${platform} build for "${target}" via Mac/Hermes bridge (${state.bridgeUrl})...`);
-        try {
-          const devs = await checkDevices();
-          if (!devs) {
-            appendMsg("agent", `Mac bridge offline at ${state.bridgeUrl}. Start simulator_bridge.py / Hermes locally to execute Xcode or Gradle builds and stream into this simulator.`);
-          } else {
-            appendMsg("agent", `Bridge connected (${(devs.ios_booted||[]).length} iOS, ${(devs.android_connected||[]).length} Android). Ready to launch target via /launch ${platform} <bundle_id>.`);
-          }
-        } catch (e) {
-          appendMsg("agent", `Build dispatch error: ${e.message}`);
-        }
+        appendMsg("agent", "Unavailable: /build orchestration (Xcode/Gradle) is not implemented in simulator_bridge.py. Supported bridge actions are /devices, /frame, /tap, and /launch.");
         return;
       }
 
@@ -756,7 +794,7 @@
         return;
       }
 
-      appendMsg("agent", `Parsed intent: "${text}". Use /apex status, /treasury <action>, /reconcile <id>, /devices, /launch <ios|android> <id>, /build <ios|android> <target>, or /gesture <on|off>.`);
+      appendMsg("agent", `No Hermes / cloud agent is connected (paid GCP billing is kept OFF). Supported local commands: /devices, /launch <ios|android> <id>, /gesture <on|off|0.65>.`);
     }
 
     function handleAgentSubmit(e) {
@@ -772,15 +810,15 @@
       const mode = document.getElementById("agentModeLabel");
       const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SpeechRec) {
-        appendMsg("sys", "Browser SpeechRecognition unavailable; use the text agent or Gemini Live token endpoint.");
+        appendMsg("sys", "Browser SpeechRecognition unavailable in this browser.");
         return;
       }
       if (state.voiceActive && state.recognition) {
         state.recognition.stop();
         state.voiceActive = false;
         btn.classList.remove("active");
-        btn.textContent = "Voice";
-        mode.textContent = "Ready";
+        btn.textContent = "Voice (Local)";
+        mode.textContent = "Local Bridge Only";
         return;
       }
       const rec = new SpeechRec();
@@ -793,15 +831,15 @@
       rec.onend = () => {
         state.voiceActive = false;
         btn.classList.remove("active");
-        btn.textContent = "Voice";
-        mode.textContent = "Ready";
+        btn.textContent = "Voice (Local)";
+        mode.textContent = "Local Bridge Only";
       };
       rec.start();
       state.recognition = rec;
       state.voiceActive = true;
       btn.classList.add("active");
       btn.textContent = "Listening...";
-      mode.textContent = "Voice Active";
+      mode.textContent = "Local Voice Active";
     }
 
     function refreshAll() {
