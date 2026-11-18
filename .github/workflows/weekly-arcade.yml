@@ -1,8 +1,6 @@
-name: Weekly Arcade & App Builder ($0 Always-Free)
+name: On-Demand Arcade & App Index ($0 Always-Free)
 
 on:
-  schedule:
-    - cron: "0 9 * * 1" # Every Monday 09:00 UTC
   workflow_dispatch:
     inputs:
       app_request:
