@@ -34,7 +34,7 @@
     }
 
     .wrap {
-      max-width: 1280px;
+      max-width: 1320px;
       margin: 0 auto;
       padding: 24px 24px 48px;
       display: flex;
@@ -52,17 +52,8 @@
       border-bottom: 1px solid var(--border);
     }
 
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .brand h1 {
-      font-size: 16px;
-      font-weight: 600;
-      letter-spacing: -0.01em;
-    }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand h1 { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
 
     .version-tag {
       font-family: var(--mono);
@@ -74,12 +65,7 @@
       border-radius: 999px;
     }
 
-    .header-actions {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
+    .header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
     button, .btn {
       appearance: none;
@@ -98,32 +84,22 @@
       transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
     }
 
-    button:hover, .btn:hover {
-      background: #1f242e;
-      border-color: var(--border-strong);
-    }
+    button:hover, .btn:hover { background: #1f242e; border-color: var(--border-strong); }
+    button.primary { background: var(--text); color: #0a0b0e; border-color: var(--text); }
+    button.primary:hover { background: #e5e7eb; border-color: #e5e7eb; }
+    button.pill { border-radius: 999px; padding: 5px 12px; font-size: 12px; }
+    button.active { border-color: var(--accent); color: #93c5fd; background: rgba(59, 130, 246, 0.12); }
 
-    button.primary {
-      background: var(--text);
-      color: #0a0b0e;
-      border-color: var(--text);
-    }
-
-    button.primary:hover {
-      background: #e5e7eb;
-      border-color: #e5e7eb;
-    }
-
-    button.pill {
+    select {
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid var(--border);
       border-radius: 999px;
-      padding: 5px 12px;
+      padding: 5px 10px;
+      font-family: var(--font);
       font-size: 12px;
-    }
-
-    button.active {
-      border-color: var(--accent);
-      color: #93c5fd;
-      background: rgba(59, 130, 246, 0.12);
+      outline: none;
+      max-width: 220px;
     }
 
     .status-strip {
@@ -150,87 +126,36 @@
       justify-content: space-between;
     }
 
-    .stat-value {
-      font-size: 13px;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
+    .stat-value { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
 
-    .dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--muted);
-      flex-shrink: 0;
-    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
     .dot.ok { background: var(--ok); }
     .dot.warn { background: var(--warn); }
     .dot.err { background: var(--err); }
 
     .workspace {
       display: grid;
-      grid-template-columns: 1.15fr 0.85fr;
+      grid-template-columns: 1.25fr 0.75fr;
       gap: 20px;
       align-items: start;
     }
 
-    @media (max-width: 980px) {
-      .workspace { grid-template-columns: 1fr; }
-    }
+    @media (max-width: 980px) { .workspace { grid-template-columns: 1fr; } }
 
-    .sim-section {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .section-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .section-title {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
+    .sim-section { display: flex; flex-direction: column; gap: 12px; }
+    .section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+    .section-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
 
     .sim-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
       gap: 18px;
       align-items: start;
     }
 
-    @media (max-width: 640px) {
-      .sim-grid { grid-template-columns: 1fr; }
-    }
-
-    .sim-unit {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .sim-meta {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      font-size: 12px;
-      color: var(--muted);
-    }
-
-    .sim-meta strong {
-      color: var(--text);
-      font-weight: 500;
-    }
+    .sim-unit { display: flex; flex-direction: column; gap: 8px; }
+    .sim-meta { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted); gap: 6px; }
+    .sim-meta strong { color: var(--text); font-weight: 500; }
 
     .sim-screen {
       width: 100%;
@@ -239,11 +164,15 @@
       overflow: hidden;
       background: transparent;
       position: relative;
-      cursor: crosshair;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
       display: flex;
       align-items: center;
       justify-content: center;
     }
+
+    .sim-screen:active { cursor: grabbing; }
 
     .sim-screen img {
       width: 100%;
@@ -251,6 +180,7 @@
       object-fit: contain;
       display: block;
       border-radius: 18px;
+      pointer-events: none;
     }
 
     .sim-placeholder {
@@ -274,7 +204,7 @@
       border-radius: var(--radius);
       display: flex;
       flex-direction: column;
-      height: 620px;
+      height: 640px;
       overflow: hidden;
     }
 
@@ -287,69 +217,16 @@
       gap: 8px;
     }
 
-    .agent-header-title {
-      font-size: 13px;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
+    .agent-header-title { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .quick-chips { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; gap: 6px; flex-wrap: wrap; }
+    .agent-log { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
 
-    .quick-chips {
-      padding: 10px 14px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-    }
+    .msg { padding: 9px 12px; border-radius: 10px; max-width: 92%; word-break: break-word; white-space: pre-wrap; }
+    .msg.user { align-self: flex-end; background: var(--surface-2); border: 1px solid var(--border); }
+    .msg.agent { align-self: flex-start; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border); }
+    .msg.sys { align-self: stretch; font-family: var(--mono); font-size: 11.5px; color: var(--muted); background: transparent; border: 1px dashed var(--border); }
 
-    .agent-log {
-      flex: 1;
-      overflow-y: auto;
-      padding: 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      font-size: 13px;
-    }
-
-    .msg {
-      padding: 9px 12px;
-      border-radius: 10px;
-      max-width: 92%;
-      word-break: break-word;
-      white-space: pre-wrap;
-    }
-
-    .msg.user {
-      align-self: flex-end;
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-    }
-
-    .msg.agent {
-      align-self: flex-start;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid var(--border);
-    }
-
-    .msg.sys {
-      align-self: stretch;
-      font-family: var(--mono);
-      font-size: 11.5px;
-      color: var(--muted);
-      background: transparent;
-      border: 1px dashed var(--border);
-    }
-
-    .agent-input-row {
-      padding: 12px;
-      border-top: 1px solid var(--border);
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      background: var(--surface);
-    }
+    .agent-input-row { padding: 12px; border-top: 1px solid var(--border); display: flex; gap: 8px; align-items: center; background: var(--surface); }
 
     input[type="text"], input[type="url"], input[type="password"] {
       flex: 1;
@@ -363,9 +240,7 @@
       outline: none;
     }
 
-    input:focus {
-      border-color: var(--border-strong);
-    }
+    input:focus { border-color: var(--border-strong); }
 
     .config-bar {
       display: none;
@@ -377,20 +252,9 @@
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     }
 
-    .config-bar.open {
-      display: grid;
-    }
-
-    .field {
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-    }
-
-    .field label {
-      font-size: 11.5px;
-      color: var(--muted);
-    }
+    .config-bar.open { display: grid; }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field label { font-size: 11.5px; color: var(--muted); }
   </style>
 </head>
 <body>
@@ -398,7 +262,7 @@
     <header>
       <div class="brand">
         <h1>Schaffer AI</h1>
-        <span class="version-tag" id="versionTag">v2.2.8</span>
+        <span class="version-tag" id="versionTag">v2.3.0</span>
       </div>
       <div class="header-actions">
         <button class="pill" id="btnGesture" onclick="toggleGesture()">Gesture: Off</button>
@@ -414,8 +278,8 @@
         <input type="url" id="bridgeUrlInput" placeholder="http://127.0.0.1:8765" />
       </div>
       <div class="field">
-        <label>Local Bridge Session Token (session-only, for /tap &amp; /launch)</label>
-        <input type="password" id="bridgeTokenInput" placeholder="Paste token from simulator_bridge.py" />
+        <label>Local Bridge Session Token (session-only, for /tap, /swipe, /launch)</label>
+        <input type="password" id="bridgeTokenInput" placeholder="Paste token or click Pair Bridge" />
       </div>
       <div class="field">
         <label>Cloud Run Gateway URL (Blocked while billing OFF)</label>
@@ -456,50 +320,19 @@
     <main class="workspace">
       <section class="sim-section">
         <div class="section-head">
-          <span class="section-title">Live Simulators (Local Bridge)</span>
-          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+          <span class="section-title">Live Simulators (Multi-Device)</span>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+            <select id="bootSelect"><option value="">+ Boot Emulator...</option></select>
+            <button class="pill" onclick="bootSelectedEmulator()">Boot</button>
             <button class="pill" onclick="pairLocalBridge()" id="btnQuickPair">Pair Bridge</button>
             <button class="pill" onclick="toggleRecording()" id="btnRecord">Record</button>
             <button class="pill" onclick="saveCurrentRecording()" id="btnSaveMacro" style="display:none;">Save Macro</button>
             <button class="pill" onclick="toggleStream()" id="btnStream">Pause Stream</button>
-            <button class="pill" onclick="runCommandText('/devices')">Devices</button>
           </div>
         </div>
 
-        <div class="sim-grid">
-          <div class="sim-unit">
-            <div class="sim-meta">
-              <strong>iOS Simulator</strong>
-              <span id="iosLabel">Offline</span>
-            </div>
-            <div class="sim-screen" onclick="handleSimTap(event, 'ios')">
-              <img id="iosImg" alt="iOS Simulator" style="display:none;" />
-              <div class="sim-placeholder" id="iosEmpty">Start simulator_bridge.py on Mac (127.0.0.1:8765) to stream iOS Simulator</div>
-            </div>
-            <div style="display:flex; gap:6px; flex-wrap:wrap;">
-              <button class="pill" onclick="sendNav('ios', 'focus')">Focus Window</button>
-              <button class="pill" onclick="runCommandText('/launch ios com.apple.Preferences')">Settings</button>
-              <button class="pill" onclick="runCommandText('/launch ios com.apple.mobilesafari')">Safari</button>
-            </div>
-            <span style="font-size:11.5px; color:var(--muted);">iOS note: tap focuses window; use Settings, Safari, or /launch (raw tap requires WDA).</span>
-          </div>
-
-          <div class="sim-unit">
-            <div class="sim-meta">
-              <strong>Android Emulator</strong>
-              <span id="androidLabel">Offline</span>
-            </div>
-            <div class="sim-screen" onclick="handleSimTap(event, 'android')">
-              <img id="androidImg" alt="Android Emulator" style="display:none;" />
-              <div class="sim-placeholder" id="androidEmpty">Start simulator_bridge.py on Mac (127.0.0.1:8765) to stream Android Emulator</div>
-            </div>
-            <div style="display:flex; gap:6px; flex-wrap:wrap;">
-              <button class="pill" onclick="sendNav('android', 'home')">Home</button>
-              <button class="pill" onclick="sendNav('android', 'back')">Back</button>
-              <button class="pill" onclick="sendNav('android', 'recents')">Recents</button>
-              <button class="pill" onclick="runCommandText('/launch android com.android.settings')">Settings</button>
-            </div>
-          </div>
+        <div class="sim-grid" id="simGrid">
+          <div class="stat-card">Connecting to Mac Simulator Bridge (`http://127.0.0.1:8765`)...</div>
         </div>
 
         <div class="stat-card" style="margin-top:6px;">
@@ -508,10 +341,10 @@
             <span id="recStatus">Idle · 0 steps</span>
           </div>
           <div style="font-size:11.5px; color:var(--muted); margin-top:2px;">
-            Deterministic event recorder (tap/nav/launch). AI vision screen tracking: unavailable (no local vision model wired).
+            Deterministic event recorder (tap/swipe/nav/launch). AI vision screen tracking: unavailable (no local vision model wired).
           </div>
           <div id="automationsList" style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;">
-            <span style="font-size:12px; color:var(--muted);">No saved automations yet. Click Record, interact with iOS/Android, then Save Macro.</span>
+            <span style="font-size:12px; color:var(--muted);">No saved automations yet. Click Record, interact with simulators, then Save Macro.</span>
           </div>
         </div>
       </section>
@@ -535,11 +368,12 @@
 
         <div class="agent-log" id="agentLog">
           <div class="msg sys">Implemented local commands: /devices | /launch &lt;ios|android&gt; &lt;id&gt; | /nav &lt;ios|android&gt; &lt;home|back|recents|focus&gt; | /tap android &lt;x&gt; &lt;y&gt; | /gesture &lt;on|off|0.65&gt;.
-Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasury, /reconcile &amp; Hermes cloud chat (GCP billing kept OFF + requires Bearer auth).</div>
+Android supports drag-to-swipe &amp; mouse-wheel scrolling directly on the screen.
+Unavailable / blocked: /build (not wired); /apex, /treasury, /reconcile &amp; Hermes cloud chat (GCP billing kept OFF).</div>
         </div>
 
         <form class="agent-input-row" onsubmit="handleAgentSubmit(event)">
-          <input type="text" id="agentInput" placeholder="Enter /devices, /launch, /gesture (Hermes chat not connected)..." autocomplete="off" />
+          <input type="text" id="agentInput" placeholder="Enter /devices, /launch, /nav, /tap, /gesture..." autocomplete="off" />
           <button type="submit" class="primary">Run</button>
         </form>
       </section>
@@ -562,6 +396,13 @@ Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasu
       recognition: null
     };
 
+    const frameState = {
+      devices: [], // [{ key, platform, deviceId, title }]
+      inFlight: {},
+      timers: {},
+      lastFrameOkAt: 0
+    };
+
     function initConfigInputs() {
       document.getElementById("bridgeUrlInput").value = state.bridgeUrl;
       document.getElementById("bridgeTokenInput").value = state.bridgeToken;
@@ -578,9 +419,7 @@ Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasu
       btn.classList.toggle("active", Boolean(state.bridgeToken));
     }
 
-    function toggleConfig() {
-      document.getElementById("configBar").classList.toggle("open");
-    }
+    function toggleConfig() { document.getElementById("configBar").classList.toggle("open"); }
 
     function saveConfig() {
       state.bridgeUrl = (document.getElementById("bridgeUrlInput").value || DEFAULT_BRIDGE).replace(/\/+$/, "");
@@ -630,69 +469,213 @@ Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasu
         const res = await fetch(`./data/status.json?t=${Date.now()}`);
         if (!res.ok) return;
         const data = await res.json();
-        document.getElementById("versionTag").textContent = data.version || "v2.2.1";
-
+        document.getElementById("versionTag").textContent = data.version || "v2.3.0";
         const billing = data.systems?.billing || {};
         document.getElementById("valBilling").textContent = billing.summary || "Kept OFF by Chris";
         document.getElementById("dotBilling").className = `dot ${billing.status || "warn"}`;
-
         const domain = data.systems?.domain || {};
         document.getElementById("valDomain").textContent = domain.summary || "HTTPS healthy";
         document.getElementById("dotDomain").className = `dot ${domain.status || "ok"}`;
-
         const clasp = data.systems?.clasp || {};
         document.getElementById("valClasp").textContent = clasp.summary || "Complete";
         document.getElementById("dotClasp").className = `dot ${clasp.status || "ok"}`;
       } catch (_) {}
     }
 
+    async function loadAvailableEmulators() {
+      try {
+        const res = await fetch(`${state.bridgeUrl}/available`, { signal: AbortSignal.timeout(6000) });
+        if (!res.ok) return;
+        const data = await res.json();
+        const sel = document.getElementById("bootSelect");
+        sel.innerHTML = `<option value="">+ Boot Emulator...</option>`;
+        for (const avd of (data.android_avds || [])) {
+          const opt = document.createElement("option");
+          opt.value = `android|${avd}`;
+          opt.textContent = `Android: ${avd}`;
+          sel.appendChild(opt);
+        }
+        for (const d of (data.ios_available || [])) {
+          const opt = document.createElement("option");
+          opt.value = `ios|${d.udid}`;
+          opt.textContent = `iOS (${d.runtime}): ${d.name}${d.state === "Booted" ? " [Booted]" : ""}`;
+          sel.appendChild(opt);
+        }
+      } catch (_) {}
+    }
+
+    async function bootSelectedEmulator() {
+      const val = document.getElementById("bootSelect").value;
+      if (!val) return;
+      const [platform, target] = val.split("|");
+      if (!state.bridgeToken) {
+        const ok = await pairLocalBridge();
+        if (!ok) return;
+      }
+      appendMsg("sys", `Booting ${platform} emulator (${target})...`);
+      try {
+        const res = await fetch(`${state.bridgeUrl}/boot`, {
+          method: "POST",
+          headers: bridgeHeaders(),
+          body: JSON.stringify({ platform, target })
+        });
+        appendMsg("sys", `Boot ${platform}: HTTP ${res.status} ${await res.text()}`);
+        setTimeout(checkDevices, 3000);
+        setTimeout(checkDevices, 8000);
+      } catch (e) {
+        appendMsg("sys", `Boot failed: ${e.message}`);
+      }
+    }
+
+    function renderSimGrid(devices) {
+      const grid = document.getElementById("simGrid");
+      const currentKeys = devices.map(d => d.key).join(",");
+      if (grid.dataset.keys === currentKeys) return;
+      grid.dataset.keys = currentKeys;
+      Object.values(frameState.timers).forEach(clearTimeout);
+      frameState.timers = {};
+      grid.innerHTML = "";
+
+      if (!devices.length) {
+        grid.innerHTML = `<div class="stat-card">No simulators booted. Pick one from "+ Boot Emulator..." above and click Boot.</div>`;
+        return;
+      }
+
+      for (const dev of devices) {
+        const unit = document.createElement("div");
+        unit.className = "sim-unit";
+        const safeId = dev.key.replace(/[^a-zA-Z0-9_-]/g, "_");
+        unit.innerHTML = `
+          <div class="sim-meta">
+            <strong>${dev.title}</strong>
+            <span id="lbl_${safeId}">Connecting...</span>
+          </div>
+          <div class="sim-screen" id="scr_${safeId}">
+            <img id="img_${safeId}" alt="${dev.title}" style="display:none;" />
+            <div class="sim-placeholder" id="emp_${safeId}">Loading ${dev.title}...</div>
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;" id="ctrl_${safeId}"></div>
+        `;
+        grid.appendChild(unit);
+
+        const scr = document.getElementById(`scr_${safeId}`);
+        attachScreenInteractions(scr, dev, safeId);
+
+        const ctrl = document.getElementById(`ctrl_${safeId}`);
+        if (dev.platform === "android") {
+          ctrl.innerHTML = `
+            <button class="pill" onclick="sendNav('android', 'home', '${dev.deviceId}')">Home</button>
+            <button class="pill" onclick="sendNav('android', 'back', '${dev.deviceId}')">Back</button>
+            <button class="pill" onclick="sendNav('android', 'recents', '${dev.deviceId}')">Recents</button>
+            <button class="pill" onclick="scrollDevice('android', '${dev.deviceId}', 'down')">Scroll ↓</button>
+            <button class="pill" onclick="scrollDevice('android', '${dev.deviceId}', 'up')">Scroll ↑</button>
+            <button class="pill" onclick="launchAppForDevice('android', 'com.android.settings', '${dev.deviceId}')">Settings</button>
+          `;
+        } else {
+          ctrl.innerHTML = `
+            <button class="pill" onclick="sendNav('ios', 'focus', '${dev.deviceId}')">Focus Window</button>
+            <button class="pill" onclick="launchAppForDevice('ios', 'com.apple.Preferences', '${dev.deviceId}')">Settings</button>
+            <button class="pill" onclick="launchAppForDevice('ios', 'com.apple.mobilesafari', '${dev.deviceId}')">Safari</button>
+            <span style="font-size:11.5px; color:var(--muted); width:100%;">iOS note: tap focuses window; raw tap/scroll requires WDA.</span>
+          `;
+        }
+      }
+      pollFrames();
+    }
+
+    function attachScreenInteractions(scr, dev, safeId) {
+      let downPt = null;
+      let wheelTimer = null;
+      let wheelDelta = 0;
+
+      scr.addEventListener("pointerdown", (ev) => {
+        downPt = { x: ev.clientX, y: ev.clientY };
+      });
+
+      scr.addEventListener("pointerup", (ev) => {
+        if (!downPt) return;
+        const dx = ev.clientX - downPt.x;
+        const dy = ev.clientY - downPt.y;
+        const start = downPt;
+        downPt = null;
+        const img = document.getElementById(`img_${safeId}`);
+        const p1 = mapClientToDevice(img, start.x, start.y);
+        const p2 = mapClientToDevice(img, ev.clientX, ev.clientY);
+        if (!p1 || !p2) return;
+        if (Math.hypot(dx, dy) >= 15 && dev.platform === "android") {
+          sendSwipe(dev.platform, dev.deviceId, p1.x, p1.y, p2.x, p2.y, safeId);
+        } else {
+          sendTap(dev.platform, dev.deviceId, p2.x, p2.y, safeId);
+        }
+      });
+
+      if (dev.platform === "android") {
+        scr.addEventListener("wheel", (ev) => {
+          ev.preventDefault();
+          wheelDelta += ev.deltaY;
+          clearTimeout(wheelTimer);
+          wheelTimer = setTimeout(() => {
+            const dir = wheelDelta > 0 ? "down" : "up";
+            wheelDelta = 0;
+            scrollDevice("android", dev.deviceId, dir, safeId);
+          }, 120);
+        }, { passive: false });
+      }
+    }
+
+    function mapClientToDevice(img, clientX, clientY) {
+      if (!img || !img.naturalWidth || !img.naturalHeight) return null;
+      const rect = img.getBoundingClientRect();
+      const scale = Math.min(rect.width / img.naturalWidth, rect.height / img.naturalHeight);
+      const renderedW = img.naturalWidth * scale;
+      const renderedH = img.naturalHeight * scale;
+      const offsetX = rect.left + (rect.width - renderedW) / 2;
+      const offsetY = rect.top + (rect.height - renderedH) / 2;
+      const relX = Math.max(0, Math.min(1, (clientX - offsetX) / renderedW));
+      const relY = Math.max(0, Math.min(1, (clientY - offsetY) / renderedH));
+      const targetW = parseInt(img.dataset.devW, 10) || img.naturalWidth;
+      const targetH = parseInt(img.dataset.devH, 10) || img.naturalHeight;
+      return { x: Math.round(relX * targetW), y: Math.round(relY * targetH) };
+    }
+
     async function checkDevices() {
       try {
         const res = await fetch(`${state.bridgeUrl}/devices`, { signal: AbortSignal.timeout(8000) });
         const data = await res.json();
-        const iosCount = (data.ios_booted || []).length;
-        const andCount = (data.android_connected || []).length;
-        document.getElementById("valSim").textContent = `${iosCount} iOS · ${andCount} Android`;
-        document.getElementById("dotSim").className = `dot ${(iosCount || andCount) ? "ok" : "warn"}`;
-        const iosName = iosCount ? (data.ios_booted[0].name || "Booted") : "Offline";
-        const andName = andCount ? (data.android_connected[0]?.id || data.android_connected[0] || "Connected") : "Offline";
-        state.deviceNames = { ios: iosName, android: andName };
-        if (!document.getElementById("iosImg").dataset.objUrl) document.getElementById("iosLabel").textContent = iosName;
-        if (!document.getElementById("androidImg").dataset.objUrl) document.getElementById("androidLabel").textContent = andName;
+        const iosList = (data.ios_booted || []).map(d => ({
+          key: `ios:${d.udid}`,
+          platform: "ios",
+          deviceId: d.udid,
+          title: d.name || "iOS Simulator"
+        }));
+        const andList = (data.android_connected || []).map(s => {
+          const id = typeof s === "string" ? s : (s.id || "emulator-5554");
+          return { key: `android:${id}`, platform: "android", deviceId: id, title: `Android (${id})` };
+        });
+        frameState.devices = [...iosList, ...andList];
+        document.getElementById("valSim").textContent = `${iosList.length} iOS · ${andList.length} Android`;
+        document.getElementById("dotSim").className = `dot ${frameState.devices.length ? "ok" : "warn"}`;
+        renderSimGrid(frameState.devices);
         return data;
       } catch (_) {
         const recentlyLive = frameState.lastFrameOkAt && (Date.now() - frameState.lastFrameOkAt) < 20000;
-        if (recentlyLive) {
-          document.getElementById("valSim").textContent = "Streaming (device list slow)";
-          document.getElementById("dotSim").className = "dot ok";
-        } else {
-          document.getElementById("valSim").textContent = "Bridge unreachable";
-          document.getElementById("dotSim").className = "dot warn";
-        }
+        document.getElementById("valSim").textContent = recentlyLive ? "Streaming (device list slow)" : "Bridge unreachable";
+        document.getElementById("dotSim").className = recentlyLive ? "dot ok" : "dot warn";
         return null;
       }
     }
 
-    const frameState = {
-      inFlight: { ios: false, android: false },
-      timers: { ios: null, android: null },
-      lastFrameOkAt: 0
-    };
-
-    async function capturePlatformFrame(platform) {
-      if (!state.streaming || frameState.inFlight[platform]) return;
-      frameState.inFlight[platform] = true;
-      const img = document.getElementById(`${platform}Img`);
-      const empty = document.getElementById(`${platform}Empty`);
-      const label = document.getElementById(`${platform}Label`);
-      const devName = (state.deviceNames && state.deviceNames[platform]) || platform;
-
-      if (!img.dataset.objUrl) {
-        label.textContent = `${devName} · Connecting...`;
-      }
+    async function captureDeviceFrame(dev) {
+      if (!state.streaming || frameState.inFlight[dev.key]) return;
+      frameState.inFlight[dev.key] = true;
+      const safeId = dev.key.replace(/[^a-zA-Z0-9_-]/g, "_");
+      const img = document.getElementById(`img_${safeId}`);
+      const empty = document.getElementById(`emp_${safeId}`);
+      const label = document.getElementById(`lbl_${safeId}`);
+      if (!img) { frameState.inFlight[dev.key] = false; return; }
 
       try {
-        const res = await fetch(`${state.bridgeUrl}/frame?platform=${platform}&t=${Date.now()}`, {
+        const res = await fetch(`${state.bridgeUrl}/frame?platform=${encodeURIComponent(dev.platform)}&device_id=${encodeURIComponent(dev.deviceId)}&t=${Date.now()}`, {
           signal: AbortSignal.timeout(14000)
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -704,13 +687,10 @@ Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasu
         const prev = img.dataset.objUrl;
         img.src = url;
         img.dataset.objUrl = url;
-        if (devW && devH) {
-          img.dataset.devW = devW;
-          img.dataset.devH = devH;
-        }
+        if (devW && devH) { img.dataset.devW = devW; img.dataset.devH = devH; }
         img.style.display = "block";
         empty.style.display = "none";
-        label.textContent = isStale ? `${devName} · Stale (cached)` : `${devName} · Live`;
+        label.textContent = isStale ? "Stale (cached)" : "Live";
         frameState.lastFrameOkAt = Date.now();
         if (document.getElementById("valSim").textContent === "Bridge unreachable") {
           document.getElementById("valSim").textContent = "Streaming (Bridge Live)";
@@ -721,35 +701,30 @@ Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasu
         if (img.dataset.objUrl) {
           img.style.display = "block";
           empty.style.display = "none";
-          label.textContent = `${devName} · Stale (retrying)`;
+          label.textContent = "Stale (retrying)";
         } else {
           img.style.display = "none";
           empty.style.display = "flex";
-          label.textContent = `${devName} · Offline/Timeout`;
+          label.textContent = "Offline/Timeout";
         }
       } finally {
-        frameState.inFlight[platform] = false;
-        if (state.streaming) {
-          clearTimeout(frameState.timers[platform]);
-          frameState.timers[platform] = setTimeout(() => capturePlatformFrame(platform), 250);
+        frameState.inFlight[dev.key] = false;
+        if (state.streaming && frameState.devices.some(d => d.key === dev.key)) {
+          clearTimeout(frameState.timers[dev.key]);
+          frameState.timers[dev.key] = setTimeout(() => captureDeviceFrame(dev), 250);
         }
       }
     }
 
     function pollFrames() {
-      capturePlatformFrame("ios");
-      capturePlatformFrame("android");
+      for (const dev of frameState.devices) captureDeviceFrame(dev);
     }
 
     function toggleStream() {
       state.streaming = !state.streaming;
       document.getElementById("btnStream").textContent = state.streaming ? "Pause Stream" : "Resume Stream";
-      if (state.streaming) {
-        pollFrames();
-      } else {
-        clearTimeout(frameState.timers.ios);
-        clearTimeout(frameState.timers.android);
-      }
+      if (state.streaming) pollFrames();
+      else Object.values(frameState.timers).forEach(clearTimeout);
     }
 
     function bridgeHeaders() {
@@ -767,93 +742,98 @@ Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasu
         sessionStorage.setItem("schaffer_bridge_token", data.token);
         document.getElementById("bridgeTokenInput").value = data.token;
         updatePairBadge();
-        appendMsg("sys", "Local bridge paired for this browser session. Tap, nav, and /launch are now enabled.");
+        appendMsg("sys", "Local bridge paired for this browser session. Tap, swipe, scroll, nav, boot, and /launch are enabled.");
         return true;
       } catch (e) {
-        appendMsg("sys", `Bridge pairing failed: ${e.message}. Ensure simulator_bridge.py is running on ${state.bridgeUrl}.`);
+        appendMsg("sys", `Bridge pairing failed: ${e.message}`);
         return false;
       }
     }
 
-    async function sendNav(platform, action) {
-      if (!state.bridgeToken) {
-        const ok = await pairLocalBridge();
-        if (!ok) return;
-      }
-      try {
-        const res = await fetch(`${state.bridgeUrl}/nav`, {
-          method: "POST",
-          headers: bridgeHeaders(),
-          body: JSON.stringify({ platform, action })
-        });
-        const body = await res.text();
-        appendMsg("sys", res.ok ? `Nav ${platform}/${action} sent` : `Nav rejected (HTTP ${res.status}): ${body}`);
-        if (res.ok) {
-          trackStep({ platform, type: "nav", action, ai_label: `${platform} nav ${action}` });
-          setTimeout(() => capturePlatformFrame(platform), 350);
-        }
-      } catch (_) {
-        appendMsg("sys", `Nav failed on ${platform}: Mac bridge unreachable.`);
-      }
-    }
-
-    async function handleSimTap(event, platform) {
-      if (!state.bridgeToken) {
-        const ok = await pairLocalBridge();
-        if (!ok) return;
-      }
-      const img = document.getElementById(`${platform}Img`);
-      if (!img || !img.naturalWidth || !img.naturalHeight) {
-        appendMsg("sys", `No live frame loaded for ${platform} yet.`);
-        return;
-      }
-      const rect = img.getBoundingClientRect();
-      const scale = Math.min(rect.width / img.naturalWidth, rect.height / img.naturalHeight);
-      const renderedW = img.naturalWidth * scale;
-      const renderedH = img.naturalHeight * scale;
-      const offsetX = rect.left + (rect.width - renderedW) / 2;
-      const offsetY = rect.top + (rect.height - renderedH) / 2;
-      const relX = (event.clientX - offsetX) / renderedW;
-      const relY = (event.clientY - offsetY) / renderedH;
-      if (relX < 0 || relX > 1 || relY < 0 || relY > 1) return;
-      const targetW = parseInt(img.dataset.devW, 10) || img.naturalWidth;
-      const targetH = parseInt(img.dataset.devH, 10) || img.naturalHeight;
-      const x = Math.round(relX * targetW);
-      const y = Math.round(relY * targetH);
+    async function sendTap(platform, deviceId, x, y) {
+      if (!state.bridgeToken && !(await pairLocalBridge())) return;
       try {
         const res = await fetch(`${state.bridgeUrl}/tap`, {
           method: "POST",
           headers: bridgeHeaders(),
-          body: JSON.stringify({ platform, x, y })
+          body: JSON.stringify({ platform, device_id: deviceId, x, y })
         });
         const body = await res.text();
-        appendMsg("sys", res.ok ? `Tapped ${platform} at (${x}, ${y})` : `Tap rejected (HTTP ${res.status}): ${body}`);
+        appendMsg("sys", res.ok ? `Tapped ${platform} (${x}, ${y})` : `Tap rejected (HTTP ${res.status}): ${body}`);
         if (res.ok) {
-          trackStep({ platform, type: "tap", x, y, ai_label: `Tap ${platform} (${x}, ${y})` });
-          if (platform === "android") setTimeout(() => capturePlatformFrame("android"), 400);
+          trackStep({ platform, device_id: deviceId, type: "tap", x, y, label: `Tap ${platform} (${x}, ${y})` });
+          const dev = frameState.devices.find(d => d.platform === platform && d.deviceId === deviceId);
+          if (dev && platform === "android") setTimeout(() => captureDeviceFrame(dev), 300);
         }
-      } catch (_) {
-        appendMsg("sys", `Tap failed on ${platform}: Mac bridge unreachable.`);
-      }
+      } catch (_) { appendMsg("sys", `Tap failed on ${platform}.`); }
+    }
+
+    async function sendSwipe(platform, deviceId, x1, y1, x2, y2) {
+      if (!state.bridgeToken && !(await pairLocalBridge())) return;
+      try {
+        const res = await fetch(`${state.bridgeUrl}/swipe`, {
+          method: "POST",
+          headers: bridgeHeaders(),
+          body: JSON.stringify({ platform, device_id: deviceId, x1, y1, x2, y2, duration_ms: 240 })
+        });
+        const body = await res.text();
+        appendMsg("sys", res.ok ? `Swiped ${platform} (${x1},${y1})→(${x2},${y2})` : `Swipe rejected (HTTP ${res.status}): ${body}`);
+        if (res.ok) {
+          trackStep({ platform, device_id: deviceId, type: "swipe", x1, y1, x2, y2, duration_ms: 240, label: `Swipe ${platform}` });
+          const dev = frameState.devices.find(d => d.platform === platform && d.deviceId === deviceId);
+          if (dev) setTimeout(() => captureDeviceFrame(dev), 300);
+        }
+      } catch (_) { appendMsg("sys", `Swipe failed on ${platform}.`); }
+    }
+
+    async function scrollDevice(platform, deviceId, dir) {
+      const y1 = dir === "down" ? 1600 : 700;
+      const y2 = dir === "down" ? 700 : 1600;
+      await sendSwipe(platform, deviceId, 540, y1, 540, y2);
+    }
+
+    async function sendNav(platform, action, deviceId = "") {
+      if (!state.bridgeToken && !(await pairLocalBridge())) return;
+      try {
+        const res = await fetch(`${state.bridgeUrl}/nav`, {
+          method: "POST",
+          headers: bridgeHeaders(),
+          body: JSON.stringify({ platform, device_id: deviceId, action })
+        });
+        const body = await res.text();
+        appendMsg("sys", res.ok ? `Nav ${platform}/${action} sent` : `Nav rejected (HTTP ${res.status}): ${body}`);
+        if (res.ok) {
+          trackStep({ platform, device_id: deviceId, type: "nav", action, label: `${platform} nav ${action}` });
+          const dev = frameState.devices.find(d => d.platform === platform && (!deviceId || d.deviceId === deviceId));
+          if (dev) setTimeout(() => captureDeviceFrame(dev), 300);
+        }
+      } catch (_) { appendMsg("sys", `Nav failed on ${platform}.`); }
+    }
+
+    async function launchAppForDevice(platform, targetId, deviceId = "") {
+      if (!state.bridgeToken && !(await pairLocalBridge())) return;
+      try {
+        const res = await fetch(`${state.bridgeUrl}/launch`, {
+          method: "POST",
+          headers: bridgeHeaders(),
+          body: JSON.stringify({ platform, device_id: deviceId, target_id: targetId })
+        });
+        appendMsg("sys", `Launch (${platform} -> ${targetId}): HTTP ${res.status} ${await res.text()}`);
+        if (res.ok) {
+          trackStep({ platform, device_id: deviceId, type: "launch", target_id: targetId, label: `Launch ${platform} ${targetId}` });
+          const dev = frameState.devices.find(d => d.platform === platform && (!deviceId || d.deviceId === deviceId));
+          if (dev) setTimeout(() => captureDeviceFrame(dev), 400);
+        }
+      } catch (_) { appendMsg("sys", `Launch failed on ${platform}.`); }
     }
 
     async function callGateway(path, payload) {
       if (!state.gatewayToken) {
-        return {
-          ok: false,
-          status: 401,
-          data: {
-            blocked: true,
-            reason: "Paid GCP billing is kept OFF by Chris and no session Gateway Bearer token is configured in Session & Endpoints."
-          }
-        };
+        return { ok: false, status: 401, data: { blocked: true, reason: "Paid GCP billing is kept OFF by Chris and no session Gateway Bearer token is configured." } };
       }
       const res = await fetch(`${state.gatewayUrl}${path}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${state.gatewayToken}`
-        },
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${state.gatewayToken}` },
         body: JSON.stringify(payload)
       });
       const text = await res.text();
@@ -869,121 +849,60 @@ Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasu
 
       if (lower.startsWith("/devices") || lower === "simulators") {
         const devs = await checkDevices();
-        appendMsg("agent", devs ? JSON.stringify(devs, null, 2) : `Mac bridge unreachable at ${state.bridgeUrl}. Start simulator_bridge.py on your Mac.`);
+        appendMsg("agent", devs ? JSON.stringify(devs, null, 2) : `Mac bridge unreachable at ${state.bridgeUrl}.`);
         return;
       }
-
       if (lower.startsWith("/gesture")) {
-        const parts = text.split(/\s+/);
-        const arg = (parts[1] || "toggle").toLowerCase();
+        const arg = (text.split(/\s+/)[1] || "toggle").toLowerCase();
         if (arg === "on") toggleGesture(true);
         else if (arg === "off") toggleGesture(false);
-        else if (!isNaN(parseFloat(arg))) {
-          state.gestureSens = arg;
-          localStorage.setItem("schaffer_gesture_sens", arg);
-          toggleGesture(true);
-        } else {
-          toggleGesture();
-        }
+        else if (!isNaN(parseFloat(arg))) { state.gestureSens = arg; localStorage.setItem("schaffer_gesture_sens", arg); toggleGesture(true); }
+        else toggleGesture();
         return;
       }
-
       if (lower.startsWith("/launch")) {
         const [, platform = "ios", target_id = ""] = text.split(/\s+/);
-        if (!target_id) {
-          appendMsg("agent", "Usage: /launch <ios|android> <bundle_or_package_id>");
-          return;
-        }
-        if (!state.bridgeToken) {
-          const ok = await pairLocalBridge();
-          if (!ok) return;
-        }
-        try {
-          const res = await fetch(`${state.bridgeUrl}/launch`, {
-            method: "POST",
-            headers: bridgeHeaders(),
-            body: JSON.stringify({ platform, target_id })
-          });
-          appendMsg("agent", `Launch (${platform} -> ${target_id}): HTTP ${res.status}\n${await res.text()}`);
-          if (res.ok) {
-            trackStep({ platform, type: "launch", target_id, label: `Launch ${platform} ${target_id}` });
-            setTimeout(() => capturePlatformFrame(platform), 500);
-          }
-        } catch {
-          appendMsg("agent", `Could not reach Mac bridge at ${state.bridgeUrl}.`);
-        }
+        if (!target_id) { appendMsg("agent", "Usage: /launch <ios|android> <bundle_or_package_id>"); return; }
+        await launchAppForDevice(platform, target_id, "");
         return;
       }
-
       if (lower.startsWith("/nav")) {
         const [, platform = "android", action = "home"] = text.split(/\s+/);
-        await sendNav(platform, action);
+        await sendNav(platform, action, "");
         return;
       }
-
       if (lower.startsWith("/tap")) {
         const [, platform = "android", xs = "", ys = ""] = text.split(/\s+/);
-        const x = parseInt(xs, 10);
-        const y = parseInt(ys, 10);
-        if (isNaN(x) || isNaN(y)) {
-          appendMsg("agent", "Usage: /tap <android|ios> <x> <y>");
-          return;
-        }
-        if (!state.bridgeToken) {
-          const ok = await pairLocalBridge();
-          if (!ok) return;
-        }
-        try {
-          const res = await fetch(`${state.bridgeUrl}/tap`, {
-            method: "POST",
-            headers: bridgeHeaders(),
-            body: JSON.stringify({ platform, x, y })
-          });
-          appendMsg("agent", `Tap (${platform} ${x},${y}): HTTP ${res.status}\n${await res.text()}`);
-          if (res.ok) {
-            trackStep({ platform, type: "tap", x, y, label: `Tap ${platform} (${x}, ${y})` });
-            if (platform === "android") setTimeout(() => capturePlatformFrame("android"), 400);
-          }
-        } catch {
-          appendMsg("agent", `Could not reach Mac bridge at ${state.bridgeUrl}.`);
-        }
+        const x = parseInt(xs, 10), y = parseInt(ys, 10);
+        if (isNaN(x) || isNaN(y)) { appendMsg("agent", "Usage: /tap <android|ios> <x> <y>"); return; }
+        await sendTap(platform, "", x, y);
         return;
       }
-
       if (lower === "/help" || lower === "help") {
         appendMsg("agent", "Local commands: /devices | /launch <ios|android> <id> | /nav <ios|android> <home|back|recents|focus> | /tap <android|ios> <x> <y> | /gesture <on|off|0.65>");
         return;
       }
-
       if (lower.startsWith("/build")) {
-        appendMsg("agent", "Unavailable: /build orchestration (Xcode/Gradle) is not implemented in simulator_bridge.py. Supported bridge actions are /devices, /frame, /tap, and /launch.");
+        appendMsg("agent", "Unavailable: /build orchestration (Xcode/Gradle) is not implemented in simulator_bridge.py.");
         return;
       }
-
       if (lower.startsWith("/apex") || lower.startsWith("/treasury")) {
-        const parts = text.split(/\s+/);
-        const action = parts[1] || "status";
+        const action = text.split(/\s+/)[1] || "status";
         try {
           const r = await callGateway("/treasury", { action });
           appendMsg("agent", `Gateway /treasury (${action}) -> HTTP ${r.status}\n${JSON.stringify(r.data, null, 2)}`);
-        } catch (e) {
-          appendMsg("agent", `Gateway unreachable (${state.gatewayUrl}): ${e.message}`);
-        }
+        } catch (e) { appendMsg("agent", `Gateway unreachable: ${e.message}`); }
         return;
       }
-
       if (lower.startsWith("/reconcile")) {
-        const [, strategy_id = "live_test_01"] = text.split(/\s+/);
+        const strategy_id = text.split(/\s+/)[1] || "live_test_01";
         try {
           const r = await callGateway("/agent/reconcile", { strategy_id });
           appendMsg("agent", `Reconcile (${strategy_id}) -> HTTP ${r.status}\n${JSON.stringify(r.data, null, 2)}`);
-        } catch (e) {
-          appendMsg("agent", `Gateway unreachable: ${e.message}`);
-        }
+        } catch (e) { appendMsg("agent", `Gateway unreachable: ${e.message}`); }
         return;
       }
-
-      appendMsg("agent", `No Hermes / cloud agent is connected (paid GCP billing is kept OFF). Supported local commands: /devices, /launch <ios|android> <id>, /gesture <on|off|0.65>.`);
+      appendMsg("agent", `No Hermes / cloud agent is connected (paid GCP billing is kept OFF). Supported local commands: /devices, /launch, /nav, /tap, /gesture.`);
     }
 
     function handleAgentSubmit(e) {
@@ -998,64 +917,39 @@ Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasu
       const btn = document.getElementById("btnVoice");
       const mode = document.getElementById("agentModeLabel");
       const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRec) {
-        appendMsg("sys", "Browser SpeechRecognition unavailable in this browser.");
-        return;
-      }
+      if (!SpeechRec) { appendMsg("sys", "Browser SpeechRecognition unavailable."); return; }
       if (state.voiceActive && state.recognition) {
-        state.recognition.stop();
-        state.voiceActive = false;
-        btn.classList.remove("active");
-        btn.textContent = "Voice (Local)";
-        mode.textContent = "Local Bridge Only";
+        state.recognition.stop(); state.voiceActive = false;
+        btn.classList.remove("active"); btn.textContent = "Voice (Local)"; mode.textContent = "Local Bridge Only";
         return;
       }
       const rec = new SpeechRec();
-      rec.continuous = false;
-      rec.interimResults = false;
-      rec.onresult = (ev) => {
-        const transcript = ev.results[0][0].transcript;
-        runCommandText(transcript);
-      };
+      rec.continuous = false; rec.interimResults = false;
+      rec.onresult = (ev) => runCommandText(ev.results[0][0].transcript);
       rec.onend = () => {
-        state.voiceActive = false;
-        btn.classList.remove("active");
-        btn.textContent = "Voice (Local)";
-        mode.textContent = "Local Bridge Only";
+        state.voiceActive = false; btn.classList.remove("active");
+        btn.textContent = "Voice (Local)"; mode.textContent = "Local Bridge Only";
       };
       rec.start();
-      state.recognition = rec;
-      state.voiceActive = true;
-      btn.classList.add("active");
-      btn.textContent = "Listening...";
-      mode.textContent = "Local Voice Active";
+      state.recognition = rec; state.voiceActive = true;
+      btn.classList.add("active"); btn.textContent = "Listening..."; mode.textContent = "Local Voice Active";
     }
 
-    const recorder = {
-      active: false,
-      steps: [],
-      lastTs: 0,
-      saved: []
-    };
+    const recorder = { active: false, steps: [], lastTs: 0, saved: [] };
 
     function toggleRecording() {
       recorder.active = !recorder.active;
       const btn = document.getElementById("btnRecord");
       const saveBtn = document.getElementById("btnSaveMacro");
       if (recorder.active) {
-        recorder.steps = [];
-        recorder.lastTs = Date.now();
-        btn.classList.add("active");
-        btn.textContent = "Stop Rec";
-        saveBtn.style.display = "none";
+        recorder.steps = []; recorder.lastTs = Date.now();
+        btn.classList.add("active"); btn.textContent = "Stop Rec"; saveBtn.style.display = "none";
         document.getElementById("recStatus").textContent = "Recording · 0 steps";
-        appendMsg("sys", "AI action tracking started. Taps, navs, and app launches on iOS & Android are being recorded.");
+        appendMsg("sys", "Action recording started (tap, swipe, nav, launch).");
       } else {
-        btn.classList.remove("active");
-        btn.textContent = "Record";
+        btn.classList.remove("active"); btn.textContent = "Record";
         saveBtn.style.display = recorder.steps.length ? "inline-flex" : "none";
         document.getElementById("recStatus").textContent = `Stopped · ${recorder.steps.length} steps`;
-        appendMsg("sys", `Recording stopped (${recorder.steps.length} tracked steps). Click Save Macro to persist.`);
       }
     }
 
@@ -1073,24 +967,20 @@ Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasu
       let localList = [];
       try { localList = JSON.parse(localStorage.getItem("schaffer_automations_v1") || "[]"); } catch (_) {}
       try {
-        const res = await fetch(`${state.bridgeUrl}/automations`, { signal: AbortSignal.timeout(2500) });
+        const res = await fetch(`${state.bridgeUrl}/automations`, { signal: AbortSignal.timeout(5000) });
         if (res.ok) {
           const data = await res.json();
           recorder.saved = data.automations || [];
           localStorage.setItem("schaffer_automations_v1", JSON.stringify(recorder.saved));
-        } else {
-          recorder.saved = localList;
-        }
-      } catch (_) {
-        recorder.saved = localList;
-      }
+        } else recorder.saved = localList;
+      } catch (_) { recorder.saved = localList; }
       renderAutomations();
     }
 
     function renderAutomations() {
       const box = document.getElementById("automationsList");
       if (!recorder.saved.length) {
-        box.innerHTML = `<span style="font-size:12px; color:var(--muted);">No saved automations yet. Click Record, interact with iOS/Android, then Save Macro.</span>`;
+        box.innerHTML = `<span style="font-size:12px; color:var(--muted);">No saved automations yet. Click Record, interact with simulators, then Save Macro.</span>`;
         return;
       }
       box.innerHTML = "";
@@ -1098,18 +988,14 @@ Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasu
         const wrap = document.createElement("div");
         wrap.style.cssText = "display:inline-flex; align-items:center; gap:4px; background:var(--surface-2); border:1px solid var(--border); border-radius:999px; padding:3px 8px; font-size:12px;";
         const runBtn = document.createElement("button");
-        runBtn.className = "pill";
-        runBtn.style.cssText = "border:none; padding:2px 6px; background:transparent;";
+        runBtn.className = "pill"; runBtn.style.cssText = "border:none; padding:2px 6px; background:transparent;";
         runBtn.textContent = `▶ ${item.name} (${(item.steps || []).length})`;
         runBtn.onclick = () => replaySavedAutomation(item);
         const delBtn = document.createElement("button");
-        delBtn.className = "pill";
-        delBtn.style.cssText = "border:none; padding:2px 5px; background:transparent; color:var(--muted);";
+        delBtn.className = "pill"; delBtn.style.cssText = "border:none; padding:2px 5px; background:transparent; color:var(--muted);";
         delBtn.textContent = "×";
         delBtn.onclick = () => deleteSavedAutomation(item.name);
-        wrap.appendChild(runBtn);
-        wrap.appendChild(delBtn);
-        box.appendChild(wrap);
+        wrap.appendChild(runBtn); wrap.appendChild(delBtn); box.appendChild(wrap);
       }
     }
 
@@ -1124,34 +1010,22 @@ Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasu
       renderAutomations();
       try {
         const res = await fetch(`${state.bridgeUrl}/automations`, {
-          method: "POST",
-          headers: bridgeHeaders(),
-          body: JSON.stringify({ name: entry.name, steps: entry.steps })
+          method: "POST", headers: bridgeHeaders(), body: JSON.stringify({ name: entry.name, steps: entry.steps })
         });
-        appendMsg("sys", res.ok ? `Saved "${entry.name}" (${entry.steps.length} steps) to Mac storage & browser.` : `Saved locally; Mac disk save returned HTTP ${res.status}.`);
-      } catch (_) {
-        appendMsg("sys", `Saved "${entry.name}" to browser storage (Mac bridge offline).`);
-      }
+        appendMsg("sys", res.ok ? `Saved "${entry.name}" (${entry.steps.length} steps) to Mac storage & browser.` : `Saved locally; Mac save returned HTTP ${res.status}.`);
+      } catch (_) { appendMsg("sys", `Saved "${entry.name}" to browser storage.`); }
     }
 
     async function replaySavedAutomation(item) {
-      if (!state.bridgeToken) {
-        const ok = await pairLocalBridge();
-        if (!ok) return;
-      }
+      if (!state.bridgeToken && !(await pairLocalBridge())) return;
       appendMsg("sys", `Replaying "${item.name}" (${(item.steps || []).length} steps)...`);
       try {
         const res = await fetch(`${state.bridgeUrl}/automations/replay`, {
-          method: "POST",
-          headers: bridgeHeaders(),
-          body: JSON.stringify({ steps: item.steps || [] })
+          method: "POST", headers: bridgeHeaders(), body: JSON.stringify({ steps: item.steps || [] })
         });
-        const body = await res.text();
-        appendMsg("sys", res.ok ? `Replay "${item.name}" complete: ${body}` : `Replay failed (HTTP ${res.status}): ${body}`);
+        appendMsg("sys", res.ok ? `Replay "${item.name}" complete: ${await res.text()}` : `Replay failed (HTTP ${res.status})`);
         pollFrames();
-      } catch (e) {
-        appendMsg("sys", `Replay failed: ${e.message}`);
-      }
+      } catch (e) { appendMsg("sys", `Replay failed: ${e.message}`); }
     }
 
     async function deleteSavedAutomation(name) {
@@ -1161,9 +1035,7 @@ Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasu
       if (!state.bridgeToken) return;
       try {
         await fetch(`${state.bridgeUrl}/automations/delete`, {
-          method: "POST",
-          headers: bridgeHeaders(),
-          body: JSON.stringify({ name })
+          method: "POST", headers: bridgeHeaders(), body: JSON.stringify({ name })
         });
       } catch (_) {}
     }
@@ -1171,8 +1043,8 @@ Unavailable / blocked: /build (not wired in simulator_bridge.py); /apex, /treasu
     function refreshAll() {
       loadStatus();
       checkDevices();
+      loadAvailableEmulators();
       loadAutomations();
-      pollFrames();
     }
 
     initConfigInputs();
