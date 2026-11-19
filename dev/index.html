@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Schaffer AI — Always-Free Hub</title>
+  <style>
+    :root {
+      --bg: #0a0b0e;
+      --surface: #111318;
+      --surface-2: #171a21;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.16);
+      --text: #f3f4f6;
+      --muted: #9ca3af;
+      --accent: #3b82f6;
+      --ok: #10b981;
+      --warn: #f59e0b;
+      --err: #ef4444;
+      --radius: 12px;
+      --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .wrap {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 20px 24px 56px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand h1 { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+
+    .version-tag {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+
+    .header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+    button, .btn {
+      appearance: none;
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-family: var(--font);
+      font-size: 12.5px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+
+    button:hover, .btn:hover { background: #1f242e; border-color: var(--border-strong); }
+    button.primary, .btn.primary { background: var(--text); color: #0a0b0e; border-color: var(--text); }
+    button.primary:hover, .btn.primary:hover { background: #e5e7eb; border-color: #e5e7eb; }
+    button.pill { border-radius: 999px; padding: 5px 12px; font-size: 12px; }
+    button.active { border-color: var(--accent); color: #93c5fd; background: rgba(59, 130, 246, 0.12); }
+
+    select {
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-family: var(--font);
+      font-size: 12px;
+      outline: none;
+      max-width: 220px;
+    }
+
+    /* Lead Top Site Navigator (AI-App Style Rounded Bar) */
+    .navigator-shell {
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      border-radius: 20px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .navigator-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+      padding: 0 4px;
+    }
+
+    .navigator-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 8px 6px 16px;
+    }
+
+    .navigator-bar:focus-within { border-color: var(--border-strong); }
+
+    .navigator-bar input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 14px;
+      outline: none;
+      min-width: 0;
+    }
+
+    .navigator-chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+
+    .navigator-log {
+      max-height: 150px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 12.5px;
+      padding-top: 2px;
+    }
+
+    .msg { padding: 8px 11px; border-radius: 10px; word-break: break-word; white-space: pre-wrap; }
+    .msg.user { align-self: flex-end; background: var(--surface-2); border: 1px solid var(--border); max-width: 85%; }
+    .msg.agent { align-self: flex-start; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border); max-width: 92%; }
+    .msg.sys { font-family: var(--mono); font-size: 11.5px; color: var(--muted); background: transparent; border: 1px dashed var(--border); }
+
+    .status-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 10px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .stat-label {
+      font-size: 11.5px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .stat-value { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+    .dot.ok { background: var(--ok); }
+    .dot.warn { background: var(--warn); }
+    .dot.err { background: var(--err); }
+
+    .sim-section { display: flex; flex-direction: column; gap: 12px; }
+    .section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+    .section-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .sim-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 18px;
+      align-items: start;
+    }
+
+    .sim-unit { display: flex; flex-direction: column; gap: 8px; max-width: 260px; }
+    .sim-meta { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted); gap: 6px; }
+    .sim-meta strong { color: var(--text); font-weight: 500; }
+
+    .sim-screen {
+      width: 100%;
+      max-height: 58vh;
+      aspect-ratio: 9 / 19.5;
+      border-radius: 18px;
+      overflow: hidden;
+      background: transparent;
+      position: relative;
+      cursor: crosshair;
+      touch-action: none;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .sim-screen img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      border-radius: 18px;
+      pointer-events: none;
+    }
+
+    .tap-ripple {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      margin-left: -12px;
+      margin-top: -12px;
+      border-radius: 50%;
+      border: 2px solid var(--accent);
+      background: rgba(59, 130, 246, 0.25);
+      pointer-events: none;
+      animation: rippleOut 0.45s ease-out forwards;
+    }
+
+    @keyframes rippleOut {
+      from { transform: scale(0.5); opacity: 1; }
+      to { transform: scale(1.8); opacity: 0; }
+    }
+
+    .sim-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 20px;
+      color: var(--muted);
+      font-size: 12px;
+      border: 1px dashed var(--border);
+      border-radius: 18px;
+    }
+
+    .config-bar {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+
+    .config-bar.open { display: grid; }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field label { font-size: 11.5px; color: var(--muted); }
+    .field input {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 11px;
+      font-family: var(--font);
+      font-size: 13px;
+      outline: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand">
+        <h1>Schaffer AI</h1>
+        <span class="version-tag" id="versionTag">v2.6.3</span>
+      </div>
+      <div class="header-actions">
+        <button class="pill" id="btnMacView" onclick="toggleMacView()">Mac View: Off</button>
+        <button class="pill" id="btnGesture" onclick="toggleGesture()">Gesture: Off</button>
+        <button class="pill" id="btnSpeak" onclick="toggleSpeak()">Speak: Off</button>
+        <button class="pill" onclick="refreshAll()">Refresh</button>
+        <button class="pill" id="btnPairStatus" onclick="toggleConfig()">Session & Endpoints</button>
+      </div>
+    </header>
+
+    <div class="stat-card" id="connectionBanner" role="status" style="margin-bottom:14px; font-size:13px;">
+      Website online. Browser games work on any computer. Connecting to your Mac...
+    </div>
+    <!-- Global Lead Site Navigator (Rounded Text + Voice Bar at Top) -->
+    <section class="navigator-shell" id="navigatorSection">
+      <div class="navigator-head">
+        <strong id="navigatorTitle" style="color:var(--text); font-weight:600;">Site Navigator</strong>
+        <button class="pill" style="padding:2px 8px; font-size:11px;" onclick="renameNavigator()">Rename</button>
+      </div>
+      <form class="navigator-bar" onsubmit="handleAgentSubmit(event)">
+        <input type="text" id="agentInput" placeholder="Describe what you want (e.g. 'debug', 'show mac', 'open wasm4', 'go home', 'open settings')..." autocomplete="off" />
+        <button type="button" class="pill" id="btnVoice" onclick="toggleVoice()">Voice</button>
+        <button type="submit" class="pill primary">Send</button>
+      </form>
+      <div class="navigator-chips">
+        <button class="pill" onclick="runCommandText('debug')">Debug All</button>
+        <button class="pill" onclick="runCommandText('describe site')">Describe Site</button>
+        <button class="pill" onclick="runCommandText('show mac')">Mac View</button>
+        <button class="pill" onclick="runCommandText('open wasm4')">WASM-4 Console</button>
+        <button class="pill" onclick="runCommandText('open settings')">Android Settings</button>
+        <button class="pill" onclick="runCommandText('go home')">Android Home</button>
+        <button class="pill" onclick="runCommandText('/requests')">Queue</button>
+        <button class="pill" onclick="runCommandText('/fulfill c@schafferai.com')">Build, Install & Email</button>
+        <button class="pill" onclick="runCommandText('/devices')">Devices</button>
+        <a class="pill" style="color:var(--text);text-decoration:none;" href="https://remotedesktop.google.com/access" target="_blank" rel="noopener">Connect to my Mac</a>
+      </div>
+      <div class="navigator-log" id="agentLog">
+        <div class="msg sys">Site Navigator ready. Type naturally or use /debug, /devices, /launch, /nav, /tap, /gesture. (Always-Free Mode: paid GCP billing OFF.)</div>
+      </div>
+    </section>
+
+    <div class="config-bar" id="configBar">
+      <div class="field">
+        <label>Mac Simulator Bridge URL</label>
+        <input type="url" id="bridgeUrlInput" placeholder="http://127.0.0.1:8765" />
+      </div>
+      <div class="field">
+        <label>Local Bridge Session Token (session-only)</label>
+        <input type="password" id="bridgeTokenInput" placeholder="Auto-paired via Pair Bridge" />
+      </div>
+      <div class="field">
+        <label>Cloud Run Gateway URL (Blocked while billing OFF)</label>
+        <input type="url" id="gatewayUrlInput" placeholder="https://schafferai-treasury-webhook-rtr25d4k5q-uc.a.run.app" />
+      </div>
+      <div class="field">
+        <label>Gateway Bearer Token (session-only, optional)</label>
+        <input type="password" id="gatewayTokenInput" placeholder="Requires active GCP auth" />
+      </div>
+      <div class="field">
+        <label>MediaPipe Sensitivity (0.1 – 1.0)</label>
+        <input type="text" id="gestureSensInput" placeholder="0.65" />
+      </div>
+      <div class="field" style="justify-content: flex-end;">
+        <button class="primary" onclick="saveConfig()">Save Session Config</button>
+      </div>
+    </div>
+
+    <section class="status-strip" id="statusStrip">
+      <div class="stat-card">
+        <div class="stat-label">GCP Billing</div>
+        <div class="stat-value"><span class="dot ok" id="dotBilling"></span><span id="valBilling">Always-Free Mode</span></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Domain &amp; TLS</div>
+        <div class="stat-value"><span class="dot ok" id="dotDomain"></span><span id="valDomain">HTTPS healthy</span></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Work email delivery</div>
+        <div class="stat-value"><span class="dot ok" id="dotClasp"></span><span id="valClasp">Complete</span></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Local Simulators</div>
+        <div class="stat-value"><span class="dot" id="dotSim"></span><span id="valSim">Checking...</span></div>
+      </div>
+    </section>
+
+    <section class="sim-section" id="simSection">
+      <div class="section-head">
+        <span class="section-title">Live Simulators (Multi-Device)</span>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+          <select id="bootSelect"><option value="">+ Boot Emulator...</option></select>
+          <button class="pill" onclick="bootSelectedEmulator()">Boot</button>
+          <button class="pill" onclick="pairLocalBridge()" id="btnQuickPair">Pair Bridge</button>
+          <button class="pill" onclick="toggleRecording()" id="btnRecord">Record</button>
+          <button class="pill" onclick="saveCurrentRecording()" id="btnSaveMacro" style="display:none;">Save Macro</button>
+          <button class="pill" onclick="toggleStream()" id="btnStream">Pause Stream</button>
+        </div>
+      </div>
+
+      <div id="macViewCard" style="display:none; flex-direction:column; gap:8px;">
+        <div class="sim-meta">
+          <strong>Mac Display (Live View · Local Only)</strong>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span id="macViewLabel">Off</span>
+            <button class="pill" onclick="toggleMacView(false)">Stop Mac View</button>
+          </div>
+        </div>
+        <div style="width:100%; aspect-ratio:16/10; border-radius:14px; overflow:hidden; position:relative; border:1px solid var(--border);">
+          <img id="macViewImg" alt="Mac Display" style="width:100%; height:100%; object-fit:contain; display:none;" />
+          <div class="sim-placeholder" id="macViewEmpty">Connecting to Mac Display stream...</div>
+        </div>
+        <span style="font-size:11.5px; color:var(--muted);">Read-only Mac display mirror (requires macOS Screen Recording permission for the bridge terminal).</span>
+      </div>
+
+      <div class="sim-grid" id="simGrid">
+        <div class="stat-card">Connecting to Mac Simulator Bridge (<code>http://127.0.0.1:8765</code>)...</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">
+          <span>Action Recording &amp; Saved Automations (Mac + Local Storage)</span>
+          <span id="recStatus">Idle · 0 steps</span>
+        </div>
+        <div style="font-size:11.5px; color:var(--muted); margin-top:2px;">
+          Deterministic event recorder (tap/swipe/nav/launch). AI vision screen tracking: unavailable (no local vision model wired).
+        </div>
+        <div id="automationsList" style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;">
+          <span style="font-size:12px; color:var(--muted);">No saved automations yet. Click Record, interact with simulators, then Save Macro.</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="sim-grid" id="portalArcadeSection">
+      <div class="stat-card" id="remotePortalCard" style="gap:10px;">
+        <div class="stat-label">
+          <span>Remote Mac Portal (View + Control from Other Devices)</span>
+          <span class="version-tag">$0 Always-Free</span>
+        </div>
+        <p style="font-size:12.5px; color:var(--muted);">
+          Browser games run on any computer. To view and control your Mac and its Android emulator from another device, connect through Chrome Remote Desktop while the Mac is on. Sign in with the Google account used during host setup. The Mac host must be installed and configured before it appears online.
+        </p>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <a class="btn primary" href="https://remotedesktop.google.com/access" target="_blank" rel="noopener">Open Chrome Remote Desktop</a>
+        </div>
+      </div>
+
+      <div class="stat-card" id="arcadeCard" style="gap:10px;">
+        <div class="stat-label">
+          <span>Free Browser Arcade ($0 Legal Games &amp; Homebrew)</span>
+          <span id="arcadeScore">Score: 0 · Best: 0</span>
+        </div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+          <button class="pill active" id="btnGameSnake" onclick="selectGame('snake')">Retro Snake</button>
+          <button class="pill" id="btnGameBreakout" onclick="selectGame('breakout')">Brick Breaker</button>
+          <button class="pill" id="btnGameWasm4" onclick="selectGame('wasm4')">WASM-4 Console</button>
+          <button class="pill" id="btnGameNes" onclick="selectGame('nes')">NES (JSNES)</button>
+          <button class="pill" onclick="startArcadeGame()">Restart</button>
+        </div>
+        <div id="canvasArcadeWrap" style="display:flex; gap:14px; align-items:center; flex-wrap:wrap;">
+          <canvas id="arcadeCanvas" width="260" height="200" style="background:#050608; border:1px solid var(--border); border-radius:10px; touch-action:none;"></canvas>
+          <div style="display:grid; grid-template-columns:repeat(3,36px); gap:4px;">
+            <div></div><button class="pill" style="padding:6px; justify-content:center;" onclick="arcadeDir(0,-1)">↑</button><div></div>
+            <button class="pill" style="padding:6px; justify-content:center;" onclick="arcadeDir(-1,0)">←</button>
+            <button class="pill" style="padding:6px; justify-content:center;" onclick="arcadeDir(0,1)">↓</button>
+            <button class="pill" style="padding:6px; justify-content:center;" onclick="arcadeDir(1,0)">→</button>
+          </div>
+        </div>
+        <div id="wasm4Wrap" style="display:none; flex-direction:column; gap:6px;">
+          <iframe id="wasm4Frame" title="WASM-4 Official Snake" style="width:100%; height:320px; border:1px solid var(--border); border-radius:10px; background:#050608;"></iframe>
+          <span style="font-size:11.5px; color:var(--muted);">
+            Official <a href="https://github.com/aduros/wasm4/tree/a79314df03c7c859239f81a3958152c09c3aeaf9/examples/snake" target="_blank" rel="noopener" style="color:var(--text);">WASM-4 Snake example</a> (Bruno Garcia, <a href="./arcade/wasm4-snake/LICENSE.txt" target="_blank" rel="noopener" style="color:var(--text);">ISC License</a>).
+          </span>
+        </div>
+        <div id="nesWrap" style="display:none; flex-direction:column; gap:6px;">
+          <iframe id="nesFrame" title="JSNES 8-Bit Table Tennis" style="width:100%; height:340px; border:1px solid var(--border); border-radius:10px; background:#050608;"></iframe>
+          <span style="font-size:11.5px; color:var(--muted);">
+            <a href="https://github.com/bfirsh/jsnes" target="_blank" rel="noopener" style="color:var(--text);">JSNES</a> (<a href="./arcade/nes-table-tennis/JSNES-LICENSE.txt" target="_blank" rel="noopener" style="color:var(--text);">Apache-2.0</a>) + <a href="https://github.com/mike42/8bit-table-tennis" target="_blank" rel="noopener" style="color:var(--text);">8-Bit Table Tennis</a> (Michael Billington, <a href="./arcade/nes-table-tennis/LICENSE.txt" target="_blank" rel="noopener" style="color:var(--text);">MIT</a>). Supports user-supplied local <code>.nes</code> ROMs.
+          </span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const DEFAULT_BRIDGE = "http://127.0.0.1:8765";
+    const DEFAULT_GATEWAY = "https://schafferai-treasury-webhook-rtr25d4k5q-uc.a.run.app";
+
+    const state = {
+      bridgeUrl: localStorage.getItem("schaffer_bridge_url") || DEFAULT_BRIDGE,
+      bridgeToken: sessionStorage.getItem("schaffer_bridge_token") || "",
+      gatewayUrl: localStorage.getItem("schaffer_gateway_url") || DEFAULT_GATEWAY,
+      gatewayToken: sessionStorage.getItem("schaffer_gateway_token") || "",
+      gestureEnabled: localStorage.getItem("schaffer_gesture_on") === "true",
+      gestureSens: localStorage.getItem("schaffer_gesture_sens") || "0.65",
+      speakReplies: localStorage.getItem("schaffer_speak") === "true",
+      navigatorName: localStorage.getItem("schaffer_nav_name") || "Site Navigator",
+      streaming: true,
+      voiceActive: false,
+      recognition: null
+    };
+
+    const frameState = {
+      devices: [],
+      inFlight: {},
+      timers: {},
+      lastFrameOkAt: 0
+    };
+
+    function initConfigInputs() {
+      document.getElementById("bridgeUrlInput").value = state.bridgeUrl;
+      document.getElementById("bridgeTokenInput").value = state.bridgeToken;
+      document.getElementById("gatewayUrlInput").value = state.gatewayUrl;
+      document.getElementById("gatewayTokenInput").value = state.gatewayToken;
+      document.getElementById("gestureSensInput").value = state.gestureSens;
+      document.getElementById("navigatorTitle").textContent = state.navigatorName;
+      updateGestureButton();
+      updateSpeakButton();
+      updatePairBadge();
+    }
+
+    function updatePairBadge() {
+      const btn = document.getElementById("btnPairStatus");
+      btn.textContent = state.bridgeToken ? "Session: Paired" : "Session & Endpoints";
+      btn.classList.toggle("active", Boolean(state.bridgeToken));
+    }
+
+    function toggleConfig() { document.getElementById("configBar").classList.toggle("open"); }
+
+    function saveConfig() {
+      state.bridgeUrl = (document.getElementById("bridgeUrlInput").value || DEFAULT_BRIDGE).replace(/\/+$/, "");
+      state.bridgeToken = (document.getElementById("bridgeTokenInput").value || "").trim();
+      state.gatewayUrl = (document.getElementById("gatewayUrlInput").value || DEFAULT_GATEWAY).replace(/\/+$/, "");
+      state.gatewayToken = (document.getElementById("gatewayTokenInput").value || "").trim();
+      state.gestureSens = document.getElementById("gestureSensInput").value || "0.65";
+      localStorage.setItem("schaffer_bridge_url", state.bridgeUrl);
+      localStorage.setItem("schaffer_gateway_url", state.gatewayUrl);
+      localStorage.setItem("schaffer_gesture_sens", state.gestureSens);
+      if (state.bridgeToken) sessionStorage.setItem("schaffer_bridge_token", state.bridgeToken);
+      else sessionStorage.removeItem("schaffer_bridge_token");
+      if (state.gatewayToken) sessionStorage.setItem("schaffer_gateway_token", state.gatewayToken);
+      else sessionStorage.removeItem("schaffer_gateway_token");
+      updatePairBadge();
+      toggleConfig();
+      appendMsg("sys", `Saved session config. Bridge: ${state.bridgeUrl} (${state.bridgeToken ? "paired" : "unpaired"})`);
+      refreshAll();
+    }
+
+    function updateGestureButton() {
+      const btn = document.getElementById("btnGesture");
+      btn.textContent = state.gestureEnabled ? `Gesture: On (${state.gestureSens})` : "Gesture: Off";
+      btn.classList.toggle("active", state.gestureEnabled);
+    }
+
+    function toggleGesture(forceVal) {
+      state.gestureEnabled = typeof forceVal === "boolean" ? forceVal : !state.gestureEnabled;
+      localStorage.setItem("schaffer_gesture_on", String(state.gestureEnabled));
+      updateGestureButton();
+      appendMsg("agent", `MediaPipe local preference ${state.gestureEnabled ? "enabled" : "disabled"} (sensitivity ${state.gestureSens}).`);
+    }
+
+    function updateSpeakButton() {
+      const btn = document.getElementById("btnSpeak");
+      btn.textContent = state.speakReplies ? "Speak: On" : "Speak: Off";
+      btn.classList.toggle("active", state.speakReplies);
+    }
+
+    function toggleSpeak() {
+      state.speakReplies = !state.speakReplies;
+      localStorage.setItem("schaffer_speak", String(state.speakReplies));
+      updateSpeakButton();
+    }
+
+    function renameNavigator() {
+      const next = prompt("Name this site control bar:", state.navigatorName);
+      if (!next || !next.trim()) return;
+      state.navigatorName = next.trim();
+      localStorage.setItem("schaffer_nav_name", state.navigatorName);
+      document.getElementById("navigatorTitle").textContent = state.navigatorName;
+    }
+
+    function appendMsg(role, text) {
+      const log = document.getElementById("agentLog");
+      const el = document.createElement("div");
+      el.className = `msg ${role}`;
+      el.textContent = text;
+      log.appendChild(el);
+      log.scrollTop = log.scrollHeight;
+      if (role === "agent" && state.speakReplies && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(new SpeechSynthesisUtterance(text.slice(0, 260)));
+      }
+    }
+
+    async function loadStatus() {
+      try {
+        const res = await fetch(`./data/status.json?t=${Date.now()}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        document.getElementById("versionTag").textContent = data.version || "v2.5.0";
+        const billing = data.systems?.billing || {};
+        document.getElementById("valBilling").textContent = billing.summary || "Always-Free Mode";
+        document.getElementById("dotBilling").className = `dot ${billing.status || "ok"}`;
+        const domain = data.systems?.domain || {};
+        document.getElementById("valDomain").textContent = domain.summary || "HTTPS healthy";
+        document.getElementById("dotDomain").className = `dot ${domain.status || "ok"}`;
+        const clasp = data.systems?.clasp || {};
+        document.getElementById("valClasp").textContent = clasp.summary || "Complete";
+        document.getElementById("dotClasp").className = `dot ${clasp.status || "ok"}`;
+      } catch (_) {}
+    }
+
+    async function loadAvailableEmulators() {
+      try {
+        const res = await fetch(`${state.bridgeUrl}/available`, { signal: AbortSignal.timeout(6000) });
+        if (!res.ok) return;
+        const data = await res.json();
+        const sel = document.getElementById("bootSelect");
+        sel.innerHTML = `<option value="">+ Boot Emulator...</option>`;
+        for (const avd of (data.android_avds || [])) {
+          const opt = document.createElement("option");
+          opt.value = `android|${avd}`;
+          opt.textContent = `Android: ${avd}`;
+          sel.appendChild(opt);
+        }
+        for (const d of (data.ios_available || [])) {
+          const opt = document.createElement("option");
+          opt.value = `ios|${d.udid}`;
+          opt.textContent = `iOS (${d.runtime}): ${d.name}${d.state === "Booted" ? " [Booted]" : ""}`;
+          sel.appendChild(opt);
+        }
+      } catch (_) {}
+    }
+
+    async function bootSelectedEmulator() {
+      const val = document.getElementById("bootSelect").value;
+      if (!val) return;
+      const [platform, target] = val.split("|");
+      appendMsg("sys", `Booting ${platform} emulator (${target})...`);
+      try {
+        const res = await bridgePost("/boot", { platform, target });
+        if (!res) return;
+        appendMsg("sys", `Boot ${platform}: HTTP ${res.status} ${await res.text()}`);
+        setTimeout(checkDevices, 3000);
+        setTimeout(checkDevices, 8000);
+      } catch (e) { appendMsg("sys", `Boot failed: ${e.message}`); }
+    }
+
+    function renderSimGrid(devices) {
+      const grid = document.getElementById("simGrid");
+      const currentKeys = devices.map(d => d.key).join(",");
+      if (grid.dataset.keys === currentKeys) return;
+      grid.dataset.keys = currentKeys;
+      Object.values(frameState.timers).forEach(clearTimeout);
+      frameState.timers = {};
+      grid.innerHTML = "";
+
+      if (!devices.length) {
+        grid.innerHTML = `<div class="stat-card">No simulators booted. Pick one from "+ Boot Emulator..." above and click Boot.</div>`;
+        return;
+      }
+
+      for (const dev of devices) {
+        const unit = document.createElement("div");
+        unit.className = "sim-unit";
+        const safeId = dev.key.replace(/[^a-zA-Z0-9_-]/g, "_");
+        unit.innerHTML = `
+          <div class="sim-meta">
+            <strong>${dev.title}</strong>
+            <span id="lbl_${safeId}">Connecting...</span>
+          </div>
+          <div class="sim-screen" id="scr_${safeId}">
+            <img id="img_${safeId}" alt="${dev.title}" style="display:none;" />
+            <div class="sim-placeholder" id="emp_${safeId}">Loading ${dev.title}...</div>
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;" id="ctrl_${safeId}"></div>
+        `;
+        grid.appendChild(unit);
+
+        const scr = document.getElementById(`scr_${safeId}`);
+        attachScreenInteractions(scr, dev, safeId);
+
+        const ctrl = document.getElementById(`ctrl_${safeId}`);
+        if (dev.platform === "android") {
+          ctrl.innerHTML = `
+            <button class="pill" onclick="sendNav('android', 'home', '${dev.deviceId}')">Home</button>
+            <button class="pill" onclick="sendNav('android', 'back', '${dev.deviceId}')">Back</button>
+            <button class="pill" onclick="sendNav('android', 'recents', '${dev.deviceId}')">Recents</button>
+            <button class="pill" onclick="scrollDevice('android', '${dev.deviceId}', 'down')">Scroll ↓</button>
+            <button class="pill" onclick="scrollDevice('android', '${dev.deviceId}', 'up')">Scroll ↑</button>
+            <button class="pill" onclick="launchAppForDevice('android', 'com.android.settings', '${dev.deviceId}')">Settings</button>
+            <button class="pill" onclick="shutdownDevice('${dev.platform}', '${dev.deviceId}')">Shut Down</button>
+          `;
+        } else {
+          ctrl.innerHTML = `
+            <button class="pill" onclick="sendNav('ios', 'focus', '${dev.deviceId}')">Focus Window</button>
+            <button class="pill" onclick="launchAppForDevice('ios', 'com.apple.Preferences', '${dev.deviceId}')">Settings</button>
+            <button class="pill" onclick="launchAppForDevice('ios', 'com.apple.mobilesafari', '${dev.deviceId}')">Safari</button>
+            <button class="pill" onclick="shutdownDevice('${dev.platform}', '${dev.deviceId}')">Shut Down</button>
+            <span style="font-size:11.5px; color:var(--muted); width:100%;">iOS note: tap focuses window; raw tap/scroll requires WDA.</span>
+          `;
+        }
+      }
+      pollFrames();
+    }
+
+    async function shutdownDevice(platform, deviceId) {
+      appendMsg("sys", `Shutting down ${platform} (${deviceId}) to free CPU/RAM...`);
+      try {
+        const res = await bridgePost("/shutdown", { platform, device_id: deviceId });
+        if (res && res.ok) setTimeout(checkDevices, 1200);
+      } catch (e) { appendMsg("sys", `Shutdown failed: ${e.message}`); }
+    }
+
+    function showTapRipple(scr, clientX, clientY) {
+      const r = scr.getBoundingClientRect();
+      const dot = document.createElement("div");
+      dot.className = "tap-ripple";
+      dot.style.left = `${clientX - r.left}px`;
+      dot.style.top = `${clientY - r.top}px`;
+      scr.appendChild(dot);
+      setTimeout(() => dot.remove(), 460);
+    }
+
+    function attachScreenInteractions(scr, dev, safeId) {
+      let downPt = null;
+      let wheelTimer = null;
+      let wheelDelta = 0;
+
+      scr.addEventListener("pointerdown", (ev) => {
+        downPt = { x: ev.clientX, y: ev.clientY, id: ev.pointerId };
+        try { scr.setPointerCapture(ev.pointerId); } catch (_) {}
+      });
+
+      scr.addEventListener("pointercancel", () => { downPt = null; });
+
+      scr.addEventListener("pointerup", (ev) => {
+        if (!downPt) return;
+        try { scr.releasePointerCapture(downPt.id); } catch (_) {}
+        const dx = ev.clientX - downPt.x;
+        const dy = ev.clientY - downPt.y;
+        const start = downPt;
+        downPt = null;
+        showTapRipple(scr, ev.clientX, ev.clientY);
+        const img = document.getElementById(`img_${safeId}`);
+        const p1 = mapClientToDevice(img, start.x, start.y);
+        const p2 = mapClientToDevice(img, ev.clientX, ev.clientY);
+        if (!p1 || !p2) return;
+        if (Math.hypot(dx, dy) >= 12 && dev.platform === "android") {
+          const sx = p2.x - p1.x;
+          const sy = p2.y - p1.y;
+          const tx = Math.max(0, Math.min(1080, Math.round(p1.x + sx * 2.5)));
+          const ty = Math.max(0, Math.min(2400, Math.round(p1.y + sy * 2.5)));
+          sendSwipe(dev.platform, dev.deviceId, p1.x, p1.y, tx, ty);
+        } else {
+          sendTap(dev.platform, dev.deviceId, p2.x, p2.y);
+        }
+      });
+
+      if (dev.platform === "android") {
+        scr.addEventListener("wheel", (ev) => {
+          ev.preventDefault();
+          wheelDelta += ev.deltaY;
+          clearTimeout(wheelTimer);
+          wheelTimer = setTimeout(() => {
+            const dir = wheelDelta > 0 ? "down" : "up";
+            wheelDelta = 0;
+            scrollDevice("android", dev.deviceId, dir);
+          }, 120);
+        }, { passive: false });
+      }
+    }
+
+    function mapClientToDevice(img, clientX, clientY) {
+      if (!img || !img.naturalWidth || !img.naturalHeight) return null;
+      const rect = img.getBoundingClientRect();
+      const scale = Math.min(rect.width / img.naturalWidth, rect.height / img.naturalHeight);
+      const renderedW = img.naturalWidth * scale;
+      const renderedH = img.naturalHeight * scale;
+      const offsetX = rect.left + (rect.width - renderedW) / 2;
+      const offsetY = rect.top + (rect.height - renderedH) / 2;
+      const relX = Math.max(0, Math.min(1, (clientX - offsetX) / renderedW));
+      const relY = Math.max(0, Math.min(1, (clientY - offsetY) / renderedH));
+      const isHalfAndroid = img.id.includes("android_") && img.naturalWidth <= 600;
+      const targetW = parseInt(img.dataset.devW, 10) || (isHalfAndroid ? img.naturalWidth * 2 : img.naturalWidth);
+      const targetH = parseInt(img.dataset.devH, 10) || (isHalfAndroid ? img.naturalHeight * 2 : img.naturalHeight);
+      return { x: Math.round(relX * targetW), y: Math.round(relY * targetH) };
+    }
+
+    async function checkDevices() {
+      try {
+        const res = await fetch(`${state.bridgeUrl}/devices`, { signal: AbortSignal.timeout(8000) });
+        const data = await res.json();
+        const iosList = (data.ios_booted || []).map(d => ({
+          key: `ios:${d.udid}`, platform: "ios", deviceId: d.udid, title: d.name || "iOS Simulator"
+        }));
+        const andList = (data.android_connected || []).map(s => {
+          const id = typeof s === "string" ? s : (s.id || "emulator-5554");
+          return { key: `android:${id}`, platform: "android", deviceId: id, title: `Android (${id})` };
+        });
+        frameState.devices = [...iosList, ...andList];
+        document.getElementById("connectionBanner").textContent = "Website online · Mac connected · Local build and emulator controls available.";
+        document.getElementById("valSim").textContent = `${iosList.length} iOS · ${andList.length} Android`;
+        document.getElementById("dotSim").className = `dot ${frameState.devices.length ? "ok" : "warn"}`;
+        renderSimGrid(frameState.devices);
+        return data;
+      } catch (_) {
+        const recentlyLive = frameState.lastFrameOkAt && (Date.now() - frameState.lastFrameOkAt) < 20000;
+        document.getElementById("valSim").textContent = recentlyLive ? "Streaming (device list slow)" : "Mac not connected";
+        document.getElementById("dotSim").className = recentlyLive ? "dot ok" : "dot warn";
+        if (!recentlyLive) {
+          document.getElementById("connectionBanner").textContent = "Website online · Browser games available · Connect to your Mac for builds and device control.";
+          if (!frameState.devices.length) document.getElementById("simGrid").innerHTML = '<div class="stat-card"><strong>Connect to your Mac</strong><p style="font-size:13px;color:var(--muted)">This website is online. The Android emulator and app builds run on your Mac. From another computer, open the authenticated Mac portal while the Mac is on.</p><a class="btn primary" href="https://remotedesktop.google.com/access" target="_blank" rel="noopener">Open Mac portal</a><p style="font-size:12px;color:var(--muted)">The browser arcade below works without the Mac connection.</p></div>';
+        }
+        return null;
+      }
+    }
+
+    function captureDeviceFrame(dev) {
+      const safeId = dev.key.replace(/[^a-zA-Z0-9_-]/g, "_");
+      const img = document.getElementById(`img_${safeId}`);
+      const empty = document.getElementById(`emp_${safeId}`);
+      const label = document.getElementById(`lbl_${safeId}`);
+      if (!img) return;
+      clearTimeout(frameState.timers[dev.key]);
+      if (!state.streaming) {
+        img.onerror = null;
+        img.removeAttribute("src");
+        img.dataset.streamActive = "0";
+        label.textContent = "Paused";
+        return;
+      }
+      const streamUrl = `${state.bridgeUrl}/stream?platform=${encodeURIComponent(dev.platform)}&device_id=${encodeURIComponent(dev.deviceId)}&t=${Date.now()}`;
+      if (img.dataset.streamActive === "1" && img.src.includes("/stream?")) return;
+      img.onload = () => {
+        if (!state.streaming) return;
+        frameState.inFlight[dev.key] = 1500;
+        img.style.display = "block";
+        empty.style.display = "none";
+        label.textContent = "Live (MJPEG)";
+        frameState.lastFrameOkAt = Date.now();
+      };
+      img.onerror = () => {
+        img.dataset.streamActive = "0";
+        if (!state.streaming) { label.textContent = "Paused"; return; }
+        const delay = frameState.inFlight[dev.key] || 1500;
+        frameState.inFlight[dev.key] = Math.min(delay * 2, 10000);
+        img.style.display = "none";
+        empty.style.display = "flex";
+        label.textContent = `Reconnecting (${Math.round(delay / 1000)}s)...`;
+        clearTimeout(frameState.timers[dev.key]);
+        frameState.timers[dev.key] = setTimeout(() => captureDeviceFrame(dev), delay);
+      };
+      img.dataset.streamActive = "1";
+      img.src = streamUrl;
+    }
+
+    function pollFrames() { for (const dev of frameState.devices) captureDeviceFrame(dev); }
+
+    let macViewActive = false;
+    async function toggleMacView(forceVal) {
+      macViewActive = typeof forceVal === "boolean" ? forceVal : !macViewActive;
+      const btn = document.getElementById("btnMacView");
+      const card = document.getElementById("macViewCard");
+      const img = document.getElementById("macViewImg");
+      const empty = document.getElementById("macViewEmpty");
+      const lbl = document.getElementById("macViewLabel");
+      if (!macViewActive) {
+        btn.textContent = "Mac View: Off"; btn.classList.remove("active");
+        card.style.display = "none"; img.onerror = null; img.removeAttribute("src"); img.style.display = "none"; lbl.textContent = "Off";
+        return;
+      }
+      if (!state.bridgeToken && !(await pairLocalBridge())) { macViewActive = false; return; }
+      btn.textContent = "Mac View: On"; btn.classList.add("active");
+      card.style.display = "flex"; lbl.textContent = "Connecting..."; empty.style.display = "flex";
+      img.onload = () => { if (!macViewActive) return; img.style.display = "block"; empty.style.display = "none"; lbl.textContent = "Live (MJPEG ~1 FPS)"; };
+      img.onerror = () => { if (!macViewActive) return; img.style.display = "none"; empty.style.display = "flex"; lbl.textContent = "Unavailable (pair or grant Screen Recording)"; };
+      img.src = `${state.bridgeUrl}/stream?platform=mac&token=${encodeURIComponent(state.bridgeToken)}&t=${Date.now()}`;
+    }
+
+    function toggleStream() {
+      state.streaming = !state.streaming;
+      document.getElementById("btnStream").textContent = state.streaming ? "Pause Stream" : "Resume Stream";
+      for (const dev of frameState.devices) {
+        const safeId = dev.key.replace(/[^a-zA-Z0-9_-]/g, "_");
+        const img = document.getElementById(`img_${safeId}`);
+        if (img) img.dataset.streamActive = "0";
+      }
+      pollFrames();
+    }
+
+    function bridgeHeaders() {
+      const headers = { "Content-Type": "application/json" };
+      if (state.bridgeToken) headers["X-Bridge-Token"] = state.bridgeToken;
+      return headers;
+    }
+
+    function clearBridgeSession() {
+      state.bridgeToken = "";
+      sessionStorage.removeItem("schaffer_bridge_token");
+      document.getElementById("bridgeTokenInput").value = "";
+      updatePairBadge();
+    }
+
+    async function pairLocalBridge() {
+      try {
+        const res = await fetch(`${state.bridgeUrl}/pair`, { method: "POST", signal: AbortSignal.timeout(5000) });
+        const data = await res.json();
+        if (!res.ok || !data.token) throw new Error(data.error || `HTTP ${res.status}`);
+        state.bridgeToken = data.token;
+        sessionStorage.setItem("schaffer_bridge_token", data.token);
+        document.getElementById("bridgeTokenInput").value = data.token;
+        updatePairBadge();
+        appendMsg("sys", "Local bridge paired for this browser session.");
+        return true;
+      } catch (e) {
+        clearBridgeSession();
+        appendMsg("sys", `Mac connection unavailable. From another computer, use Connect to my Mac. (${e.message})`);
+        return false;
+      }
+    }
+
+    async function bridgePost(path, payload) {
+      if (!state.bridgeToken && !(await pairLocalBridge())) return null;
+      let res = await fetch(`${state.bridgeUrl}${path}`, {
+        method: "POST", headers: bridgeHeaders(), body: JSON.stringify(payload)
+      });
+      if (res.status === 401) {
+        clearBridgeSession();
+        appendMsg("sys", "Bridge session expired. Re-pairing...");
+        if (!(await pairLocalBridge())) return res;
+        res = await fetch(`${state.bridgeUrl}${path}`, {
+          method: "POST", headers: bridgeHeaders(), body: JSON.stringify(payload)
+        });
+      }
+      return res;
+    }
+
+    async function sendTap(platform, deviceId, x, y) {
+      try {
+        const res = await bridgePost("/tap", { platform, device_id: deviceId, x, y });
+        if (!res) return;
+        const body = await res.text();
+        appendMsg("sys", res.ok ? `Tapped ${platform} (${x}, ${y})` : `Tap rejected (HTTP ${res.status}): ${body}`);
+        if (res.ok) trackStep({ platform, device_id: deviceId, type: "tap", x, y, label: `Tap ${platform} (${x}, ${y})` });
+      } catch (_) { appendMsg("sys", `Tap failed on ${platform}.`); }
+    }
+
+    async function sendSwipe(platform, deviceId, x1, y1, x2, y2) {
+      try {
+        const res = await bridgePost("/swipe", { platform, device_id: deviceId, x1, y1, x2, y2, duration_ms: 240 });
+        if (!res) return;
+        const body = await res.text();
+        appendMsg("sys", res.ok ? `Swiped ${platform} (${x1},${y1})→(${x2},${y2})` : `Swipe rejected (HTTP ${res.status}): ${body}`);
+        if (res.ok) trackStep({ platform, device_id: deviceId, type: "swipe", x1, y1, x2, y2, duration_ms: 240, label: `Swipe ${platform}` });
+      } catch (_) { appendMsg("sys", `Swipe failed on ${platform}.`); }
+    }
+
+    async function scrollDevice(platform, deviceId, dir) {
+      const y1 = dir === "down" ? 1600 : 700;
+      const y2 = dir === "down" ? 700 : 1600;
+      await sendSwipe(platform, deviceId, 540, y1, 540, y2);
+    }
+
+    async function sendNav(platform, action, deviceId = "") {
+      try {
+        const res = await bridgePost("/nav", { platform, device_id: deviceId, action });
+        if (!res) return;
+        const body = await res.text();
+        appendMsg("sys", res.ok ? `Nav ${platform}/${action} sent` : `Nav rejected (HTTP ${res.status}): ${body}`);
+        if (res.ok) trackStep({ platform, device_id: deviceId, type: "nav", action, label: `${platform} nav ${action}` });
+      } catch (_) { appendMsg("sys", `Nav failed on ${platform}.`); }
+    }
+
+    async function launchAppForDevice(platform, targetId, deviceId = "") {
+      try {
+        const res = await bridgePost("/launch", { platform, device_id: deviceId, target_id: targetId });
+        if (!res) return;
+        appendMsg("sys", `Launch (${platform} -> ${targetId}): HTTP ${res.status} ${await res.text()}`);
+        if (res.ok) trackStep({ platform, device_id: deviceId, type: "launch", target_id: targetId, label: `Launch ${platform} ${targetId}` });
+        return res.ok;
+      } catch (_) { appendMsg("sys", `Mac connection unavailable. Open the Mac portal to control ${platform}.`); return false; }
+    }
+
+    async function callGateway(path, payload) {
+      if (!state.gatewayToken) {
+        return { ok: false, status: 401, data: { blocked: true, reason: "Always-Free Mode keeps paid GCP billing OFF and no Gateway Bearer token is configured." } };
+      }
+      const res = await fetch(`${state.gatewayUrl}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${state.gatewayToken}` },
+        body: JSON.stringify(payload)
+      });
+      const text = await res.text();
+      try { return { ok: res.ok, status: res.status, data: JSON.parse(text) }; }
+      catch { return { ok: res.ok, status: res.status, data: text }; }
+    }
+
+    async function runDiagnostics() {
+      const t0 = performance.now();
+      let health = "unreachable", devs = null;
+      try {
+        const r = await fetch(`${state.bridgeUrl}/health`, { signal: AbortSignal.timeout(4000) });
+        health = r.ok ? `OK (${Math.round(performance.now() - t0)}ms)` : `HTTP ${r.status}`;
+      } catch (e) { health = `unreachable (${e.message})`; }
+      devs = await checkDevices();
+      const summary = [
+        `Bridge (${state.bridgeUrl}): ${health}`,
+        `Session Paired: ${state.bridgeToken ? "Yes" : "No"}`,
+        `Devices: ${devs ? `${(devs.ios_booted||[]).length} iOS, ${(devs.android_connected||[]).length} Android` : "unavailable"}`,
+        `Streaming: ${state.streaming ? "On (MJPEG)" : "Paused"} · Mac View: ${macViewActive ? "On" : "Off"}`,
+        `Billing: Always-Free Mode (GCP paid billing OFF)`
+      ].join("\n");
+      appendMsg("agent", summary);
+    }
+
+    async function runCommandText(raw) {
+      const text = raw.trim();
+      if (!text) return;
+      appendMsg("user", text);
+      const lower = text.toLowerCase();
+
+      // Natural language site configuration & debugging
+      if (lower === "debug" || lower === "/debug" || lower.includes("debug") || lower === "status" || lower === "/status") {
+        await runDiagnostics();
+        return;
+      }
+      if (lower.includes("describe") || lower.includes("explain") || lower === "/help" || lower === "help") {
+        appendMsg("agent", "This Always-Free Hub has: (1) Top Site Navigator bar for text/voice control & debugging, (2) Multi-device Live Simulators with Android tap/drag-swipe/wheel scroll & Action Recording, (3) Opt-in local Mac View, (4) Chrome Remote Desktop portal for remote Mac access, and (5) Free Browser Arcade (Snake, Brick Breaker, WASM-4). Paid GCP/APEX cloud features remain OFF.");
+        return;
+      }
+      if (lower.includes("show mac") || lower === "mac view") { await toggleMacView(true); document.getElementById("macViewCard").scrollIntoView({ behavior: "smooth" }); appendMsg("agent", "Opened Mac View."); return; }
+      if (lower.includes("hide mac") || lower.includes("stop mac")) { await toggleMacView(false); appendMsg("agent", "Stopped Mac View."); return; }
+      if (lower.includes("wasm") || lower.includes("wasm-4")) { selectGame("wasm4"); document.getElementById("arcadeCard").scrollIntoView({ behavior: "smooth" }); appendMsg("agent", "Opened WASM-4 Console."); return; }
+      if (lower.includes("nes") || lower.includes("tennis") || lower.includes("jsnes")) { selectGame("nes"); document.getElementById("arcadeCard").scrollIntoView({ behavior: "smooth" }); appendMsg("agent", "Opened NES (JSNES) — 8-Bit Table Tennis."); return; }
+      if (lower.includes("snake")) { selectGame("snake"); document.getElementById("arcadeCard").scrollIntoView({ behavior: "smooth" }); appendMsg("agent", "Opened Retro Snake."); return; }
+      if (lower.includes("breakout") || lower.includes("brick")) { selectGame("breakout"); document.getElementById("arcadeCard").scrollIntoView({ behavior: "smooth" }); appendMsg("agent", "Opened Brick Breaker."); return; }
+      if (lower.includes("arcade") || lower.includes("game")) { document.getElementById("arcadeCard").scrollIntoView({ behavior: "smooth" }); appendMsg("agent", "Scrolled to Free Browser Arcade."); return; }
+      if (lower.includes("remote") || lower.includes("portal")) { document.getElementById("remotePortalCard").scrollIntoView({ behavior: "smooth" }); appendMsg("agent", "Scrolled to Remote Mac Portal (Chrome Remote Desktop)."); return; }
+      if (lower === "pair" || lower.includes("pair bridge")) { await pairLocalBridge(); return; }
+      if (lower.includes("go home") || lower === "home" || lower === "gohome") { await sendNav("android", "home", ""); appendMsg("agent", "Sent Android Home."); return; }
+      if (lower === "back" || lower === "go back") { await sendNav("android", "back", ""); appendMsg("agent", "Sent Android Back."); return; }
+      if (lower.includes("open settings") || lower === "settings") { const ok = await launchAppForDevice("android", "com.android.settings", ""); if (ok) appendMsg("agent", "Launched Android Settings."); return; }
+      if (lower.includes("scroll down")) { const d = frameState.devices.find(x => x.platform === "android"); if (d) await scrollDevice("android", d.deviceId, "down"); appendMsg("agent", d ? "Scrolled Android down." : "No Android emulator connected."); return; }
+      if (lower.includes("scroll up")) { const d = frameState.devices.find(x => x.platform === "android"); if (d) await scrollDevice("android", d.deviceId, "up"); appendMsg("agent", d ? "Scrolled Android up." : "No Android emulator connected."); return; }
+
+      if (lower.startsWith("request game") || lower.startsWith("request app") || lower.startsWith("make a game") || lower.startsWith("build app")) {
+        const idea = text.replace(/^(request game|request app|make a game|build app)[:\s]*/i, "").trim() || text;
+        let queued = false;
+        let macStatus = "Draft saved on this computer. Connect to your Mac to submit it.";
+        try {
+          const r = await bridgePost("/request", { prompt: idea });
+          if (r && r.ok) { const saved = await r.json(); queued = true; macStatus = `Queued on Mac: ${saved.request?.id || "saved"} (HTTP ${r.status}).`; }
+        } catch (_) {}
+        if (queued) localStorage.removeItem("schaffer_request_draft");
+        else localStorage.setItem("schaffer_request_draft", idea);
+        const issueUrl = `https://github.com/cjschaffer14-web/schafferai-hub/issues/new?title=${encodeURIComponent("[App/Game Request] " + idea.slice(0, 60))}&body=${encodeURIComponent("Requested via Site Navigator:\n\n" + idea)}`;
+        appendMsg("agent", `${queued ? "Request queued" : "Request draft saved"}: "${idea}"\n- Mac: ${macStatus}\n- Optional manual GitHub Issue draft (does not auto-build):\n${issueUrl}`);
+        return;
+      }
+      if (lower === "/requests" || lower === "requests" || lower === "queue") {
+        try {
+          const r = await fetch(`${state.bridgeUrl}/requests`, { signal: AbortSignal.timeout(5000) });
+          appendMsg("agent", `Request Queue -> HTTP ${r.status}\n${await r.text()}`);
+        } catch (e) { appendMsg("agent", `Bridge unreachable: ${e.message}`); }
+        return;
+      }
+      if (lower.startsWith("/fulfill")) {
+        const [, to = "", request_id = ""] = text.split(/\s+/);
+        appendMsg("sys", `Fulfilling latest queued request${to ? ` + emailing ${to}` : ""}...`);
+        try {
+          const res = await bridgePost("/requests/fulfill", { to, request_id, platform: "android" });
+          if (!res) return;
+          appendMsg("agent", `Fulfill -> HTTP ${res.status}\n${await res.text()}`);
+        } catch (e) { appendMsg("agent", `Fulfill failed: ${e.message}`); }
+        return;
+      }
+      if (lower.startsWith("/devices") || lower === "simulators" || lower === "devices") {
+        const devs = await checkDevices();
+        appendMsg("agent", devs ? JSON.stringify(devs, null, 2) : `Mac bridge unreachable at ${state.bridgeUrl}.`);
+        return;
+      }
+      if (lower.startsWith("/gesture")) {
+        const arg = (text.split(/\s+/)[1] || "toggle").toLowerCase();
+        if (arg === "on") toggleGesture(true);
+        else if (arg === "off") toggleGesture(false);
+        else if (!isNaN(parseFloat(arg))) { state.gestureSens = arg; localStorage.setItem("schaffer_gesture_sens", arg); toggleGesture(true); }
+        else toggleGesture();
+        return;
+      }
+      if (lower.startsWith("/launch")) {
+        const [, platform = "android", target_id = ""] = text.split(/\s+/);
+        if (!target_id) { appendMsg("agent", "Usage: /launch <ios|android> <bundle_or_package_id>"); return; }
+        await launchAppForDevice(platform, target_id, "");
+        return;
+      }
+      if (lower.startsWith("/nav")) {
+        const [, platform = "android", action = "home"] = text.split(/\s+/);
+        await sendNav(platform, action, "");
+        return;
+      }
+      if (lower.startsWith("/tap")) {
+        const [, platform = "android", xs = "", ys = ""] = text.split(/\s+/);
+        const x = parseInt(xs, 10), y = parseInt(ys, 10);
+        if (isNaN(x) || isNaN(y)) { appendMsg("agent", "Usage: /tap <android|ios> <x> <y>"); return; }
+        await sendTap(platform, "", x, y);
+        return;
+      }
+      if (lower.startsWith("/build")) {
+        const [, platform = "android", name = "ApexViewer", ...rest] = text.split(/\s+/);
+        appendMsg("sys", `Building & installing ${platform} app "${name}"...`);
+        try {
+          const res = await bridgePost("/build", { platform, name, prompt: rest.join(" ") });
+          if (!res) return;
+          appendMsg("agent", `Build (${platform}): HTTP ${res.status}\n${await res.text()}`);
+        } catch (e) { appendMsg("agent", `Build failed: ${e.message}`); }
+        return;
+      }
+      if (lower.startsWith("/email")) {
+        const rawArgs = text.slice(6).trim();
+        const [left, body = "Sent from SchafferAI Site Navigator"] = rawArgs.split("|").map(s => s.trim());
+        const [to = "", ...subjParts] = (left || "").split(/\s+/);
+        if (!to) { appendMsg("agent", "Usage: /email <to@example.com> <subject> | <body>"); return; }
+        try {
+          const res = await bridgePost("/email", { to, subject: subjParts.join(" ") || "SchafferAI Update", body });
+          if (!res) return;
+          appendMsg("agent", `Email (${to}): HTTP ${res.status}\n${await res.text()}`);
+        } catch (e) { appendMsg("agent", `Email failed: ${e.message}`); }
+        return;
+      }
+      if (lower === "/apex status" || lower === "apex status" || lower.startsWith("/apex")) {
+        try {
+          const r = await fetch(`${state.bridgeUrl}/apex/status`, { signal: AbortSignal.timeout(5000) });
+          appendMsg("agent", `Local APEX (Always-Free Read-Only) -> HTTP ${r.status}\n${await r.text()}`);
+        } catch (e) { appendMsg("agent", `Local bridge unreachable: ${e.message}`); }
+        return;
+      }
+      if (lower.startsWith("/treasury")) {
+        const action = text.split(/\s+/)[1] || "status";
+        try { const r = await callGateway("/treasury", { action }); appendMsg("agent", `Gateway /treasury (${action}) -> HTTP ${r.status}\n${JSON.stringify(r.data, null, 2)}`); }
+        catch (e) { appendMsg("agent", `Gateway unreachable: ${e.message}`); }
+        return;
+      }
+      if (lower.startsWith("/reconcile")) {
+        const strategy_id = text.split(/\s+/)[1] || "live_test_01";
+        try { const r = await callGateway("/agent/reconcile", { strategy_id }); appendMsg("agent", `Reconcile (${strategy_id}) -> HTTP ${r.status}\n${JSON.stringify(r.data, null, 2)}`); }
+        catch (e) { appendMsg("agent", `Gateway unreachable: ${e.message}`); }
+        return;
+      }
+      appendMsg("agent", `Try: "debug", "describe site", "show mac", "open wasm4", "open settings", "go home", "scroll down", or /devices.`);
+    }
+
+    function handleAgentSubmit(e) {
+      e.preventDefault();
+      const input = document.getElementById("agentInput");
+      const val = input.value;
+      input.value = "";
+      runCommandText(val);
+    }
+
+    function toggleVoice() {
+      const btn = document.getElementById("btnVoice");
+      const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRec) { appendMsg("sys", "Browser SpeechRecognition unavailable."); return; }
+      if (state.voiceActive && state.recognition) {
+        state.recognition.stop(); state.voiceActive = false; btn.classList.remove("active"); btn.textContent = "Voice"; return;
+      }
+      const rec = new SpeechRec();
+      rec.continuous = false; rec.interimResults = false;
+      rec.onresult = (ev) => runCommandText(ev.results[0][0].transcript);
+      rec.onend = () => { state.voiceActive = false; btn.classList.remove("active"); btn.textContent = "Voice"; };
+      rec.start();
+      state.recognition = rec; state.voiceActive = true; btn.classList.add("active"); btn.textContent = "Listening...";
+    }
+
+    const recorder = { active: false, steps: [], lastTs: 0, saved: [] };
+
+    function toggleRecording() {
+      recorder.active = !recorder.active;
+      const btn = document.getElementById("btnRecord");
+      const saveBtn = document.getElementById("btnSaveMacro");
+      if (recorder.active) {
+        recorder.steps = []; recorder.lastTs = Date.now();
+        btn.classList.add("active"); btn.textContent = "Stop Rec"; saveBtn.style.display = "none";
+        document.getElementById("recStatus").textContent = "Recording · 0 steps";
+        appendMsg("sys", "Action recording started (tap, swipe, nav, launch).");
+      } else {
+        btn.classList.remove("active"); btn.textContent = "Record";
+        saveBtn.style.display = recorder.steps.length ? "inline-flex" : "none";
+        document.getElementById("recStatus").textContent = `Stopped · ${recorder.steps.length} steps`;
+      }
+    }
+
+    function trackStep(step) {
+      if (!recorder.active) return;
+      const now = Date.now();
+      const delay_ms = recorder.steps.length ? Math.min(now - recorder.lastTs, 5000) : 0;
+      recorder.lastTs = now;
+      recorder.steps.push({ ...step, delay_ms, ts: new Date(now).toISOString() });
+      document.getElementById("recStatus").textContent = `Recording · ${recorder.steps.length} steps`;
+      document.getElementById("btnSaveMacro").style.display = "inline-flex";
+    }
+
+    async function loadAutomations() {
+      let localList = [];
+      try { localList = JSON.parse(localStorage.getItem("schaffer_automations_v1") || "[]"); } catch (_) {}
+      try {
+        const res = await fetch(`${state.bridgeUrl}/automations`, { signal: AbortSignal.timeout(5000) });
+        if (res.ok) {
+          const data = await res.json();
+          recorder.saved = data.automations || [];
+          localStorage.setItem("schaffer_automations_v1", JSON.stringify(recorder.saved));
+        } else recorder.saved = localList;
+      } catch (_) { recorder.saved = localList; }
+      renderAutomations();
+    }
+
+    function renderAutomations() {
+      const box = document.getElementById("automationsList");
+      if (!recorder.saved.length) {
+        box.innerHTML = `<span style="font-size:12px; color:var(--muted);">No saved automations yet. Click Record, interact with simulators, then Save Macro.</span>`;
+        return;
+      }
+      box.innerHTML = "";
+      for (const item of recorder.saved) {
+        const wrap = document.createElement("div");
+        wrap.style.cssText = "display:inline-flex; align-items:center; gap:4px; background:var(--surface-2); border:1px solid var(--border); border-radius:999px; padding:3px 8px; font-size:12px;";
+        const runBtn = document.createElement("button");
+        runBtn.className = "pill"; runBtn.style.cssText = "border:none; padding:2px 6px; background:transparent;";
+        runBtn.textContent = `▶ ${item.name} (${(item.steps || []).length})`;
+        runBtn.onclick = () => replaySavedAutomation(item);
+        const delBtn = document.createElement("button");
+        delBtn.className = "pill"; delBtn.style.cssText = "border:none; padding:2px 5px; background:transparent; color:var(--muted);";
+        delBtn.textContent = "×";
+        delBtn.onclick = () => deleteSavedAutomation(item.name);
+        wrap.appendChild(runBtn); wrap.appendChild(delBtn); box.appendChild(wrap);
+      }
+    }
+
+    async function saveCurrentRecording() {
+      if (!recorder.steps.length) return;
+      const name = prompt("Name this automation macro:", `flow_${new Date().toISOString().slice(11, 19).replace(/:/g, "")}`);
+      if (!name) return;
+      const entry = { name: name.trim(), updated_at: new Date().toISOString(), steps: recorder.steps };
+      recorder.saved = [entry, ...recorder.saved.filter(a => a.name !== entry.name)];
+      localStorage.setItem("schaffer_automations_v1", JSON.stringify(recorder.saved));
+      renderAutomations();
+      try {
+        const res = await bridgePost("/automations", { name: entry.name, steps: entry.steps });
+        appendMsg("sys", res && res.ok ? `Saved "${entry.name}" (${entry.steps.length} steps) to Mac storage & browser.` : `Saved locally; Mac save returned HTTP ${res ? res.status : "unpaired"}.`);
+      } catch (_) { appendMsg("sys", `Saved "${entry.name}" to browser storage.`); }
+    }
+
+    async function replaySavedAutomation(item) {
+      appendMsg("sys", `Replaying "${item.name}" (${(item.steps || []).length} steps)...`);
+      try {
+        const res = await bridgePost("/automations/replay", { steps: item.steps || [] });
+        if (!res) return;
+        appendMsg("sys", res.ok ? `Replay "${item.name}" complete: ${await res.text()}` : `Replay failed (HTTP ${res.status})`);
+        pollFrames();
+      } catch (e) { appendMsg("sys", `Replay failed: ${e.message}`); }
+    }
+
+    async function deleteSavedAutomation(name) {
+      recorder.saved = recorder.saved.filter(a => a.name !== name);
+      localStorage.setItem("schaffer_automations_v1", JSON.stringify(recorder.saved));
+      renderAutomations();
+      try { await bridgePost("/automations/delete", { name }); } catch (_) {}
+    }
+
+    // Free $0 Browser Arcade
+    const arcade = { game: "snake", timer: null, score: 0, best: Number(localStorage.getItem("schaffer_arcade_best") || 0) };
+    let snake = [{ x: 6, y: 5 }], dir = { x: 1, y: 0 }, food = { x: 10, y: 5 };
+    let paddleX = 100, ball = { x: 130, y: 140, dx: 2.5, dy: -2.5 }, bricks = [];
+
+    function updateArcadeScore(s) {
+      arcade.score = s;
+      if (s > arcade.best) { arcade.best = s; localStorage.setItem("schaffer_arcade_best", String(s)); }
+      document.getElementById("arcadeScore").textContent = `Score: ${arcade.score} · Best: ${arcade.best}`;
+    }
+
+    function selectGame(g) {
+      arcade.game = g;
+      document.getElementById("btnGameSnake").classList.toggle("active", g === "snake");
+      document.getElementById("btnGameBreakout").classList.toggle("active", g === "breakout");
+      document.getElementById("btnGameWasm4").classList.toggle("active", g === "wasm4");
+      document.getElementById("btnGameNes").classList.toggle("active", g === "nes");
+      const isWasm4 = g === "wasm4";
+      const isNes = g === "nes";
+      document.getElementById("canvasArcadeWrap").style.display = (isWasm4 || isNes) ? "none" : "flex";
+      document.getElementById("wasm4Wrap").style.display = isWasm4 ? "flex" : "none";
+      document.getElementById("nesWrap").style.display = isNes ? "flex" : "none";
+      const wasmFrame = document.getElementById("wasm4Frame");
+      const nesFrame = document.getElementById("nesFrame");
+      if (isWasm4) {
+        clearInterval(arcade.timer);
+        if (!wasmFrame.getAttribute("src")) wasmFrame.setAttribute("src", "./arcade/wasm4-snake/wasm4-snake.html");
+      } else if (isNes) {
+        clearInterval(arcade.timer);
+        if (!nesFrame.getAttribute("src")) nesFrame.setAttribute("src", "./arcade/nes-table-tennis/index.html?v=2.6.3");
+      } else startArcadeGame();
+    }
+
+    function arcadeDir(dx, dy) {
+      if (arcade.game === "snake" && (dx !== -dir.x || dy !== -dir.y)) dir = { x: dx, y: dy };
+      if (arcade.game === "breakout" && dx !== 0) paddleX = Math.max(0, Math.min(200, paddleX + dx * 24));
+    }
+
+    function startArcadeGame() {
+      clearInterval(arcade.timer);
+      if (arcade.game === "wasm4") {
+        document.getElementById("wasm4Frame").setAttribute("src", `./arcade/wasm4-snake/wasm4-snake.html?t=${Date.now()}`);
+        return;
+      }
+      if (arcade.game === "nes") {
+        document.getElementById("nesFrame").setAttribute("src", `./arcade/nes-table-tennis/index.html?t=${Date.now()}`);
+        return;
+      }
+      updateArcadeScore(0);
+      if (arcade.game === "snake") {
+        snake = [{ x: 6, y: 5 }, { x: 5, y: 5 }]; dir = { x: 1, y: 0 };
+        food = { x: 12, y: 5 };
+        arcade.timer = setInterval(tickSnake, 130);
+      } else {
+        paddleX = 100; ball = { x: 130, y: 150, dx: 2.4, dy: -2.4 };
+        bricks = [];
+        for (let r = 0; r < 3; r++) for (let c = 0; c < 6; c++) bricks.push({ x: 10 + c * 41, y: 14 + r * 18, alive: true });
+        arcade.timer = setInterval(tickBreakout, 24);
+      }
+    }
+
+    function tickSnake() {
+      const ctx = document.getElementById("arcadeCanvas").getContext("2d");
+      const head = { x: (snake[0].x + dir.x + 20) % 20, y: (snake[0].y + dir.y + 15) % 15 };
+      if (snake.some(p => p.x === head.x && p.y === head.y)) { startArcadeGame(); return; }
+      snake.unshift(head);
+      if (head.x === food.x && head.y === food.y) {
+        updateArcadeScore(arcade.score + 10);
+        food = { x: Math.floor(Math.random() * 20), y: Math.floor(Math.random() * 15) };
+      } else snake.pop();
+      ctx.fillStyle = "#050608"; ctx.fillRect(0, 0, 260, 200);
+      ctx.fillStyle = "#10b981";
+      for (const p of snake) ctx.fillRect(p.x * 13 + 1, p.y * 13 + 1, 11, 11);
+      ctx.fillStyle = "#f59e0b"; ctx.fillRect(food.x * 13 + 2, food.y * 13 + 2, 9, 9);
+    }
+
+    function tickBreakout() {
+      const ctx = document.getElementById("arcadeCanvas").getContext("2d");
+      ball.x += ball.dx; ball.y += ball.dy;
+      if (ball.x < 5 || ball.x > 255) ball.dx *= -1;
+      if (ball.y < 5) ball.dy *= -1;
+      if (ball.y > 180 && ball.x >= paddleX && ball.x <= paddleX + 60 && ball.dy > 0) ball.dy *= -1;
+      if (ball.y > 198) { startArcadeGame(); return; }
+      for (const b of bricks) {
+        if (b.alive && ball.x >= b.x && ball.x <= b.x + 36 && ball.y >= b.y && ball.y <= b.y + 12) {
+          b.alive = false; ball.dy *= -1; updateArcadeScore(arcade.score + 10);
+        }
+      }
+      ctx.fillStyle = "#050608"; ctx.fillRect(0, 0, 260, 200);
+      ctx.fillStyle = "#3b82f6";
+      for (const b of bricks) if (b.alive) ctx.fillRect(b.x, b.y, 36, 12);
+      ctx.fillStyle = "#f3f4f6"; ctx.fillRect(paddleX, 184, 60, 7);
+      ctx.beginPath(); ctx.arc(ball.x, ball.y, 5, 0, Math.PI * 2); ctx.fill();
+    }
+
+    document.addEventListener("keydown", (e) => {
+      if (document.activeElement && document.activeElement.tagName === "INPUT") return;
+      if (e.key === "ArrowUp" || e.key === "w") arcadeDir(0, -1);
+      else if (e.key === "ArrowDown" || e.key === "s") arcadeDir(0, 1);
+      else if (e.key === "ArrowLeft" || e.key === "a") arcadeDir(-1, 0);
+      else if (e.key === "ArrowRight" || e.key === "d") arcadeDir(1, 0);
+    });
+    document.getElementById("arcadeCanvas").addEventListener("pointermove", (e) => {
+      if (arcade.game !== "breakout") return;
+      const r = e.currentTarget.getBoundingClientRect();
+      paddleX = Math.max(0, Math.min(200, ((e.clientX - r.left) / r.width) * 260 - 30));
+    });
+
+    function refreshAll() {
+      loadStatus();
+      checkDevices();
+      loadAvailableEmulators();
+      loadAutomations();
+    }
+
+    initConfigInputs();
+    refreshAll();
+    startArcadeGame();
+    setInterval(loadStatus, 15000);
+  </script>
+</body>
+</html>

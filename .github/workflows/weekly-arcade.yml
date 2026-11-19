@@ -16,11 +16,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Rebuild arcade/manifest.json & log request
+      - name: Rebuild dev/arcade/manifest.json & log request
         run: |
           python3 - <<'PY'
           import json, os, time
-          os.makedirs("arcade", exist_ok=True)
+          os.makedirs("dev/arcade", exist_ok=True)
           manifest = {
             "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "games": [
@@ -32,11 +32,11 @@ jobs:
           }
           req = os.environ.get("APP_REQUEST", "").strip()
           if req:
-            req_file = "arcade/requests.json"
+            req_file = "dev/arcade/requests.json"
             existing = json.load(open(req_file)) if os.path.exists(req_file) else {"requests": []}
             existing["requests"].insert(0, {"request": req, "requested_at": manifest["updated_at"], "status": "queued"})
             json.dump(existing, open(req_file, "w"), indent=2)
-          json.dump(manifest, open("arcade/manifest.json", "w"), indent=2)
+          json.dump(manifest, open("dev/arcade/manifest.json", "w"), indent=2)
           PY
         env:
           APP_REQUEST: ${{ github.event.inputs.app_request }}
@@ -44,5 +44,5 @@ jobs:
         run: |
           git config user.name "schafferai-bot"
           git config user.email "bot@schafferai.com"
-          git add arcade/
+          git add dev/arcade/
           git diff --staged --quiet || (git commit -m "chore(arcade): weekly $0 manifest & request sync" && git push)
