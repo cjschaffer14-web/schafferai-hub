@@ -638,10 +638,15 @@
 
       <div class="rtc-row" id="rtcRow">
         <span style="color:var(--text-muted);">P2P Voice Room ($0 WebRTC):</span>
-        <input class="glass-input" id="rtcRoomInput" type="text" value="main" style="max-width:110px;padding:6px 10px;" />
+        <input class="glass-input" id="rtcRoomInput" type="text" value="main" style="max-width:90px;padding:6px 10px;" />
         <button class="glass-btn" id="rtcJoinBtn" type="button">Call Room</button>
         <span id="rtcStatus" style="color:var(--text-muted);">Idle</span>
         <audio id="rtcRemoteAudio" autoplay playsinline></audio>
+        <span style="width:100%;height:1px;background:rgba(255,255,255,0.08);margin:2px 0;"></span>
+        <span style="color:var(--text-muted);">Phone (Twilio):</span>
+        <input class="glass-input" id="phoneToInput" type="tel" value="+12672647302" placeholder="+1..." style="max-width:140px;padding:6px 10px;" />
+        <button class="glass-btn" id="phoneCallBtn" type="button">Dial</button>
+        <button class="glass-btn" id="phoneSmsBtn" type="button">Send SMS</button>
       </div>
 
       <div class="auth-banner" id="authBanner">
@@ -1202,6 +1207,45 @@
         }
       }
       rtcJoinBtn.addEventListener("click", startRtcRoom);
+
+      // Twilio Phone Call & SMS buttons
+      const phoneToInput = document.getElementById("phoneToInput");
+      const phoneCallBtn = document.getElementById("phoneCallBtn");
+      const phoneSmsBtn = document.getElementById("phoneSmsBtn");
+
+      phoneCallBtn.addEventListener("click", async () => {
+        if (!state.token) { authBanner.classList.add("visible"); return; }
+        const to = phoneToInput.value.trim();
+        const say = chatInput.value.trim() || "Hello from SchafferAI work account.";
+        appendMessage("sys", `Dialing ${to} via Twilio…`);
+        try {
+          const res = await fetch(WORK_AI_ENDPOINT, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify({ token: state.token, action: "twilio_call", to, say })
+          });
+          const data = await res.json();
+          appendMessage("sys", data.ok ? `Twilio call queued (${data.sid}) to ${data.to}` : `Twilio error: ${data.error || "failed"}`);
+        } catch (_) { appendMessage("sys", "Twilio call request failed."); }
+      });
+
+      phoneSmsBtn.addEventListener("click", async () => {
+        if (!state.token) { authBanner.classList.add("visible"); return; }
+        const to = phoneToInput.value.trim();
+        const body = chatInput.value.trim();
+        if (!body) { appendMessage("sys", "Type your SMS message in the box below first."); chatInput.focus(); return; }
+        chatInput.value = "";
+        appendMessage("user", body, `SMS -> ${to}`);
+        try {
+          const res = await fetch(WORK_AI_ENDPOINT, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify({ token: state.token, action: "twilio_sms", to, body })
+          });
+          const data = await res.json();
+          appendMessage("sys", data.ok ? `Twilio SMS sent (${data.sid})` : `Twilio SMS error: ${data.error || "failed"}`);
+        } catch (_) { appendMessage("sys", "Twilio SMS request failed."); }
+      });
 
       // Poll for agent-initiated texts, incoming calls, and WebRTC signals
       setInterval(async () => {
