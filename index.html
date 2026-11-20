@@ -617,6 +617,7 @@
           </div>
         </div>
         <div class="header-actions">
+          <button class="icon-btn active" id="voiceAutoBtn" type="button" title="Natural voice replies (ElevenLabs free tier + browser fallback)">🔊</button>
           <button class="icon-btn" id="callAiBtn" type="button" title="Live voice call with c@schafferai.com">📞</button>
           <button class="icon-btn" id="rtcToggleBtn" type="button" title="Peer-to-peer WebRTC voice room">🎙️</button>
           <button class="icon-btn" id="textModeBtn" type="button" title="Send as text / SMS">💬</button>
@@ -983,7 +984,9 @@
               : "";
             const meta = [data.model || "gemini", sec].filter(Boolean).join(" · ") + tools;
             appendMessage("ai", data.reply, meta);
-            if (typeof aiCallActive !== "undefined" && aiCallActive) speakText(data.reply);
+            if ((typeof aiCallActive !== "undefined" && aiCallActive) || (typeof autoVoiceEnabled !== "undefined" && autoVoiceEnabled)) {
+              speakText(data.reply);
+            }
             return data.reply;
           }
         } catch (err) {
@@ -1023,6 +1026,7 @@
       verifyConnection();
 
       /* ---------- Always-Free Voice Call, Texting & WebRTC P2P ---------- */
+      const voiceAutoBtn = document.getElementById("voiceAutoBtn");
       const callAiBtn = document.getElementById("callAiBtn");
       const rtcToggleBtn = document.getElementById("rtcToggleBtn");
       const textModeBtn = document.getElementById("textModeBtn");
@@ -1036,6 +1040,17 @@
       const rtcStatus = document.getElementById("rtcStatus");
       const rtcRemoteAudio = document.getElementById("rtcRemoteAudio");
 
+      let autoVoiceEnabled = localStorage.getItem("schafferai_auto_voice") !== "0";
+      voiceAutoBtn.classList.toggle("active", autoVoiceEnabled);
+      voiceAutoBtn.textContent = autoVoiceEnabled ? "🔊" : "🔈";
+      voiceAutoBtn.addEventListener("click", () => {
+        autoVoiceEnabled = !autoVoiceEnabled;
+        localStorage.setItem("schafferai_auto_voice", autoVoiceEnabled ? "1" : "0");
+        voiceAutoBtn.classList.toggle("active", autoVoiceEnabled);
+        voiceAutoBtn.textContent = autoVoiceEnabled ? "🔊" : "🔈";
+        if (!autoVoiceEnabled) stopSpeech();
+      });
+
       let textMode = false;
       let aiCallActive = false;
       let aiMicMuted = false;
@@ -1044,6 +1059,46 @@
       let recognition = null;
       let lastPollTs = Date.now() - 5000;
       const seenEventIds = new Set();
+      let currentTtsAudio = null;
+
+      function stopSpeech() {
+        if (currentTtsAudio) {
+          try { currentTtsAudio.pause(); currentTtsAudio.src = ""; } catch (_) {}
+          currentTtsAudio = null;
+        }
+        if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+      }
+
+      function browserSpeak(clean) {
+        if (!("speechSynthesis" in window)) return;
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(clean);
+        u.rate = 1.04;
+        window.speechSynthesis.speak(u);
+      }
+
+      async function speakText(txt) {
+        const clean = String(txt || "").replace(/[*_`#]+/g, "").replace(/\s+/g, " ").trim();
+        if (!clean) return;
+        stopSpeech();
+        if (state.token) {
+          try {
+            const res = await fetch(WORK_AI_ENDPOINT, {
+              method: "POST",
+              headers: { "Content-Type": "text/plain;charset=utf-8" },
+              body: JSON.stringify({ token: state.token, action: "tts", text: clean.slice(0, 800) })
+            });
+            const data = await res.json();
+            if (data && data.ok && data.audio_b64) {
+              const audio = new Audio(`data:${data.mime || "audio/mpeg"};base64,${data.audio_b64}`);
+              currentTtsAudio = audio;
+              await audio.play();
+              return;
+            }
+          } catch (_) {}
+        }
+        browserSpeak(clean);
+      }
 
       textModeBtn.addEventListener("click", () => {
         textMode = !textMode;
@@ -1062,14 +1117,6 @@
         const m = String(Math.floor(sec / 60)).padStart(2, "0");
         const s = String(sec % 60).padStart(2, "0");
         return `${m}:${s}`;
-      }
-
-      function speakText(txt) {
-        if (!("speechSynthesis" in window)) return;
-        window.speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(String(txt || "").replace(/[*_`#]/g, ""));
-        u.rate = 1.04;
-        window.speechSynthesis.speak(u);
       }
 
       function startAiVoiceCall(openingSpeech) {
@@ -1124,7 +1171,7 @@
         callBar.classList.remove("visible", "ringing");
         if (aiCallTimer) { clearInterval(aiCallTimer); aiCallTimer = null; }
         if (recognition) { try { recognition.stop(); } catch (_) {} recognition = null; }
-        if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+        stopSpeech();
       }
 
       callAiBtn.addEventListener("click", () => {
