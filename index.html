@@ -621,7 +621,7 @@
           <button class="icon-btn" id="callAiBtn" type="button" title="Live voice call with c@schafferai.com">📞</button>
           <button class="icon-btn" id="rtcToggleBtn" type="button" title="Peer-to-peer WebRTC voice room">🎙️</button>
           <button class="icon-btn" id="textModeBtn" type="button" title="Send as text / SMS">💬</button>
-          <button class="icon-btn" id="tokenBtn" type="button" title="Work account access key">🔑</button>
+          <button class="icon-btn" id="tokenBtn" type="button" title="Work account access key" style="display:none">🔑</button>
           <button class="icon-btn" id="clearBtn" type="button" title="Clear chat">🗑</button>
         </div>
       </div>
@@ -849,28 +849,22 @@
       }
 
       async function verifyConnection() {
-        if (!state.token) {
-          setConnState("error", "Key needed · c@schafferai.com", "Awaiting work-account access key…");
-          authBanner.classList.add("visible");
-          return false;
-        }
         setConnState("connecting", "Connecting to c@schafferai.com…", "Connecting to c@schafferai.com…");
         try {
           const res = await fetch(WORK_AI_ENDPOINT, {
             method: "POST",
             headers: { "Content-Type": "text/plain;charset=utf-8" },
-            body: JSON.stringify({ token: state.token, action: "ping" })
+            body: JSON.stringify({ action: "ping" })
           });
           const data = await res.json();
-          if (data && data.ok && data.authenticated) {
+          if (data && data.ok) {
             state.connected = true;
             authBanner.classList.remove("visible");
             setConnState("connected", "Connected · c@schafferai.com", `Live work AI · ${data.account} · v${data.version || "1.6"}`);
             return true;
           }
           state.connected = false;
-          setConnState("error", "Auth failed · c@schafferai.com", data.error || "Invalid access key");
-          authBanner.classList.add("visible");
+          setConnState("error", "Error · c@schafferai.com", data.error || "Connection failed");
           return false;
         } catch (err) {
           state.connected = false;
@@ -949,11 +943,6 @@
       async function sendMessage(text) {
         const clean = (text || "").trim();
         if (!clean || state.busy) return;
-        if (!state.token) {
-          authBanner.classList.add("visible");
-          tokenInput.focus();
-          return;
-        }
 
         state.busy = true;
         appendMessage("user", clean);
@@ -1081,22 +1070,20 @@
         const clean = String(txt || "").replace(/[*_`#]+/g, "").replace(/\s+/g, " ").trim();
         if (!clean) return;
         stopSpeech();
-        if (state.token) {
-          try {
-            const res = await fetch(WORK_AI_ENDPOINT, {
-              method: "POST",
-              headers: { "Content-Type": "text/plain;charset=utf-8" },
-              body: JSON.stringify({ token: state.token, action: "tts", text: clean.slice(0, 800) })
-            });
-            const data = await res.json();
-            if (data && data.ok && data.audio_b64) {
-              const audio = new Audio(`data:${data.mime || "audio/mpeg"};base64,${data.audio_b64}`);
-              currentTtsAudio = audio;
-              await audio.play();
-              return;
-            }
-          } catch (_) {}
-        }
+        try {
+          const res = await fetch(WORK_AI_ENDPOINT, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify({ token: state.token, action: "tts", text: clean.slice(0, 800) })
+          });
+          const data = await res.json();
+          if (data && data.ok && data.audio_b64) {
+            const audio = new Audio(`data:${data.mime || "audio/mpeg"};base64,${data.audio_b64}`);
+            currentTtsAudio = audio;
+            await audio.play();
+            return;
+          }
+        } catch (_) {}
         browserSpeak(clean);
       }
 
@@ -1120,7 +1107,6 @@
       }
 
       function startAiVoiceCall(openingSpeech) {
-        if (!state.token) { authBanner.classList.add("visible"); return; }
         aiCallActive = true;
         aiMicMuted = false;
         aiCallSeconds = 0;
@@ -1196,7 +1182,6 @@
         if (!textMode) return _origSend(text);
         const clean = (text || "").trim();
         if (!clean || state.busy) return;
-        if (!state.token) { authBanner.classList.add("visible"); return; }
         state.busy = true;
         appendMessage("user", clean, "Text / SMS");
         chatInput.value = "";
@@ -1246,7 +1231,6 @@
       }
 
       async function startRtcRoom() {
-        if (!state.token) { authBanner.classList.add("visible"); return; }
         if (rtcActive) {
           rtcActive = false;
           if (pc) { pc.close(); pc = null; }
@@ -1280,7 +1264,6 @@
       const phoneSmsBtn = document.getElementById("phoneSmsBtn");
 
       phoneCallBtn.addEventListener("click", async () => {
-        if (!state.token) { authBanner.classList.add("visible"); return; }
         const to = phoneToInput.value.trim();
         const say = chatInput.value.trim() || "Hello from SchafferAI work account.";
         appendMessage("sys", `Dialing ${to} via Twilio…`);
@@ -1296,7 +1279,6 @@
       });
 
       phoneSmsBtn.addEventListener("click", async () => {
-        if (!state.token) { authBanner.classList.add("visible"); return; }
         const to = phoneToInput.value.trim();
         const body = chatInput.value.trim();
         if (!body) { appendMessage("sys", "Type your SMS message in the box below first."); chatInput.focus(); return; }
@@ -1315,7 +1297,7 @@
 
       // Poll for agent-initiated texts, incoming calls, and WebRTC signals
       setInterval(async () => {
-        if (!state.token || !state.connected) return;
+        if (!state.connected) return;
         try {
           const res = await fetch(WORK_AI_ENDPOINT, {
             method: "POST",
