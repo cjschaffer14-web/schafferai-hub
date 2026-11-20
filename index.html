@@ -983,6 +983,8 @@
               : "";
             const meta = [data.model || "gemini", sec].filter(Boolean).join(" · ") + tools;
             appendMessage("ai", data.reply, meta);
+            if (typeof aiCallActive !== "undefined" && aiCallActive) speakText(data.reply);
+            return data.reply;
           }
         } catch (err) {
           appendMessage("sys", "Connection error talking to c@schafferai.com.");
@@ -990,6 +992,7 @@
           state.busy = false;
           setThinking(false);
         }
+        return "";
       }
 
       chatForm.addEventListener("submit", (e) => {
@@ -1102,9 +1105,7 @@
             if (!res.isFinal) return;
             const spoken = res[0].transcript.trim();
             if (!spoken) return;
-            await sendMessage(spoken);
-            const lastAi = chatMessages.querySelector(".msg.ai:last-of-type");
-            if (lastAi && aiCallActive) speakText(lastAi.childNodes[0]?.textContent || "");
+            await _origSend(spoken);
           };
           recognition.onend = () => {
             if (aiCallActive && !aiMicMuted) {
@@ -1169,7 +1170,25 @@
 
       // Peer-to-peer WebRTC audio room ($0 STUN + Apps Script signaling)
       const peerId = "p_" + Math.random().toString(36).slice(2, 9);
-      let pc = null, localStream = null, rtcActive = false;
+      let pc = null, localStream = null, rtcActive = false, pendingIce = [];
+
+      async function flushPendingIce() {
+        if (!pc || !pc.remoteDescription) return;
+        const list = pendingIce.splice(0, pendingIce.length);
+        for (const cand of list) {
+          try { await pc.addIceCandidate(cand); } catch (_) {}
+        }
+      }
+
+      async function ensurePeerConnection() {
+        if (pc) return pc;
+        if (!localStream) localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+        localStream.getTracks().forEach((t) => pc.addTrack(t, localStream));
+        pc.ontrack = (ev) => { rtcRemoteAudio.srcObject = ev.streams[0]; rtcStatus.textContent = "Live P2P Audio"; };
+        pc.onicecandidate = (ev) => { if (ev.candidate) sendSignal("ice", ev.candidate); };
+        return pc;
+      }
 
       async function sendSignal(kind, payload) {
         await fetch(WORK_AI_ENDPOINT, {
@@ -1269,23 +1288,30 @@
             }
           });
           for (const sig of (data.signals || [])) {
-            if (!pc && sig.kind === "offer") {
-              localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-              pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
-              localStream.getTracks().forEach((t) => pc.addTrack(t, localStream));
-              pc.ontrack = (ev) => { rtcRemoteAudio.srcObject = ev.streams[0]; rtcStatus.textContent = "Live P2P Audio"; };
-              pc.onicecandidate = (ev) => { if (ev.candidate) sendSignal("ice", ev.candidate); };
-              await pc.setRemoteDescription(sig.payload);
-              const ans = await pc.createAnswer();
-              await pc.setLocalDescription(ans);
+            if (sig.kind === "offer") {
+              // Glare tie-breaker: if both peers sent offers, lower peerId yields and answers
+              if (pc && pc.signalingState === "have-local-offer") {
+                if (peerId > sig.from) continue;
+                pc.close(); pc = null; pendingIce = [];
+              }
+              const conn = await ensurePeerConnection();
+              await conn.setRemoteDescription(sig.payload);
+              await flushPendingIce();
+              const ans = await conn.createAnswer();
+              await conn.setLocalDescription(ans);
               await sendSignal("answer", ans);
               rtcActive = true;
               rtcRow.classList.add("visible");
               rtcJoinBtn.textContent = "Leave";
             } else if (pc && sig.kind === "answer" && !pc.currentRemoteDescription) {
               await pc.setRemoteDescription(sig.payload);
-            } else if (pc && sig.kind === "ice" && sig.payload) {
-              try { await pc.addIceCandidate(sig.payload); } catch (_) {}
+              await flushPendingIce();
+            } else if (sig.kind === "ice" && sig.payload) {
+              if (pc && pc.remoteDescription) {
+                try { await pc.addIceCandidate(sig.payload); } catch (_) {}
+              } else {
+                pendingIce.push(sig.payload);
+              }
             }
           }
         } catch (_) {}
