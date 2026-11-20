@@ -323,6 +323,35 @@
     }
 
     .icon-btn:hover { background: rgba(255, 255, 255, 0.14); }
+    .icon-btn.active { background: rgba(52, 211, 153, 0.25); border-color: rgba(52, 211, 153, 0.55); }
+    .icon-btn.danger { background: rgba(251, 113, 133, 0.25); border-color: rgba(251, 113, 133, 0.55); }
+
+    /* ---------- Live Call & Text Bar ---------- */
+    .call-bar {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 20px;
+      background: rgba(52, 211, 153, 0.14);
+      border-bottom: 1px solid rgba(52, 211, 153, 0.28);
+      font-size: 13px;
+    }
+    .call-bar.visible { display: flex; }
+    .call-bar.ringing { background: rgba(125, 211, 252, 0.18); border-color: rgba(125, 211, 252, 0.4); }
+    .call-info { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+    .call-actions { display: flex; align-items: center; gap: 6px; }
+    .rtc-row {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      background: rgba(255, 255, 255, 0.04);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+      font-size: 12px;
+      flex-wrap: wrap;
+    }
+    .rtc-row.visible { display: flex; }
 
     /* ---------- Auth / Token Bar ---------- */
     .auth-banner {
@@ -588,9 +617,31 @@
           </div>
         </div>
         <div class="header-actions">
+          <button class="icon-btn" id="callAiBtn" type="button" title="Live voice call with c@schafferai.com">📞</button>
+          <button class="icon-btn" id="rtcToggleBtn" type="button" title="Peer-to-peer WebRTC voice room">🎙️</button>
+          <button class="icon-btn" id="textModeBtn" type="button" title="Send as text / SMS">💬</button>
           <button class="icon-btn" id="tokenBtn" type="button" title="Work account access key">🔑</button>
           <button class="icon-btn" id="clearBtn" type="button" title="Clear chat">🗑</button>
         </div>
+      </div>
+
+      <div class="call-bar" id="callBar">
+        <div class="call-info">
+          <span class="brand-dot connected" id="callDot"></span>
+          <span id="callStatusText">Connecting voice…</span>
+        </div>
+        <div class="call-actions" id="callActions">
+          <button class="glass-btn" id="callMuteBtn" type="button">Mute Mic</button>
+          <button class="glass-btn" id="callEndBtn" type="button" style="background:rgba(251,113,133,0.28);border-color:rgba(251,113,133,0.5);">End</button>
+        </div>
+      </div>
+
+      <div class="rtc-row" id="rtcRow">
+        <span style="color:var(--text-muted);">P2P Voice Room ($0 WebRTC):</span>
+        <input class="glass-input" id="rtcRoomInput" type="text" value="main" style="max-width:110px;padding:6px 10px;" />
+        <button class="glass-btn" id="rtcJoinBtn" type="button">Call Room</button>
+        <span id="rtcStatus" style="color:var(--text-muted);">Idle</span>
+        <audio id="rtcRemoteAudio" autoplay playsinline></audio>
       </div>
 
       <div class="auth-banner" id="authBanner">
@@ -962,6 +1013,239 @@
       // Init
       renderBackground();
       verifyConnection();
+
+      /* ---------- Always-Free Voice Call, Texting & WebRTC P2P ---------- */
+      const callAiBtn = document.getElementById("callAiBtn");
+      const rtcToggleBtn = document.getElementById("rtcToggleBtn");
+      const textModeBtn = document.getElementById("textModeBtn");
+      const callBar = document.getElementById("callBar");
+      const callStatusText = document.getElementById("callStatusText");
+      const callMuteBtn = document.getElementById("callMuteBtn");
+      const callEndBtn = document.getElementById("callEndBtn");
+      const rtcRow = document.getElementById("rtcRow");
+      const rtcRoomInput = document.getElementById("rtcRoomInput");
+      const rtcJoinBtn = document.getElementById("rtcJoinBtn");
+      const rtcStatus = document.getElementById("rtcStatus");
+      const rtcRemoteAudio = document.getElementById("rtcRemoteAudio");
+
+      let textMode = false;
+      let aiCallActive = false;
+      let aiMicMuted = false;
+      let aiCallTimer = null;
+      let aiCallSeconds = 0;
+      let recognition = null;
+      let lastPollTs = Date.now() - 5000;
+      const seenEventIds = new Set();
+
+      textModeBtn.addEventListener("click", () => {
+        textMode = !textMode;
+        textModeBtn.classList.toggle("active", textMode);
+        chatInput.placeholder = textMode
+          ? "Send live text / SMS via c@schafferai.com…"
+          : "Ask c@schafferai.com anything…";
+      });
+
+      rtcToggleBtn.addEventListener("click", () => {
+        rtcRow.classList.toggle("visible");
+        rtcToggleBtn.classList.toggle("active", rtcRow.classList.contains("visible"));
+      });
+
+      function fmtTimer(sec) {
+        const m = String(Math.floor(sec / 60)).padStart(2, "0");
+        const s = String(sec % 60).padStart(2, "0");
+        return `${m}:${s}`;
+      }
+
+      function speakText(txt) {
+        if (!("speechSynthesis" in window)) return;
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(String(txt || "").replace(/[*_`#]/g, ""));
+        u.rate = 1.04;
+        window.speechSynthesis.speak(u);
+      }
+
+      function startAiVoiceCall(openingSpeech) {
+        if (!state.token) { authBanner.classList.add("visible"); return; }
+        aiCallActive = true;
+        aiMicMuted = false;
+        aiCallSeconds = 0;
+        callAiBtn.classList.add("active");
+        callBar.classList.remove("ringing");
+        callBar.classList.add("visible");
+        callMuteBtn.textContent = "Mute Mic";
+        callStatusText.textContent = "Live Voice · c@schafferai.com · 00:00";
+        if (aiCallTimer) clearInterval(aiCallTimer);
+        aiCallTimer = setInterval(() => {
+          aiCallSeconds++;
+          if (aiCallActive) callStatusText.textContent = `Live Voice · c@schafferai.com · ${fmtTimer(aiCallSeconds)}`;
+        }, 1000);
+
+        if (openingSpeech) {
+          appendMessage("ai", openingSpeech, "Live Voice Call · c@schafferai.com");
+          speakText(openingSpeech);
+        }
+
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SR) {
+          recognition = new SR();
+          recognition.continuous = true;
+          recognition.interimResults = false;
+          recognition.lang = "en-US";
+          recognition.onresult = async (ev) => {
+            if (!aiCallActive || aiMicMuted) return;
+            const res = ev.results[ev.results.length - 1];
+            if (!res.isFinal) return;
+            const spoken = res[0].transcript.trim();
+            if (!spoken) return;
+            await sendMessage(spoken);
+            const lastAi = chatMessages.querySelector(".msg.ai:last-of-type");
+            if (lastAi && aiCallActive) speakText(lastAi.childNodes[0]?.textContent || "");
+          };
+          recognition.onend = () => {
+            if (aiCallActive && !aiMicMuted) {
+              try { recognition.start(); } catch (_) {}
+            }
+          };
+          try { recognition.start(); } catch (_) {}
+        } else {
+          appendMessage("sys", "Browser SpeechRecognition unavailable — type below and AI replies will still be spoken aloud.");
+        }
+      }
+
+      function endAiVoiceCall() {
+        aiCallActive = false;
+        callAiBtn.classList.remove("active");
+        callBar.classList.remove("visible", "ringing");
+        if (aiCallTimer) { clearInterval(aiCallTimer); aiCallTimer = null; }
+        if (recognition) { try { recognition.stop(); } catch (_) {} recognition = null; }
+        if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+      }
+
+      callAiBtn.addEventListener("click", () => {
+        if (aiCallActive) endAiVoiceCall();
+        else startAiVoiceCall("Connected to c@schafferai.com. Go ahead, I'm listening.");
+      });
+
+      callMuteBtn.addEventListener("click", () => {
+        aiMicMuted = !aiMicMuted;
+        callMuteBtn.textContent = aiMicMuted ? "Unmute Mic" : "Mute Mic";
+        if (recognition) {
+          if (aiMicMuted) { try { recognition.stop(); } catch (_) {} }
+          else { try { recognition.start(); } catch (_) {} }
+        }
+      });
+
+      callEndBtn.addEventListener("click", endAiVoiceCall);
+
+      // Override sendMessage when textMode is active
+      const _origSend = sendMessage;
+      sendMessage = async function (text) {
+        if (!textMode) return _origSend(text);
+        const clean = (text || "").trim();
+        if (!clean || state.busy) return;
+        if (!state.token) { authBanner.classList.add("visible"); return; }
+        state.busy = true;
+        appendMessage("user", clean, "Text / SMS");
+        chatInput.value = "";
+        try {
+          const res = await fetch(WORK_AI_ENDPOINT, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify({ token: state.token, action: "send_text", to: "owner_sms", body: clean })
+          });
+          const data = await res.json();
+          appendMessage("sys", data.ok ? (data.sms_gateway_sent ? "Sent to work queue & SMS gateway." : "Sent to c@schafferai.com live text queue.") : (data.error || "Text failed."));
+        } catch (_) {
+          appendMessage("sys", "Text delivery failed.");
+        } finally {
+          state.busy = false;
+        }
+      };
+
+      // Peer-to-peer WebRTC audio room ($0 STUN + Apps Script signaling)
+      const peerId = "p_" + Math.random().toString(36).slice(2, 9);
+      let pc = null, localStream = null, rtcActive = false;
+
+      async function sendSignal(kind, payload) {
+        await fetch(WORK_AI_ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ token: state.token, action: "rtc_signal", room: rtcRoomInput.value || "main", peer_id: peerId, kind, payload })
+        });
+      }
+
+      async function startRtcRoom() {
+        if (!state.token) { authBanner.classList.add("visible"); return; }
+        if (rtcActive) {
+          rtcActive = false;
+          if (pc) { pc.close(); pc = null; }
+          if (localStream) { localStream.getTracks().forEach((t) => t.stop()); localStream = null; }
+          rtcJoinBtn.textContent = "Call Room";
+          rtcStatus.textContent = "Idle";
+          return;
+        }
+        try {
+          rtcStatus.textContent = "Requesting mic…";
+          localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+          pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+          localStream.getTracks().forEach((t) => pc.addTrack(t, localStream));
+          pc.ontrack = (ev) => { rtcRemoteAudio.srcObject = ev.streams[0]; rtcStatus.textContent = "Live P2P Audio"; };
+          pc.onicecandidate = (ev) => { if (ev.candidate) sendSignal("ice", ev.candidate); };
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          await sendSignal("offer", offer);
+          rtcActive = true;
+          rtcJoinBtn.textContent = "Leave";
+          rtcStatus.textContent = "Waiting for peer…";
+        } catch (err) {
+          rtcStatus.textContent = "Mic/WebRTC error: " + (err.message || err);
+        }
+      }
+      rtcJoinBtn.addEventListener("click", startRtcRoom);
+
+      // Poll for agent-initiated texts, incoming calls, and WebRTC signals
+      setInterval(async () => {
+        if (!state.token || !state.connected) return;
+        try {
+          const res = await fetch(WORK_AI_ENDPOINT, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify({ token: state.token, action: "poll_events", since_ts: lastPollTs, room: rtcRoomInput.value || "main", peer_id: peerId })
+          });
+          const data = await res.json();
+          if (!data || !data.ok) return;
+          if (data.server_ts) lastPollTs = data.server_ts;
+          (data.events || []).forEach((ev) => {
+            if (seenEventIds.has(ev.id)) return;
+            seenEventIds.add(ev.id);
+            if (ev.type === "agent_text") {
+              appendMessage("ai", ev.text, "Live Text · c@schafferai.com");
+            } else if (ev.type === "agent_call") {
+              startAiVoiceCall(ev.text);
+            }
+          });
+          for (const sig of (data.signals || [])) {
+            if (!pc && sig.kind === "offer") {
+              localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+              pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+              localStream.getTracks().forEach((t) => pc.addTrack(t, localStream));
+              pc.ontrack = (ev) => { rtcRemoteAudio.srcObject = ev.streams[0]; rtcStatus.textContent = "Live P2P Audio"; };
+              pc.onicecandidate = (ev) => { if (ev.candidate) sendSignal("ice", ev.candidate); };
+              await pc.setRemoteDescription(sig.payload);
+              const ans = await pc.createAnswer();
+              await pc.setLocalDescription(ans);
+              await sendSignal("answer", ans);
+              rtcActive = true;
+              rtcRow.classList.add("visible");
+              rtcJoinBtn.textContent = "Leave";
+            } else if (pc && sig.kind === "answer" && !pc.currentRemoteDescription) {
+              await pc.setRemoteDescription(sig.payload);
+            } else if (pc && sig.kind === "ice" && sig.payload) {
+              try { await pc.addIceCandidate(sig.payload); } catch (_) {}
+            }
+          }
+        } catch (_) {}
+      }, 4000);
     })();
   </script>
 </body>
