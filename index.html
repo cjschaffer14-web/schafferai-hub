@@ -594,10 +594,12 @@
   <aside class="wallpaper-popover" id="wallpaperPopover" aria-label="Live background selector">
     <div class="popover-title">Live Feeds &amp; Wallpapers</div>
     <div class="preset-grid" id="presetGrid">
-      <button class="preset-btn" data-preset="featured" type="button">🎬 Featured Feed</button>
-      <button class="preset-btn" data-preset="nasa" type="button">🛰️ NASA Live</button>
+      <button class="preset-btn" data-preset="featured" type="button">🌊 Reef Live Cam</button>
+      <button class="preset-btn" data-preset="nasa" type="button">🛰️ NASA ISS Live</button>
+      <button class="preset-btn" data-preset="earth4k" type="button">🌍 Earth 4K Space</button>
       <button class="preset-btn" data-preset="lofi" type="button">🎧 Lofi Beats 24/7</button>
       <button class="preset-btn" data-preset="tokyo" type="button">🗼 Tokyo Live Cam</button>
+      <button class="preset-btn" data-preset="aurora" type="button">🌌 Aurora Live</button>
     </div>
     <div class="popover-title" style="margin-top:4px;">Custom YouTube URL or ID</div>
     <form class="custom-yt-row" id="customYtForm">
@@ -685,10 +687,12 @@
       const WORK_AI_ENDPOINT = "https://script.google.com/macros/s/AKfycby9xnYQnxcZdUWSpv3YXk6kMtGeYu6JlUOBei0PM8sSuiFHm9mCvPFCP41j8PTa1TcS/exec";
 
       const PRESETS = {
-        featured: { label: "Featured Feed", type: "video", id: "1zcIUk66HX4" },
-        nasa:     { label: "NASA Live",     type: "channel", id: "UCLA_DiR1FfKNvjuUpBHmylQ" },
-        lofi:     { label: "Lofi Beats",    type: "video", id: "jfKfPfyJRdk" },
-        tokyo:    { label: "Tokyo Live",    type: "video", id: "DjdUEyjx8GM" }
+        featured: { label: "Reef Live Cam",  type: "video", id: "1zcIUk66HX4" },
+        nasa:     { label: "NASA ISS Live",  type: "video", id: "tj4knR4r1UU" },
+        earth4k:  { label: "Earth 4K Space", type: "video", id: "fO9e9jnhYK8" },
+        lofi:     { label: "Lofi Beats",     type: "video", id: "rFZHOHl-L8A" },
+        tokyo:    { label: "Tokyo Live",     type: "video", id: "DjdUEyjx8GM" },
+        aurora:   { label: "Aurora Live",    type: "video", id: "ccTVAhJU5lg" }
       };
 
       const STORAGE_TOKEN = "schafferai_work_token";
@@ -779,6 +783,24 @@
           ? '🔇 <span class="hide-sm">Muted</span>'
           : '🔊 <span class="hide-sm">Sound On</span>';
       }
+
+      ytBgFrame.addEventListener("load", () => {
+        try {
+          ytBgFrame.contentWindow.postMessage(JSON.stringify({ event: "listening", id: 1 }), "*");
+        } catch (_) {}
+      });
+
+      window.addEventListener("message", (ev) => {
+        if (!ev.origin.includes("youtube.com")) return;
+        try {
+          const msg = typeof ev.data === "string" ? JSON.parse(ev.data) : ev.data;
+          if (msg && msg.event === "onError" && state.preset !== "featured") {
+            state.preset = "featured";
+            localStorage.setItem(STORAGE_PRESET, "featured");
+            renderBackground();
+          }
+        } catch (_) {}
+      });
 
       muteBtn.addEventListener("click", () => {
         state.muted = !state.muted;
