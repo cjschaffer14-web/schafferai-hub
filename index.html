@@ -759,7 +759,12 @@
           chatMessages.innerHTML = '<div class="msg sys">Private work tools are locked. Sign in to continue.</div>';
           setConnState("", "Private tools require sign in", "Public site · private work tools require sign in");
           showLogin();
-        } else authBanner.classList.remove("visible");
+        } else {
+          authBanner.classList.remove("visible");
+          if (chatMessages.innerHTML === '<div class="msg sys">Private work tools are locked. Sign in to continue.</div>') {
+            chatMessages.innerHTML = '<div class="msg sys">Signed in. Private work tools are ready.</div>';
+          }
+        }
       }
       const workAuth = SchafferWorkAuth.create({
         endpoint: WORK_AI_ENDPOINT, storage: sessionStorage,
