@@ -578,14 +578,23 @@
     }
     .phone-drawer.open { display: flex; }
     .phone-drawer-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .phone-mode-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .phone-login-row {
+      display: flex;
+      gap: 6px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      background: rgba(251, 191, 36, 0.14);
+      border: 1px solid rgba(251, 191, 36, 0.35);
+      align-items: center;
+    }
+    .phone-mode-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
     .phone-tab {
-      padding: 7px 10px;
+      padding: 7px 6px;
       border-radius: 10px;
       border: 1px solid rgba(255, 255, 255, 0.14);
       background: rgba(255, 255, 255, 0.06);
       color: var(--text-muted);
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 600;
       cursor: pointer;
     }
@@ -667,6 +676,25 @@
     .phone-inbox-head { font-size: 11.5px; font-weight: 600; color: var(--accent); }
     .phone-inbox-body { font-size: 12px; color: var(--text); white-space: pre-wrap; }
     .phone-reply-row { display: flex; gap: 5px; margin-top: 4px; }
+    .phone-action-links { display: flex; flex-direction: column; gap: 5px; }
+    .phone-quick-link {
+      display: block;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: rgba(125, 211, 252, 0.15);
+      border: 1px solid rgba(125, 211, 252, 0.38);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 600;
+      text-decoration: none;
+      text-align: center;
+    }
+    .phone-quick-link:hover { background: rgba(125, 211, 252, 0.28); }
+    .phone-quick-link.accent {
+      background: rgba(251, 191, 36, 0.2);
+      border-color: rgba(251, 191, 36, 0.5);
+      color: #fef3c7;
+    }
 
     @media (max-width: 640px) {
       .stage { padding: 66px 10px max(12px, env(safe-area-inset-bottom)); }
@@ -710,9 +738,15 @@
       <button class="icon-btn" id="phoneCloseBtn" type="button" title="Close phone">✕</button>
     </div>
 
+    <div class="phone-login-row" id="phoneLoginRow">
+      <input class="glass-input" id="phonePasswordInput" type="password" placeholder="Website password to unlock phone" autocomplete="current-password" aria-label="Website password for phone" maxlength="256" />
+      <button class="glass-btn" id="phoneLoginBtn" type="button">Unlock</button>
+    </div>
+
     <div class="phone-mode-tabs">
-      <button class="phone-tab active" id="phoneModeGvoiceBtn" type="button">Google Voice ($0 US)</button>
-      <button class="phone-tab" id="phoneModeWebrtcBtn" type="button">In-Page WebRTC</button>
+      <button class="phone-tab active" id="phoneModeGvoiceBtn" type="button">Google Voice</button>
+      <button class="phone-tab" id="phoneModeAiLineBtn" type="button">AI Voice Line</button>
+      <button class="phone-tab" id="phoneModeWebrtcBtn" type="button">Twilio WebRTC</button>
     </div>
 
     <div class="phone-incoming" id="phoneIncomingBanner">
@@ -755,7 +789,8 @@
       <button class="glass-btn" id="phoneCheckStatusBtn" type="button" title="Read-only voice health check">🩺 Status</button>
     </div>
 
-    <div class="phone-status-line" id="phoneStatusLine">Sign in to unlock your work phone &amp; SMS.</div>
+    <div class="phone-action-links" id="phoneActionLinks"></div>
+    <div class="phone-status-line" id="phoneStatusLine">Enter your website password above to unlock your work phone &amp; SMS.</div>
     <div class="phone-inbox-list" id="phoneInboxList"></div>
   </aside>
 
@@ -965,7 +1000,20 @@
           workAuth,
           document,
           window,
-          onLog: (msg) => appendMessage("sys", msg)
+          onLog: (msg) => appendMessage("sys", msg),
+          onLoginSuccess: () => {
+            verifyConnection();
+          },
+          onVoiceTurn: (transcript, reply, raw) => {
+            state.history.push({ role: "user", text: transcript });
+            appendMessage("user", transcript, "Spoken · Mic");
+            if (reply) {
+              state.history.push({ role: "model", text: reply });
+              const tools = (raw && raw.tools_used && raw.tools_used.length) ? ` · tools: ${[...new Set(raw.tools_used)].join(", ")}` : "";
+              appendMessage("ai", reply, (raw && raw.model || "gemini") + tools);
+              speakText(reply);
+            }
+          }
         });
       }
       updateAuthUi(workAuth.hasSession());
@@ -1370,8 +1418,21 @@
             if (!spoken) return;
             await _origSend(spoken);
           };
+          let srBroken = false;
+          recognition.onerror = (ev) => {
+            const errCode = ev && ev.error;
+            if (errCode === "network" || errCode === "service-not-allowed" || errCode === "not-allowed") {
+              srBroken = true;
+              try { recognition.stop(); } catch (_) {}
+              if (webPhone) {
+                webPhone.setMode("ailine");
+                webPhone.toggleDrawer(true);
+                appendMessage("sys", "Switched to universal Mic -> Gemini Voice Line in the Phone drawer (browser SpeechRecognition unavailable in this window).");
+              }
+            }
+          };
           recognition.onend = () => {
-            if (aiCallActive && !aiMicMuted) {
+            if (aiCallActive && !aiMicMuted && !srBroken) {
               try { recognition.start(); } catch (_) {}
             }
           };

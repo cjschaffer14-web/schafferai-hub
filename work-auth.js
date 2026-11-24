@@ -4,7 +4,7 @@
   const SESSION_KEY = 'schafferai_work_session_v1';
   const PRIVATE_ACTIONS = new Set([
     'chat', 'tts', 'send_text', 'rtc_signal', 'twilio_call', 'twilio_sms', 'poll_events',
-    'voice_status', 'voice_inbox', 'voice_reply', 'voice_token'
+    'voice_status', 'voice_inbox', 'voice_reply', 'voice_token', 'voice_turn'
   ]);
   class AuthRequiredError extends Error {
     constructor() { super('Sign in to use private work-account tools.'); this.code = 'AUTH_REQUIRED'; }

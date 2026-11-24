@@ -88,10 +88,39 @@ test('web-phone module contains no direct fetch bypass and normalizes E.164 & Go
 
 test('all web-phone backend actions are blocked without a session', async () => {
   const h = harness();
-  for (const action of ['voice_status', 'voice_inbox', 'voice_reply', 'voice_token']) {
+  for (const action of ['voice_status', 'voice_inbox', 'voice_reply', 'voice_token', 'voice_turn']) {
     await assert.rejects(h.client.request({ action }), { code: 'AUTH_REQUIRED' });
   }
   assert.equal(h.calls.length, 0);
+});
+
+test('inline phone drawer login unlocks phone and popup-blocked webviews render direct target=_top & tel: links', async () => {
+  const h = harness((p) => {
+    if (p.action === 'auth_login') return response({ ok: true, authenticated: true, token, expires_at: new Date(Date.UTC(2026, 10, 24, 19)).toISOString() });
+    if (p.action === 'voice_status') return response({ ok: true, google_voice: { billing_setup_email_seen: true, number_assigned: false }, twilio_webrtc: { browser_webrtc_ready: false }, elevenlabs_tts: { configured: true } });
+    return response({ ok: true });
+  });
+  const ids = ['phoneDrawerBtn', 'topPhoneBtn', 'phoneCloseBtn', 'webPhoneDrawer', 'phoneLoginRow', 'phonePasswordInput', 'phoneLoginBtn', 'phoneModeGvoiceBtn', 'phoneModeAiLineBtn', 'phoneModeWebrtcBtn', 'phoneDialInput', 'phoneBackspaceBtn', 'phoneKeypad', 'phonePrimaryCallBtn', 'phoneHangupBtn', 'phoneMuteCallBtn', 'phoneGvMessagesBtn', 'phoneSyncInboxBtn', 'phoneCheckStatusBtn', 'phoneActionLinks', 'phoneStatusLine', 'phoneInboxList', 'phoneIncomingBanner', 'phoneIncomingLabel', 'phoneAnswerBtn', 'phoneDeclineBtn'];
+  const els = Object.fromEntries(ids.map((id) => [id, new Element(id)]));
+  els.phoneDialInput.value = '2672647302';
+  const doc = { getElementById: (id) => els[id], createElement: (t) => new Element(t) };
+  const win = { open: () => null }; // Simulates Electron webview blocking popups
+  let loginHookCalled = 0;
+  const ctrl = WebPhone.init({ workAuth: h.client, document: doc, window: win, onLoginSuccess: () => { loginHookCalled++; ctrl.setAuthenticated(true); } });
+
+  assert.equal(els.phoneLoginRow.style.display, 'flex');
+  els.phonePasswordInput.value = 'fixture-only-input';
+  await els.phoneLoginBtn.emit('click');
+  await flush();
+  assert.equal(loginHookCalled, 1);
+  assert.equal(els.phoneLoginRow.style.display, 'none');
+
+  await els.phonePrimaryCallBtn.emit('click');
+  assert(els.phoneStatusLine.textContent.includes('Popup blocked'));
+  const hrefs = els.phoneActionLinks.children.map((a) => a.href);
+  assert(hrefs.includes('https://admin.google.com/ac/voice'));
+  assert(hrefs.includes('https://voice.google.com/u/0/calls?a=nc,%2B12672647302'));
+  assert(hrefs.includes('tel:+12672647302'));
 });
 
 test('web-phone UI gates calls on auth, opens Google Voice companion, syncs inbox, and tears down WebRTC on logout', async () => {
