@@ -556,6 +556,118 @@
     .send-btn:hover { filter: brightness(1.12); transform: translateY(-1px); }
     .send-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
 
+    /* ---------- Floating Glass Web Phone Drawer ---------- */
+    .phone-drawer {
+      position: fixed;
+      top: 64px;
+      right: max(16px, env(safe-area-inset-right));
+      z-index: 35;
+      width: min(350px, calc(100vw - 24px));
+      max-height: calc(100dvh - 80px);
+      overflow-y: auto;
+      padding: 16px;
+      border-radius: 22px;
+      background: rgba(10, 14, 24, 0.68);
+      backdrop-filter: blur(28px) saturate(175%);
+      -webkit-backdrop-filter: blur(28px) saturate(175%);
+      border: 1px solid var(--glass-border);
+      box-shadow: inset 0 1px 0 var(--glass-highlight), 0 24px 64px rgba(0, 0, 0, 0.55);
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .phone-drawer.open { display: flex; }
+    .phone-drawer-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .phone-mode-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .phone-tab {
+      padding: 7px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .phone-tab.active {
+      background: rgba(125, 211, 252, 0.22);
+      border-color: rgba(125, 211, 252, 0.5);
+      color: var(--text);
+    }
+    .phone-dial-row { display: flex; gap: 6px; align-items: center; }
+    .phone-dial-input { font-size: 17px; font-weight: 600; letter-spacing: 0.03em; text-align: center; }
+    .phone-keypad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 7px;
+    }
+    .keypad-btn {
+      padding: 10px 6px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--text);
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.1;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      transition: background 0.14s ease, transform 0.1s ease;
+    }
+    .keypad-btn:hover { background: rgba(255, 255, 255, 0.15); }
+    .keypad-btn:active { transform: scale(0.96); }
+    .keypad-sub { font-size: 9px; letter-spacing: 0.12em; color: var(--text-muted); font-weight: 500; }
+    .phone-cta-row { display: flex; gap: 6px; flex-wrap: wrap; }
+    .phone-call-cta {
+      flex: 1;
+      padding: 10px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(52, 211, 153, 0.5);
+      background: rgba(52, 211, 153, 0.26);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .phone-call-cta:disabled, .glass-btn:disabled, .icon-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .phone-status-line {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      line-height: 1.4;
+      padding: 6px 8px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .phone-incoming {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px;
+      border-radius: 12px;
+      background: rgba(52, 211, 153, 0.2);
+      border: 1px solid rgba(52, 211, 153, 0.48);
+      font-size: 12px;
+    }
+    .phone-incoming.visible { display: flex; }
+    .phone-inbox-list { display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; }
+    .phone-inbox-empty { font-size: 11.5px; color: var(--text-muted); padding: 6px 4px; }
+    .phone-inbox-item {
+      padding: 8px 10px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .phone-inbox-head { font-size: 11.5px; font-weight: 600; color: var(--accent); }
+    .phone-inbox-body { font-size: 12px; color: var(--text); white-space: pre-wrap; }
+    .phone-reply-row { display: flex; gap: 5px; margin-top: 4px; }
+
     @media (max-width: 640px) {
       .stage { padding: 66px 10px max(12px, env(safe-area-inset-bottom)); }
       .chat-glass { height: calc(100dvh - 86px); border-radius: 20px; }
@@ -579,16 +691,73 @@
   <header class="topbar">
     <div class="glass-pill" id="connPill" title="Work AI connection status">
       <span class="brand-dot connecting" id="connDot"></span>
-      <span id="connLabel" class="shimmer-text">Connecting to c@schafferai.com…</span>
+      <span id="connLabel">Private tools require sign in</span>
     </div>
 
     <div class="topbar-right">
+      <button class="glass-pill" id="topPhoneBtn" type="button" title="Open Work Phone (Google Voice &amp; WebRTC)">📱 <span class="hide-sm">Phone</span></button>
       <button class="glass-pill" id="muteBtn" type="button" title="Toggle background audio">🔇 <span class="hide-sm">Muted</span></button>
       <button class="glass-pill" id="wallpaperBtn" type="button" title="Switch live background">📺 <span class="hide-sm">Live Feed</span></button>
       <button class="glass-pill" id="zenBtn" type="button" title="Toggle chat visibility">✨ <span class="hide-sm">Cinema</span></button>
       <a class="glass-pill" href="./dev/">Dev Hub →</a>
     </div>
   </header>
+
+  <!-- Floating Glass Web Phone Drawer -->
+  <aside class="phone-drawer" id="webPhoneDrawer" aria-label="SchafferAI Work Phone">
+    <div class="phone-drawer-top">
+      <div class="popover-title">📱 Work Phone · c@schafferai.com</div>
+      <button class="icon-btn" id="phoneCloseBtn" type="button" title="Close phone">✕</button>
+    </div>
+
+    <div class="phone-mode-tabs">
+      <button class="phone-tab active" id="phoneModeGvoiceBtn" type="button">Google Voice ($0 US)</button>
+      <button class="phone-tab" id="phoneModeWebrtcBtn" type="button">In-Page WebRTC</button>
+    </div>
+
+    <div class="phone-incoming" id="phoneIncomingBanner">
+      <span id="phoneIncomingLabel">Incoming call…</span>
+      <div style="display:flex;gap:6px;">
+        <button class="glass-btn" id="phoneAnswerBtn" type="button" style="background:rgba(52,211,153,0.34);">Answer</button>
+        <button class="glass-btn" id="phoneDeclineBtn" type="button" style="background:rgba(251,113,133,0.3);">Decline</button>
+      </div>
+    </div>
+
+    <div class="phone-dial-row">
+      <input class="glass-input phone-dial-input" id="phoneDialInput" type="tel" value="+12672647302" placeholder="+1 (267) ..." aria-label="Phone number to dial" />
+      <button class="icon-btn" id="phoneBackspaceBtn" type="button" title="Backspace">⌫</button>
+    </div>
+
+    <div class="phone-keypad" id="phoneKeypad">
+      <button class="keypad-btn" data-digit="1" type="button">1<span class="keypad-sub">&nbsp;</span></button>
+      <button class="keypad-btn" data-digit="2" type="button">2<span class="keypad-sub">ABC</span></button>
+      <button class="keypad-btn" data-digit="3" type="button">3<span class="keypad-sub">DEF</span></button>
+      <button class="keypad-btn" data-digit="4" type="button">4<span class="keypad-sub">GHI</span></button>
+      <button class="keypad-btn" data-digit="5" type="button">5<span class="keypad-sub">JKL</span></button>
+      <button class="keypad-btn" data-digit="6" type="button">6<span class="keypad-sub">MNO</span></button>
+      <button class="keypad-btn" data-digit="7" type="button">7<span class="keypad-sub">PQRS</span></button>
+      <button class="keypad-btn" data-digit="8" type="button">8<span class="keypad-sub">TUV</span></button>
+      <button class="keypad-btn" data-digit="9" type="button">9<span class="keypad-sub">WXYZ</span></button>
+      <button class="keypad-btn" data-digit="*" type="button">*<span class="keypad-sub">&nbsp;</span></button>
+      <button class="keypad-btn" data-digit="0" type="button">0<span class="keypad-sub">+</span></button>
+      <button class="keypad-btn" data-digit="#" type="button">#<span class="keypad-sub">&nbsp;</span></button>
+    </div>
+
+    <div class="phone-cta-row">
+      <button class="phone-call-cta" id="phonePrimaryCallBtn" type="button">📞 Call (Google Voice)</button>
+      <button class="glass-btn" id="phoneMuteCallBtn" type="button" style="display:none;">Mute</button>
+      <button class="glass-btn" id="phoneHangupBtn" type="button" style="display:none;background:rgba(251,113,133,0.32);border-color:rgba(251,113,133,0.55);">End</button>
+    </div>
+
+    <div class="phone-cta-row">
+      <button class="glass-btn" id="phoneGvMessagesBtn" type="button" style="flex:1;">💬 Open SMS</button>
+      <button class="glass-btn" id="phoneSyncInboxBtn" type="button" style="flex:1;">🔄 Sync Inbox</button>
+      <button class="glass-btn" id="phoneCheckStatusBtn" type="button" title="Read-only voice health check">🩺 Status</button>
+    </div>
+
+    <div class="phone-status-line" id="phoneStatusLine">Sign in to unlock your work phone &amp; SMS.</div>
+    <div class="phone-inbox-list" id="phoneInboxList"></div>
+  </aside>
 
   <!-- Live Wallpaper Preset Popover -->
   <aside class="wallpaper-popover" id="wallpaperPopover" aria-label="Live background selector">
@@ -615,15 +784,16 @@
         <div class="chat-title-wrap">
           <div class="chat-title">SchafferAI</div>
           <div class="chat-subtitle">
-            <span id="headerStatusText">Waiting for work-account handshake…</span>
+            <span id="headerStatusText">Public site · private work tools require sign in</span>
           </div>
         </div>
         <div class="header-actions">
+          <button class="icon-btn" id="phoneDrawerBtn" type="button" title="Work Phone keypad (Google Voice &amp; WebRTC)">📱</button>
           <button class="icon-btn active" id="voiceAutoBtn" type="button" title="Natural voice replies (ElevenLabs free tier + browser fallback)">🔊</button>
           <button class="icon-btn" id="callAiBtn" type="button" title="Live voice call with c@schafferai.com">📞</button>
           <button class="icon-btn" id="rtcToggleBtn" type="button" title="Peer-to-peer WebRTC voice room">🎙️</button>
           <button class="icon-btn" id="textModeBtn" type="button" title="Send as text / SMS">💬</button>
-          <button class="icon-btn" id="tokenBtn" type="button" title="Work account access key" style="display:none">🔑</button>
+          <button class="icon-btn" id="tokenBtn" type="button" title="Sign in to private work tools" aria-label="Sign in to private work tools">🔑</button>
           <button class="icon-btn" id="clearBtn" type="button" title="Clear chat">🗑</button>
         </div>
       </div>
@@ -652,14 +822,14 @@
         <button class="glass-btn" id="phoneSmsBtn" type="button">Send SMS</button>
       </div>
 
-      <div class="auth-banner" id="authBanner">
-        <span class="auth-banner-text">Enter your <strong>c@schafferai.com</strong> access key to chat with your work AI:</span>
-        <input class="glass-input" id="tokenInput" type="password" placeholder="sai_work_..." autocomplete="off" />
-        <button class="glass-btn" id="saveTokenBtn" type="button">Connect</button>
+      <div class="auth-banner visible" id="authBanner" role="region" aria-label="Private work-account sign in">
+        <span class="auth-banner-text" id="authMessage" role="status">Sign in for private <strong>c@schafferai.com</strong> tools.</span>
+        <input class="glass-input" id="tokenInput" type="password" placeholder="Website password" autocomplete="current-password" aria-label="Website password" maxlength="256" />
+        <button class="glass-btn" id="saveTokenBtn" type="button">Sign in</button>
       </div>
 
       <div class="chat-messages" id="chatMessages">
-        <div class="msg sys">Connected surface for c@schafferai.com · Drive, Calendar, Gmail, Sheets &amp; Gemini</div>
+        <div class="msg sys">Public website · sign in to use private work-account tools</div>
       </div>
 
       <div class="status-thinking" id="thinkingIndicator" aria-live="polite">
@@ -675,12 +845,14 @@
       </div>
 
       <form class="composer" id="chatForm">
-        <textarea id="chatInput" rows="1" placeholder="Ask c@schafferai.com anything…"></textarea>
+        <textarea id="chatInput" rows="1" maxlength="6000" placeholder="Ask c@schafferai.com anything…"></textarea>
         <button class="send-btn" id="sendBtn" type="submit">Send</button>
       </form>
     </section>
   </main>
 
+  <script src="./work-auth.js"></script>
+  <script src="./web-phone.js"></script>
   <script>
     (() => {
       // Work-account Apps Script Web App endpoint (c@schafferai.com)
@@ -695,12 +867,10 @@
         aurora:   { label: "Aurora Live",    type: "video", id: "ccTVAhJU5lg" }
       };
 
-      const STORAGE_TOKEN = "schafferai_work_token";
       const STORAGE_PRESET = "schafferai_yt_preset";
       const STORAGE_CUSTOM_YT = "schafferai_yt_custom";
 
       const state = {
-        token: localStorage.getItem(STORAGE_TOKEN) || "",
         preset: localStorage.getItem(STORAGE_PRESET) || "featured",
         customVideoId: localStorage.getItem(STORAGE_CUSTOM_YT) || "",
         muted: true,
@@ -710,14 +880,12 @@
         history: []
       };
 
-      // Allow one-time ?token=... in URL, then strip it from address bar
+      // Retire persistent legacy keys and reject URL credentials; never import them.
+      localStorage.removeItem("schafferai_work_token");
       const urlParams = new URLSearchParams(window.location.search);
-      const urlToken = urlParams.get("token");
-      if (urlToken) {
-        state.token = urlToken.trim();
-        localStorage.setItem(STORAGE_TOKEN, state.token);
-        urlParams.delete("token");
-        const cleanUrl = window.location.pathname + (urlParams.toString() ? "?" + urlParams.toString() : "");
+      if (urlParams.has("token") || urlParams.has("password")) {
+        urlParams.delete("token"); urlParams.delete("password");
+        const cleanUrl = window.location.pathname + (urlParams.toString() ? "?" + urlParams.toString() : "") + window.location.hash;
         window.history.replaceState({}, "", cleanUrl);
       }
 
@@ -745,6 +913,62 @@
       const chatInput = document.getElementById("chatInput");
       const sendBtn = document.getElementById("sendBtn");
       const quickPrompts = document.getElementById("quickPrompts");
+      const authMessage = document.getElementById("authMessage");
+      const privateControls = [
+        sendBtn, document.getElementById("callAiBtn"), document.getElementById("rtcToggleBtn"),
+        document.getElementById("textModeBtn"), document.getElementById("rtcJoinBtn"),
+        document.getElementById("phoneCallBtn"), document.getElementById("phoneSmsBtn"),
+        document.getElementById("phonePrimaryCallBtn"), document.getElementById("phoneGvMessagesBtn"),
+        document.getElementById("phoneSyncInboxBtn"), document.getElementById("phoneCheckStatusBtn"),
+        ...quickPrompts.querySelectorAll("button")
+      ].filter(Boolean);
+      let webPhone = null;
+      function showLogin(message) {
+        authBanner.classList.add("visible");
+        authMessage.textContent = message || "Sign in to use private work-account tools.";
+      }
+      function updateAuthUi(authenticated) {
+        privateControls.forEach((control) => { control.disabled = !authenticated || state.busy; });
+        if (webPhone) webPhone.setAuthenticated(authenticated);
+        tokenBtn.textContent = authenticated ? "🔒" : "🔑";
+        tokenBtn.title = authenticated ? "Sign out of private work tools" : "Sign in to private work tools";
+        tokenBtn.setAttribute("aria-label", tokenBtn.title);
+        if (!authenticated) {
+          state.connected = false;
+          state.history = [];
+          chatMessages.innerHTML = '<div class="msg sys">Private work tools are locked. Sign in to continue.</div>';
+          setConnState("", "Private tools require sign in", "Public site · private work tools require sign in");
+          showLogin();
+        } else {
+          authBanner.classList.remove("visible");
+          if (chatMessages.innerHTML === '<div class="msg sys">Private work tools are locked. Sign in to continue.</div>') {
+            chatMessages.innerHTML = '<div class="msg sys">Signed in. Private work tools are ready.</div>';
+          }
+        }
+      }
+      const workAuth = SchafferWorkAuth.create({
+        endpoint: WORK_AI_ENDPOINT, storage: sessionStorage,
+        onChange: (snapshot) => {
+          updateAuthUi(snapshot.authenticated);
+          if (!snapshot.authenticated) {
+            endAiVoiceCall();
+            if (webPhone) webPhone.teardown();
+            if (pc) { pc.close(); pc = null; }
+            if (localStream) { localStream.getTracks().forEach((track) => track.stop()); localStream = null; }
+            rtcActive = false; pendingIce = [];
+          }
+        },
+        onRequired: () => showLogin("Your session ended. Sign in again; the last action was not retried.")
+      });
+      if (window.SchafferWebPhone) {
+        webPhone = window.SchafferWebPhone.init({
+          workAuth,
+          document,
+          window,
+          onLog: (msg) => appendMessage("sys", msg)
+        });
+      }
+      updateAuthUi(workAuth.hasSession());
 
       /* ---------- YouTube Background Control ---------- */
       function parseYouTubeId(input) {
@@ -871,49 +1095,44 @@
       }
 
       async function verifyConnection() {
-        setConnState("connecting", "Connecting to c@schafferai.com…", "Connecting to c@schafferai.com…");
         try {
-          const res = await fetch(WORK_AI_ENDPOINT, {
-            method: "POST",
-            headers: { "Content-Type": "text/plain;charset=utf-8" },
-            body: JSON.stringify({ action: "ping" })
-          });
-          const data = await res.json();
-          if (data && data.ok) {
+          const data = await workAuth.ping();
+          if (data && data.stale) return workAuth.hasSession();
+          if (data && data.ok && data.authenticated === true && workAuth.hasSession()) {
             state.connected = true;
-            authBanner.classList.remove("visible");
-            setConnState("connected", "Connected · c@schafferai.com", `Live work AI · ${data.account} · v${data.version || "1.6"}`);
+            updateAuthUi(true);
+            setConnState("connected", "Signed in · c@schafferai.com", `Private work tools · ${data.account} · v${data.version || ""}`);
             return true;
           }
-          state.connected = false;
-          setConnState("error", "Error · c@schafferai.com", data.error || "Connection failed");
+          updateAuthUi(false);
           return false;
         } catch (err) {
           state.connected = false;
-          setConnState("error", "Offline · c@schafferai.com", "Waiting for network…");
+          if (err.code !== "AUTH_REQUIRED") setConnState("error", "Work service unavailable", "Sign-in service is unavailable; private tools remain locked.");
           return false;
         }
       }
 
-      saveTokenBtn.addEventListener("click", () => {
-        const val = tokenInput.value.trim();
-        if (!val) return;
-        state.token = val;
-        localStorage.setItem(STORAGE_TOKEN, val);
+      saveTokenBtn.addEventListener("click", async () => {
+        const password = tokenInput.value;
         tokenInput.value = "";
-        verifyConnection();
+        if (!password || saveTokenBtn.disabled) return;
+        saveTokenBtn.disabled = true;
+        authMessage.textContent = "Signing in…";
+        try {
+          await workAuth.login(password);
+          await verifyConnection();
+        } catch (err) {
+          showLogin(err.code === "AUTH_REQUIRED" ? "Sign in failed. Check the password and try again." : (err.message || "Sign in failed."));
+        } finally { saveTokenBtn.disabled = false; }
       });
 
       tokenInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          saveTokenBtn.click();
-        }
+        if (e.key === "Enter") { e.preventDefault(); saveTokenBtn.click(); }
       });
-
       tokenBtn.addEventListener("click", () => {
-        authBanner.classList.toggle("visible");
-        if (authBanner.classList.contains("visible")) tokenInput.focus();
+        if (workAuth.hasSession()) { workAuth.clear(); appendMessage("sys", "Signed out on this tab. Private work tools are locked."); }
+        else { showLogin(); tokenInput.focus(); }
       });
 
       clearBtn.addEventListener("click", () => {
@@ -933,7 +1152,7 @@
       function setThinking(active) {
         if (thinkingTimer) { clearInterval(thinkingTimer); thinkingTimer = null; }
         thinkingIndicator.classList.toggle("visible", active);
-        sendBtn.disabled = active;
+        sendBtn.disabled = active || !workAuth.hasSession();
         if (active) {
           let idx = 0;
           thinkingText.textContent = THINKING_PHASES[0];
@@ -964,7 +1183,8 @@
 
       async function sendMessage(text) {
         const clean = (text || "").trim();
-        if (!clean || state.busy) return;
+        if (!clean || state.busy || !workAuth.requireSession()) return;
+        if (clean.length > 6000) { appendMessage("sys", "Please split your message into parts of 6,000 characters or fewer."); return; }
 
         state.busy = true;
         appendMessage("user", clean);
@@ -973,19 +1193,12 @@
         setThinking(true);
 
         try {
-          const res = await fetch(WORK_AI_ENDPOINT, {
-            method: "POST",
-            headers: { "Content-Type": "text/plain;charset=utf-8" },
-            body: JSON.stringify({
-              token: state.token,
-              message: clean,
-              history: state.history.slice(-10)
-            })
-          });
-          const data = await res.json();
+          const history = state.history.slice(-8).map((turn) => ({ role: turn.role, text: String(turn.text || "").slice(0, 2000) }));
+          while (history.length && JSON.stringify({ message: clean, history }).length > 28000) history.shift();
+          const data = await workAuth.request({ action: "chat", message: clean, history });
           if (!data.ok) {
             appendMessage("sys", data.error || "Request failed.");
-            if (/Unauthorized/i.test(data.error || "")) authBanner.classList.add("visible");
+
           } else {
             state.history.push({ role: "user", text: clean });
             state.history.push({ role: "model", text: data.reply });
@@ -1001,7 +1214,7 @@
             return data.reply;
           }
         } catch (err) {
-          appendMessage("sys", "Connection error talking to c@schafferai.com.");
+          appendMessage("sys", err.code === "AUTH_REQUIRED" ? "Session ended. Sign in again; your message was not retried." : "Connection error talking to c@schafferai.com. Your message was not retried.");
         } finally {
           state.busy = false;
           setThinking(false);
@@ -1032,9 +1245,6 @@
         sendMessage(chip.dataset.prompt);
       });
 
-      // Init
-      renderBackground();
-      verifyConnection();
 
       /* ---------- Always-Free Voice Call, Texting & WebRTC P2P ---------- */
       const voiceAutoBtn = document.getElementById("voiceAutoBtn");
@@ -1090,26 +1300,22 @@
 
       async function speakText(txt) {
         const clean = String(txt || "").replace(/[*_`#]+/g, "").replace(/\s+/g, " ").trim();
-        if (!clean) return;
+        if (!clean || !workAuth.requireSession()) return;
         stopSpeech();
         try {
-          const res = await fetch(WORK_AI_ENDPOINT, {
-            method: "POST",
-            headers: { "Content-Type": "text/plain;charset=utf-8" },
-            body: JSON.stringify({ token: state.token, action: "tts", text: clean.slice(0, 800) })
-          });
-          const data = await res.json();
+          const data = await workAuth.request({ action: "tts", text: clean.slice(0, 800) });
           if (data && data.ok && data.audio_b64) {
             const audio = new Audio(`data:${data.mime || "audio/mpeg"};base64,${data.audio_b64}`);
             currentTtsAudio = audio;
             await audio.play();
             return;
           }
-        } catch (_) {}
+        } catch (err) { if (err.code === "AUTH_REQUIRED") return; }
         browserSpeak(clean);
       }
 
       textModeBtn.addEventListener("click", () => {
+        if (!workAuth.requireSession()) return;
         textMode = !textMode;
         textModeBtn.classList.toggle("active", textMode);
         chatInput.placeholder = textMode
@@ -1118,6 +1324,7 @@
       });
 
       rtcToggleBtn.addEventListener("click", () => {
+        if (!workAuth.requireSession()) return;
         rtcRow.classList.toggle("visible");
         rtcToggleBtn.classList.toggle("active", rtcRow.classList.contains("visible"));
       });
@@ -1129,6 +1336,7 @@
       }
 
       function startAiVoiceCall(openingSpeech) {
+        if (!workAuth.requireSession()) return;
         aiCallActive = true;
         aiMicMuted = false;
         aiCallSeconds = 0;
@@ -1203,20 +1411,15 @@
       sendMessage = async function (text) {
         if (!textMode) return _origSend(text);
         const clean = (text || "").trim();
-        if (!clean || state.busy) return;
+        if (!clean || state.busy || !workAuth.requireSession()) return;
         state.busy = true;
         appendMessage("user", clean, "Text / SMS");
         chatInput.value = "";
         try {
-          const res = await fetch(WORK_AI_ENDPOINT, {
-            method: "POST",
-            headers: { "Content-Type": "text/plain;charset=utf-8" },
-            body: JSON.stringify({ token: state.token, action: "send_text", to: "owner_sms", body: clean })
-          });
-          const data = await res.json();
+          const data = await workAuth.request({ action: "send_text", to: "owner_sms", body: clean });
           appendMessage("sys", data.ok ? (data.sms_gateway_sent ? "Sent to work queue & SMS gateway." : "Sent to c@schafferai.com live text queue.") : (data.error || "Text failed."));
-        } catch (_) {
-          appendMessage("sys", "Text delivery failed.");
+        } catch (err) {
+          appendMessage("sys", err.code === "AUTH_REQUIRED" ? "Sign in again; text was not retried." : "Text delivery is unconfirmed. The request was not retried.");
         } finally {
           state.busy = false;
         }
@@ -1235,6 +1438,7 @@
       }
 
       async function ensurePeerConnection() {
+        if (!workAuth.requireSession()) throw new SchafferWorkAuth.AuthRequiredError();
         if (pc) return pc;
         if (!localStream) localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
         pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
@@ -1245,14 +1449,11 @@
       }
 
       async function sendSignal(kind, payload) {
-        await fetch(WORK_AI_ENDPOINT, {
-          method: "POST",
-          headers: { "Content-Type": "text/plain;charset=utf-8" },
-          body: JSON.stringify({ token: state.token, action: "rtc_signal", room: rtcRoomInput.value || "main", peer_id: peerId, kind, payload })
-        });
+        return workAuth.request({ action: "rtc_signal", room: rtcRoomInput.value || "main", peer_id: peerId, kind, payload });
       }
 
       async function startRtcRoom() {
+        if (!workAuth.requireSession()) return;
         if (rtcActive) {
           rtcActive = false;
           if (pc) { pc.close(); pc = null; }
@@ -1286,47 +1487,34 @@
       const phoneSmsBtn = document.getElementById("phoneSmsBtn");
 
       phoneCallBtn.addEventListener("click", async () => {
+        if (!workAuth.requireSession()) return;
         const to = phoneToInput.value.trim();
         const say = chatInput.value.trim() || "Hello from SchafferAI work account.";
         appendMessage("sys", `Dialing ${to} via Twilio…`);
         try {
-          const res = await fetch(WORK_AI_ENDPOINT, {
-            method: "POST",
-            headers: { "Content-Type": "text/plain;charset=utf-8" },
-            body: JSON.stringify({ token: state.token, action: "twilio_call", to, say })
-          });
-          const data = await res.json();
+          const data = await workAuth.request({ action: "twilio_call", to, say });
           appendMessage("sys", data.ok ? `Twilio call queued (${data.sid}) to ${data.to}` : `Twilio error: ${data.error || "failed"}`);
-        } catch (_) { appendMessage("sys", "Twilio call request failed."); }
+        } catch (err) { appendMessage("sys", err.code === "AUTH_REQUIRED" ? "Sign in again; call was not retried." : "Call outcome is unconfirmed. The request was not retried."); }
       });
 
       phoneSmsBtn.addEventListener("click", async () => {
+        if (!workAuth.requireSession()) return;
         const to = phoneToInput.value.trim();
         const body = chatInput.value.trim();
         if (!body) { appendMessage("sys", "Type your SMS message in the box below first."); chatInput.focus(); return; }
         chatInput.value = "";
         appendMessage("user", body, `SMS -> ${to}`);
         try {
-          const res = await fetch(WORK_AI_ENDPOINT, {
-            method: "POST",
-            headers: { "Content-Type": "text/plain;charset=utf-8" },
-            body: JSON.stringify({ token: state.token, action: "twilio_sms", to, body })
-          });
-          const data = await res.json();
+          const data = await workAuth.request({ action: "twilio_sms", to, body });
           appendMessage("sys", data.ok ? `Twilio SMS sent (${data.sid})` : `Twilio SMS error: ${data.error || "failed"}`);
-        } catch (_) { appendMessage("sys", "Twilio SMS request failed."); }
+        } catch (err) { appendMessage("sys", err.code === "AUTH_REQUIRED" ? "Sign in again; SMS was not retried." : "SMS delivery is unconfirmed. The request was not retried."); }
       });
 
       // Poll for agent-initiated texts, incoming calls, and WebRTC signals
       setInterval(async () => {
-        if (!state.connected) return;
+        if (!state.connected || !workAuth.hasSession()) return;
         try {
-          const res = await fetch(WORK_AI_ENDPOINT, {
-            method: "POST",
-            headers: { "Content-Type": "text/plain;charset=utf-8" },
-            body: JSON.stringify({ token: state.token, action: "poll_events", since_ts: lastPollTs, room: rtcRoomInput.value || "main", peer_id: peerId })
-          });
-          const data = await res.json();
+          const data = await workAuth.request({ action: "poll_events", since_ts: lastPollTs, room: rtcRoomInput.value || "main", peer_id: peerId });
           if (!data || !data.ok) return;
           if (data.server_ts) lastPollTs = data.server_ts;
           (data.events || []).forEach((ev) => {
@@ -1367,6 +1555,9 @@
           }
         } catch (_) {}
       }, 4000);
+      // Public page remains usable; the health check never confers authorization.
+      renderBackground();
+      verifyConnection();
     })();
   </script>
 </body>
