@@ -941,7 +941,7 @@
           showLogin();
         } else {
           authBanner.classList.remove("visible");
-          if (chatMessages.innerHTML === '<div class="msg sys">Private work tools are locked. Sign in to continue.</div>') {
+          if (chatMessages.innerHTML.trim() === '<div class="msg sys">Private work tools are locked. Sign in to continue.</div>' || chatMessages.innerHTML.trim() === '<div class="msg sys">Public website · sign in to use private work-account tools</div>') {
             chatMessages.innerHTML = '<div class="msg sys">Signed in. Private work tools are ready.</div>';
           }
         }
