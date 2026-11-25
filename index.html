@@ -766,15 +766,13 @@
     <form class="phone-dial-form" autocomplete="off" onsubmit="return false">
       <label class="phone-control-help" for="phoneDialInput">Number to call</label>
       <input class="glass-input phone-dial-input" id="phoneDialInput" name="destinationPhoneNumber" type="tel" placeholder="Enter a phone number" aria-label="Phone number to dial" autocomplete="off" maxlength="32" />
-      <button class="phone-call-cta" id="phonePrimaryCallBtn" type="button">Open Google Voice in this tab →</button>
+      <button class="phone-call-cta" id="phonePrimaryCallBtn" type="button">Call with Google Voice</button>
     </form>
     <div class="phone-google-actions">
-      <button class="glass-btn" id="phoneGvMessagesBtn" type="button">💬 Messages ↗</button>
-      <button class="glass-btn" id="phoneGvVoicemailBtn" type="button">📼 Voicemail ↗</button>
-      <button class="glass-btn" id="phoneGvSettingsBtn" type="button">⚙ Settings ↗</button>
-      <button class="glass-btn" id="phoneCheckStatusBtn" type="button" title="Read-only voice health check">Refresh status</button>
+      <button class="glass-btn" id="phoneConnectBtn" type="button">Connect Google Voice</button>
+      <button class="glass-btn" id="phoneCheckStatusBtn" type="button">Refresh status</button>
     </div>
-    <p class="phone-control-help">Google Voice opens in this tab for calls, messages, and audio controls. Google does not allow its dialer inside this website. Sign in there as c@schafferai.com and keep Google Voice open to receive calls.</p>
+    <p class="phone-control-help">Make and receive calls on your Google Voice line here. Keep this website and your private phone connector running to receive calls.</p>
 
     <div class="phone-incoming" id="phoneIncomingBanner">
       <span id="phoneIncomingLabel">Incoming call…</span>
@@ -784,12 +782,12 @@
       </div>
     </div>
 
-    <div class="phone-status-line" id="phoneStatusLine" role="status" aria-live="polite">Google Voice opens in this tab. In-page calling is unavailable. Website sign-in unlocks status and inbox sync.</div>
+    <div class="phone-status-line" id="phoneStatusLine" role="status" aria-live="polite">Sign in to connect your Google Voice phone inside this website.</div>
     <div class="phone-action-links" id="phoneActionLinks"></div>
     <h2 class="phone-inbox-title">Forwarded messages &amp; voicemail</h2>
     <p class="phone-control-help phone-inbox-note">Sync copies from your work Gmail. Enable message, missed-call, and voicemail email forwarding in Google Voice Settings first.</p>
     <div class="phone-login-row" id="phoneLoginRow">
-      <input class="glass-input" id="phonePasswordInput" type="password" placeholder="Website password for inbox" autocomplete="current-password" aria-label="Website password for phone inbox" maxlength="256" />
+      <input class="glass-input" id="phonePasswordInput" type="password" placeholder="Website password" autocomplete="current-password" aria-label="Website password for phone" maxlength="256" />
       <button class="glass-btn" id="phoneLoginBtn" type="button">Sign in</button>
     </div>
     <button class="glass-btn" id="phoneSyncInboxBtn" type="button">Sync work inbox</button>
@@ -805,9 +803,10 @@
         <input id="phoneVolumeInput" type="range" min="0" max="100" step="5" value="100" disabled aria-describedby="phoneControlHelp" />
         <output id="phoneVolumeValue" for="phoneVolumeInput">100%</output>
       </div>
+      <button class="glass-btn" id="phoneTestToneBtn" type="button" style="display:none;">Send test tone</button>
       <button class="glass-btn" id="phoneMicTestBtn" type="button">🎙 Test microphone</button>
       </div>
-      <p class="phone-control-help" id="phoneControlHelp">Calls and audio controls run in Google Voice.</p>
+      <p class="phone-control-help" id="phoneControlHelp">Calls and audio controls stay inside this website.</p>
     </div>
   </aside>
 
@@ -902,8 +901,9 @@
     </section>
   </main>
 
-  <script src="./work-auth.js"></script>
-  <script src="./web-phone.js?v=20261125-google-only-same-tab"></script>
+  <script src="./work-auth.js?v=20261125-google-sip"></script>
+  <script src="./google-sip-client.js?v=20261125-google-sip"></script>
+  <script src="./web-phone.js?v=20261125-google-sip"></script>
   <script>
     (() => {
       // Work-account Apps Script Web App endpoint (c@schafferai.com)

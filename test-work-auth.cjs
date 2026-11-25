@@ -53,7 +53,7 @@ test('page login and logout use server session; polling stops and paid actions r
  const h=page();await flush();h.elements.tokenInput.value='fixture-only-input';await h.elements.saveTokenBtn.emit('click');assert.equal(h.elements.tokenInput.value,'');assert.equal(h.elements.sendBtn.disabled,false);assert(h.session.getItem(SESSION_KEY));await h.elements.tokenBtn.emit('click');assert.equal(h.session.getItem(SESSION_KEY),null);assert.equal(h.elements.sendBtn.disabled,true);const count=h.calls.length;await h.elements.phoneCallBtn.emit('click');for(const t of h.timers.filter(t=>t.ms===4000))await t.f();assert.equal(h.calls.length,count);
 });
 test('all protected page requests use central auth client, with no embedded credential/default or direct fetch bypass',()=>{
- const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');assert(!html.includes('fetch('));assert(!html.includes('state.token'));assert(!/password\s*[:=]\s*["']password["']/.test(html));assert(!/localStorage\.(?:getItem|setItem)\(STORAGE_TOKEN/.test(html));assert(html.includes('src="./work-auth.js"'));for(const action of ['chat','tts','send_text','rtc_signal','poll_events'])assert(html.includes('workAuth.request({ action: "'+action+'"'),action);
+ const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');assert(!html.includes('fetch('));assert(!html.includes('state.token'));assert(!/password\s*[:=]\s*["']password["']/.test(html));assert(!/localStorage\.(?:getItem|setItem)\(STORAGE_TOKEN/.test(html));assert(html.includes('src="./work-auth.js?v='));for(const action of ['chat','tts','send_text','rtc_signal','poll_events'])assert(html.includes('workAuth.request({ action: "'+action+'"'),action);
 });
 test('logout discards an in-flight private response instead of showing data after logout',async()=>{
  let finish;const h=harness(p=>p.action==='auth_login'?response({ok:true,authenticated:true,token,expires_at:new Date(Date.UTC(2026,10,24,19)).toISOString()}):new Promise(resolve=>finish=()=>resolve(response({ok:true,reply:'private result'}))));await h.client.login('fixture-only-input');const pending=h.client.request({action:'chat',message:'private'});h.client.clear();finish();await assert.rejects(pending,{code:'SESSION_CHANGED'});assert.equal(h.client.hasSession(),false);assert.equal(h.calls.length,2);
@@ -82,36 +82,46 @@ function googleOnly({signedIn=false,handler}={}) {
  const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
  const els=Object.fromEntries([...html.matchAll(/\bid="([^"]+)"/g)].map(m=>[m[1],new Element(m[1])]));
  for(const el of Object.values(els))Object.defineProperty(el,'innerHTML',{get(){return '';},set(){this.children=[];}});
- let authenticated=signedIn;const navigated=[],requests=[];
- const auth={hasSession:()=>authenticated,requireSession:()=>authenticated,request:async p=>{
+ let authenticated=signedIn;const navigated=[],requests=[],calls=[];let sessionRequests=0,device;
+ class FakeCall {constructor(){this.handlers={};this.parameters={From:'+15555550101'};this.accepted=false;}on(k,f){(this.handlers[k]??=[]).push(f);}emit(k,...v){for(const f of this.handlers[k]||[])f(...v);}accept(){this.accepted=true;this.emit('accept');}disconnect(){this.emit('disconnect');}status(){return this.accepted?'open':'connecting';}}
+ class FakeDevice {constructor(){this.handlers={};device=this;}on(k,f){(this.handlers[k]??=[]).push(f);}emit(k,...v){for(const f of this.handlers[k]||[])f(...v);}async register(){this.emit('registered');}async connect(data){calls.push(data.params.To);return new FakeCall();}unregister(){}destroy(){}}
+
+ const auth={hasSession:()=>authenticated,requireSession:()=>authenticated,googlePhoneSession:async()=>{sessionRequests++;return {phoneNumber:'+13026359389'};},request:async p=>{
   requests.push(p.action);return handler?handler(p):{ok:true,google_voice:{number_assigned:true,phone_number:'+13026359389'}};
  }};
- const ctrl=WebPhone.init({workAuth:auth,document:{getElementById:id=>els[id],createElement:t=>new Element(t)},window:{location:{assign:url=>navigated.push(url)},open(){throw new Error('No new windows allowed');}}});
- return {els,ctrl,navigated,requests,logout(){authenticated=false;ctrl.setAuthenticated(false);}};
+ const ctrl=WebPhone.init({workAuth:auth,document:{getElementById:id=>els[id],createElement:t=>new Element(t)},window:{SchafferGoogleSip:{Device:FakeDevice},location:{assign:url=>navigated.push(url)},open(){throw new Error('No new windows allowed');}}});
+ return {els,ctrl,navigated,requests,calls,sessionRequests:()=>sessionRequests,incoming(){const call=new FakeCall();device.emit('incoming',call);return call;},logout(){authenticated=false;ctrl.setAuthenticated(false);}};
 }
 
-test('Google phone has no Twilio dependency, no popup path, and no fake embedded call controls',()=>{
+test('Google phone loads native SIP and contains no redirect or alternate-provider path',()=>{
  const src=fs.readFileSync(path.join(__dirname,'web-phone.js'),'utf8');const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
- assert(!/twilio|voice_token|win\.open\(/i.test(src));
- assert(!html.includes('phoneConnectBtn'));assert(!html.includes('vendor/'));
- assert(html.includes('Google does not allow its dialer inside this website'));
- const h=googleOnly();assert.equal(h.els.phoneLocalControls.style.display,'none');
+ assert(!/twilio|voice_token|win\.open\(|location\.assign|navigateGoogleVoice/i.test(src));
+ assert(html.includes('google-sip-client.js'));assert(html.includes('phoneConnectBtn'));
+ const h=googleOnly();assert.equal(h.els.phonePrimaryCallBtn.disabled,true);assert.equal(h.els.phoneConnectBtn.disabled,true);
 });
 
-test('Google calls, messages, voicemail and settings navigate only within the current tab',async()=>{
- const h=googleOnly();
- for(const [id,page] of [['phonePrimaryCallBtn','calls'],['phoneGvMessagesBtn','messages'],['phoneGvVoicemailBtn','voicemail'],['phoneGvSettingsBtn','settings']]) {
-  await h.els[id].click();assert.equal(h.navigated.at(-1),'https://voice.google.com/'+page+'?authuser=c%40schafferai.com');
- }
- assert.deepEqual(h.requests,[]);assert.equal(h.els.phoneSyncInboxBtn.disabled,true);
- assert.equal(h.els.phoneCheckStatusBtn.disabled,true);
- assert(h.els.phoneActionLinks.children.every(link=>link.target==='_self'));
+test('signed-out phone cannot connect, dial, or navigate',async()=>{
+ const h=googleOnly();h.els.phoneDialInput.value='2672647302';
+ await h.els.phonePrimaryCallBtn.click();await h.els.phoneConnectBtn.click();
+ assert.deepEqual(h.navigated,[]);assert.deepEqual(h.calls,[]);assert.equal(h.sessionRequests(),0);
 });
 
-test('typing a destination sends nothing; explicit Call uses the Google call URL and rejects invalid input',async()=>{
- const h=googleOnly();h.els.phoneDialInput.value='2672647302';await h.els.phoneDialInput.emit('input');assert.deepEqual(h.navigated,[]);
- await h.els.phonePrimaryCallBtn.click();assert.deepEqual(h.navigated,['https://voice.google.com/u/0/calls?authuser=c%40schafferai.com&a=nc,%2B12672647302']);
- h.els.phoneDialInput.value='invalid number';await h.els.phonePrimaryCallBtn.click();assert.equal(h.navigated.length,1);
+test('typing does not dial; explicit Call uses the native Google device once',async()=>{
+ const h=googleOnly({signedIn:true});h.els.phoneDialInput.value='2672647302';await h.els.phoneDialInput.emit('input');
+ assert.deepEqual(h.calls,[]);assert.equal(h.sessionRequests(),0);
+ await h.els.phonePrimaryCallBtn.click();assert.deepEqual(h.calls,['+12672647302']);assert.equal(h.sessionRequests(),1);assert.deepEqual(h.navigated,[]);
+});
+
+test('invalid destination cannot create a Google phone session',async()=>{
+ const h=googleOnly({signedIn:true});h.els.phoneDialInput.value='invalid';await h.els.phonePrimaryCallBtn.click();
+ assert.equal(h.sessionRequests(),0);assert.deepEqual(h.calls,[]);
+});
+
+test('incoming Google call opens the site controls and waits for explicit Answer',async()=>{
+ const h=googleOnly({signedIn:true});await h.els.phoneConnectBtn.click();const incoming=h.incoming();
+ assert(h.els.webPhoneDrawer.classList.contains('open'));assert(h.els.phoneIncomingBanner.classList.contains('visible'));assert.equal(incoming.accepted,false);
+ await h.els.phoneAnswerBtn.click();assert.equal(incoming.accepted,true);assert.equal(h.els.phoneIncomingBanner.classList.contains('visible'),false);
+ await h.els.phoneHangupBtn.click();assert(h.els.phoneStatusLine.textContent.includes('ended'));
 });
 
 test('Google line status uses the authenticated work account rather than another provider line',async()=>{
@@ -128,4 +138,19 @@ test('late Google status and inbox results cannot restore private information af
  pending.voice_inbox({ok:true,items:[{subject:'Private',text:'Private body'}]});
  await Promise.all([status,inbox]);assert.equal(h.els.phoneInboxList.children.length,0);
  assert.equal(h.els.phoneLineNumber.textContent,'Work phone');assert.equal(h.els.phoneStatusLine.textContent,locked);
+});
+
+test('private Google connector uses only loopback, requires owner auth and never persists SIP credentials',async()=>{
+ const saved=storage();const calls=[];const fixture={ok:true,uri:'sip:test@web.w.pbx.voice.sip.google.com',authorizationUsername:'fixture-sip-user',authorizationPassword:'fixture-sip-secret',expiresAt:Date.now()+3600000,websocketUrl:'ws://127.0.0.1:8878/sip?ticket=fixture'};
+ const client=create({endpoint:'https://example.test/work',storage:saved,fetchImpl:async(url,options)=>{calls.push({url,options});return url.includes('127.0.0.1')?response(fixture):response({ok:true,authenticated:true,token,expires_at:new Date(Date.now()+3600000).toISOString()});}});
+ await assert.rejects(client.googlePhoneSession(),{code:'AUTH_REQUIRED'});assert.equal(calls.length,0);
+ await client.login('fixture');const config=await client.googlePhoneSession();assert.equal(config.authorizationPassword,'fixture-sip-secret');
+ assert.equal(calls[1].url,'http://127.0.0.1:8878/session');assert.equal(calls[1].options.headers.Authorization,'Bearer '+token);assert.equal(calls[1].options.credentials,'omit');
+ assert(!saved.values().join('').includes('fixture-sip-secret'));assert(!saved.values().join('').includes('fixture-sip-user'));
+});
+
+test('logout while the private phone session is loading discards later credentials',async()=>{
+ let finish;const saved=storage({[SESSION_KEY]:JSON.stringify({token,expiresAt:Date.now()+3600000})});
+ const client=create({endpoint:'https://example.test/work',storage:saved,fetchImpl:()=>new Promise(resolve=>finish=()=>resolve(response({ok:true,authorizationPassword:'secret'})))});
+ const pending=client.googlePhoneSession();client.clear();finish();await assert.rejects(pending,{code:'SESSION_CHANGED'});
 });

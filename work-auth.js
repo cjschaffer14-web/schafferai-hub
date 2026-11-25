@@ -88,7 +88,27 @@
       if (issuedGeneration !== generation || !hasSession()) throw sessionChanged();
       return data;
     }
-    return { login: login, request: request, ping: ping, clear: clear, hasSession: hasSession, requireSession: requireSession };
+    async function googlePhoneSession() {
+      if (!requireSession()) throw new AuthRequiredError();
+      const issuedGeneration = generation;
+      let response;
+      try {
+        response = await fetchImpl('http://127.0.0.1:8878/session', {
+          method: 'POST', headers: { 'Authorization': 'Bearer ' + session.token },
+          cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer',
+          signal: root.AbortSignal && root.AbortSignal.timeout ? root.AbortSignal.timeout(15000) : undefined
+        });
+      } catch (_) { throw new Error('The private Google phone connector is offline. Start it on this Mac, then reconnect.'); }
+      if (issuedGeneration !== generation || !hasSession()) throw sessionChanged();
+      let data;
+      try { data = await response.json(); } catch (_) { throw new Error('The Google phone connector returned an unreadable response.'); }
+      if (issuedGeneration !== generation || !hasSession()) throw sessionChanged();
+      if (response.status === 401) { clear(); required(); throw new AuthRequiredError(); }
+      if (!response.ok || !data || data.ok !== true) throw new Error(data && data.code === 'GOOGLE_SESSION_EXPIRED' ? 'The Google Voice session expired. Reconnect the private Google phone session.' : 'The private Google phone connection failed.');
+      if (typeof data.uri !== 'string' || !data.authorizationUsername || !data.authorizationPassword || !Number.isFinite(data.expiresAt) || data.expiresAt <= now() || typeof data.websocketUrl !== 'string' || !data.websocketUrl.startsWith('ws://127.0.0.1:8878/sip?ticket=')) throw new Error('The private Google phone session is invalid.');
+      return data;
+    }
+    return { login: login, request: request, ping: ping, googlePhoneSession: googlePhoneSession, clear: clear, hasSession: hasSession, requireSession: requireSession };
   }
   const api = { create: create, AuthRequiredError: AuthRequiredError, SESSION_KEY: SESSION_KEY };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
