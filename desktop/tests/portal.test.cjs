@@ -13,12 +13,13 @@ function deferred() {
 }
 
 async function portal(options = {}) {
-  const elements = new Map(), intervals = [], timeouts = new Map(), sockets = [], draws = [];
+  const elements = new Map(), intervals = [], timeouts = new Map(), sockets = [], draws = [], drawSizes = [], observers = [];
   let now = 100000, timerId = 0;
   class Target {
     constructor() {
       this.events = new Map(); this.hidden = false; this.disabled = false;
       this.value = ''; this.textContent = ''; this.width = 300; this.height = 150;
+      this.style = {};
       const classes = new Set();
       this.classList = {add: x => classes.add(x), remove: x => classes.delete(x), contains: x => classes.has(x)};
     }
@@ -32,7 +33,7 @@ async function portal(options = {}) {
     }
     setAttribute(name, value) { this[name] = value; }
     getBoundingClientRect() { return options.rect || {left: 120, top: 80, width: 720, height: 450}; }
-    getContext() { return {clearRect() {}, drawImage: bitmap => draws.push(bitmap)}; }
+    getContext() { return {clearRect() {}, drawImage: bitmap => { draws.push(bitmap); drawSizes.push({...this.style}); }}; }
     setPointerCapture() {}
     focus() { this.focused = true; }
     async requestFullscreen() {}
@@ -40,11 +41,19 @@ async function portal(options = {}) {
   const doc = new Target();
   doc.hidden = false;
   doc.getElementById = id => {
-    if (!elements.has(id)) elements.set(id, new Target());
+    if (!elements.has(id)) {
+      const target = new Target();
+      if (id === 'desktop' && options.desktopSize) Object.assign(target, {clientWidth: options.desktopSize.width, clientHeight: options.desktopSize.height});
+      elements.set(id, target);
+    }
     return elements.get(id);
   };
   doc.exitFullscreen = async () => {};
   const win = new Target();
+  class Observer {
+    constructor(callback) { this.callback = callback; observers.push(this); }
+    observe(target) { this.target = target; }
+  }
   class Socket {
     static OPEN = 1;
     constructor(url) { this.url = url; this.readyState = 0; this.sent = []; sockets.push(this); }
@@ -56,17 +65,21 @@ async function portal(options = {}) {
   }
   const fetcher = options.fetch || (async url => ({ok: true, json: async () => url === './config.json' ? {relayUrl: 'https://desktop.example.test', transport: options.transport || 'websocket'} : {available: true, ready: true}}));
   const bitmapFactory = options.bitmap || (async () => ({width: 1440, height: 900, close() {}}));
-  await new AsyncFunction('HTTPDesktopTransport', 'document', 'window', 'fetch', 'WebSocket', 'Blob', 'createImageBitmap', 'setInterval', 'setTimeout', 'clearTimeout', 'Date', 'URL', 'AbortSignal', source)(
+  await new AsyncFunction('HTTPDesktopTransport', 'document', 'window', 'fetch', 'WebSocket', 'Blob', 'createImageBitmap', 'setInterval', 'setTimeout', 'clearTimeout', 'Date', 'URL', 'AbortSignal', 'ResizeObserver', source)(
     options.HTTPDesktopTransport || Socket,
     doc, win, fetcher, Socket, Blob, bitmapFactory,
     (fn, period) => { intervals.push({fn, period}); return intervals.length; },
     (fn, delay) => { const id = ++timerId; timeouts.set(id, {fn, due: now + delay}); return id; },
     id => timeouts.delete(id),
-    {now: () => now}, URL, AbortSignal,
+    {now: () => now}, URL, AbortSignal, options.resizeObserver === false ? undefined : Observer,
   );
   const el = id => doc.getElementById(id);
   return {
-    el, doc, win, sockets, draws,
+    el, doc, win, sockets, draws, drawSizes,
+    resize(width, height) {
+      Object.assign(el('desktop'), {clientWidth: width, clientHeight: height});
+      for (const observer of observers) observer.callback([{target: observer.target}]);
+    },
     advance(ms) {
       now += ms;
       for (const [id, timeout] of [...timeouts]) {
@@ -261,4 +274,42 @@ test('Apps sends an ordered Spotlight shortcut and Return works on a touchscreen
   assert.deepEqual(mutations(ws).slice(4).map(x => [x.event.code, x.event.action]), [
     ['Enter','down'], ['Enter','up'], ['Escape','down'], ['Escape','up'],
   ]);
+});
+
+for (const size of [{width: 1214, height: 525}, {width: 358, height: 420}]) {
+  test(`the first 1440×930 desktop frame fits fully within ${size.width}×${size.height}`, async () => {
+    const h = await portal({desktopSize: size, bitmap: async () => ({width: 1440, height: 930, close() {}})});
+    const ws = h.open(); await h.frame(ws);
+    const width = parseFloat(h.el('screen').style.width), height = parseFloat(h.el('screen').style.height);
+    assert.ok(width <= size.width + .000001 && height <= size.height + .000001);
+    assert.ok(Math.abs(width / height - 1440 / 930) < .000001);
+    assert.ok(Math.abs(width - size.width) < .000001 || Math.abs(height - size.height) < .000001);
+    assert.deepEqual(h.drawSizes[0], h.el('screen').style, 'sizing must happen before the first frame is drawn');
+  });
+}
+
+test('container ResizeObserver refits the actual canvas when phone orientation changes', async () => {
+  const h = await portal({desktopSize: {width: 358, height: 420}}); h.open(); await h.frame();
+  h.resize(780, 260);
+  const width = parseFloat(h.el('screen').style.width), height = parseFloat(h.el('screen').style.height);
+  assert.equal(height, 260);
+  assert.ok(Math.abs(width - 416) < .000001);
+});
+
+test('fullscreen and window resize refit the native aspect without relying on percentage grid heights', async () => {
+  const h = await portal({desktopSize: {width: 1214, height: 525}, resizeObserver: false}); h.open(); await h.frame();
+  Object.assign(h.el('desktop'), {clientWidth: 1920, clientHeight: 1080}); h.doc.emit('fullscreenchange');
+  assert.equal(h.el('screen').style.width, '1728px'); assert.equal(h.el('screen').style.height, '1080px');
+  Object.assign(h.el('desktop'), {clientWidth: 600, clientHeight: 300}); h.win.emit('resize');
+  assert.equal(h.el('screen').style.width, '480px'); assert.equal(h.el('screen').style.height, '300px');
+});
+
+test('a new frame resolution refits the canvas and zero-size containers do not produce invalid styles', async () => {
+  let size = {width: 1440, height: 900};
+  const h = await portal({desktopSize: {width: 800, height: 500}, bitmap: async () => ({...size, close() {}})});
+  h.open(); await h.frame(); assert.equal(h.el('screen').style.width, '800px');
+  size = {width: 900, height: 1440}; await h.frame();
+  assert.equal(h.el('screen').style.height, '500px'); assert.equal(h.el('screen').style.width, '312.5px');
+  h.resize(0, 0); assert.equal(h.el('screen').style.width, '312.5px');
+  h.resize(400, 600); assert.equal(h.el('screen').style.width, '375px'); assert.equal(h.el('screen').style.height, '600px');
 });

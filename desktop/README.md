@@ -1,6 +1,6 @@
 # Browser Mac desktop
 
-The permanent relay is deployed. The Mac connection is installed with automatic startup. See [deployment status](./DEPLOYMENT_STATUS.md) for the current Mac permission and live validation state.
+The permanent relay is deployed. The Mac connection is installed with automatic startup. Both macOS permissions are enabled and live streaming plus the app-search keyboard shortcut have been verified. See [deployment status](./DEPLOYMENT_STATUS.md) for the exact validation state.
 
 `/desktop/` is a dedicated live desktop portal linked from the homepage and developer hub. The owner explicitly requested **no visitor authentication** on November 25, 2026. There is no portal account, password, PIN, MFA, or secret visitor link. Anyone reaching the portal can operate the connected Mac and access anything that its current desktop session can access.
 
