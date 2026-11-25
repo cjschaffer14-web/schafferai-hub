@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1795638454857,
+      "tag": "0000_breezy_stick",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1795638496481,
+      "tag": "0001_clear_captain_britain",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1795638522530,
+      "tag": "0002_bitter_prowler",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,8 +1,10 @@
+import { HTTPDesktopTransport } from './http-transport.js';
+
 const $ = id => document.getElementById(id);
 const screen = $('screen'), ctx = screen.getContext('2d', {alpha: false});
 let relay, socket, healthTimer, live = false, connecting = false, generation = 0, agentReady = false;
 let currentFrame = null, decoding = false, frameAt = 0, pointer = null, moveAt = 0;
-let wheelTimer = null, wheelX = 0, wheelY = 0;
+let wheelTimer = null, wheelX = 0, wheelY = 0, transport = 'websocket';
 
 function status(message) { $('status').textContent = message; }
 function empty(title, message) {
@@ -10,6 +12,7 @@ function empty(title, message) {
   wheelTimer = null; wheelX = 0; wheelY = 0;
   generation++; currentFrame = null; frameAt = 0;
   $('fullscreen').disabled = true; $('text-toggle').disabled = true;
+  for (const id of ['apps','return','escape']) $(id).disabled = true;
   $('text-form').hidden = true; $('text-toggle').setAttribute('aria-expanded','false');
   $('empty-title').textContent = title; $('empty-copy').textContent = message;
   $('placeholder').hidden = false; $('screen-label').hidden = true;
@@ -18,8 +21,8 @@ function empty(title, message) {
 function send(event) {
   if (!live || socket?.readyState !== WebSocket.OPEN) return;
   if (event.type !== 'release' && (!agentReady || !screen.classList.contains('live') || !frameAt || Date.now()-frameAt > 10000)) return;
-  socket.send(JSON.stringify({type:'input', event}));
-  return true;
+  try { return socket.send(JSON.stringify({type:'input', event})) !== false; }
+  catch { disconnect('Desktop input could not be sent. Reconnect to continue.'); return false; }
 }
 function release() {
   if(wheelTimer !== null) clearTimeout(wheelTimer);
@@ -31,6 +34,7 @@ function controls(connected) {
   $('disconnect').hidden = !connected && !connecting;
   $('fullscreen').disabled = !connected || !screen.classList.contains('live');
   $('text-toggle').disabled = !connected || !screen.classList.contains('live');
+  for (const id of ['apps','return','escape']) $(id).disabled = !connected || !screen.classList.contains('live');
   if (!connected) { $('text-form').hidden = true; $('text-toggle').setAttribute('aria-expanded','false'); }
 }
 function disconnect(message = 'Disconnected. Connect again when you’re ready.') {
@@ -62,6 +66,7 @@ async function drawFrames() {
         ctx.drawImage(bitmap,0,0); frameAt = Date.now();
         screen.classList.add('live'); $('placeholder').hidden = true;
         $('fullscreen').disabled = false; $('text-toggle').disabled = false;
+        for (const id of ['apps','return','escape']) $(id).disabled = false;
         $('screen-label').hidden = false; status('Connected · click the screen to control your Mac');
       }
       bitmap.close();
@@ -72,7 +77,7 @@ async function drawFrames() {
 function connect() {
   if (!relay || socket) return;
   connecting = true; agentReady = false; controls(false); status('Connecting to your Mac…');
-  const ws = new WebSocket(`${relay.replace(/^http/,'ws')}/viewer`); socket = ws;
+  const ws = transport === 'http' ? new HTTPDesktopTransport(relay) : new WebSocket(`${relay.replace(/^http/,'ws')}/viewer`); socket = ws;
   ws.binaryType = 'blob';
   ws.onopen = () => { if (socket !== ws) return; connecting = false; controls(true); status('Connected · waiting for desktop…'); };
   ws.onmessage = event => {
@@ -138,6 +143,21 @@ window.addEventListener('pagehide',()=>disconnect('Disconnected'));
 document.addEventListener('visibilitychange',()=>{if(document.hidden && socket) disconnect('Disconnected while this page was in the background.');});
 $('connect').addEventListener('click',connect);
 $('disconnect').addEventListener('click',()=>disconnect());
+function shortcut(keys) {
+  for (const event of keys) if (!send({type:'key',...event})) { release(); return; }
+  screen.focus();
+}
+$('apps').addEventListener('click',()=>shortcut([
+  {action:'down',key:'Meta',code:'MetaLeft',modifiers:['Meta']},
+  {action:'down',key:' ',code:'Space',modifiers:['Meta']},
+  {action:'up',key:' ',code:'Space',modifiers:['Meta']},
+  {action:'up',key:'Meta',code:'MetaLeft',modifiers:[]},
+]));
+for (const [id,key,code] of [['return','Enter','Enter'],['escape','Escape','Escape']]) {
+  $(id).addEventListener('click',()=>shortcut([
+    {action:'down',key,code,modifiers:[]},{action:'up',key,code,modifiers:[]},
+  ]));
+}
 $('fullscreen').addEventListener('click',async()=>{
   try { if(document.fullscreenElement) await document.exitFullscreen(); else await $('desktop').requestFullscreen(); screen.focus(); }
   catch { status('Full screen is unavailable in this browser'); }
@@ -160,5 +180,7 @@ try {
   const config = await (await fetch('./config.json',{cache:'no-store'})).json();
   const url = new URL(config.relayUrl);
   if(url.protocol!=='https:' && !(url.protocol==='http:' && ['localhost','127.0.0.1'].includes(url.hostname))) throw new Error();
+  if(config.transport !== undefined && !['http','websocket'].includes(config.transport)) throw new Error();
+  transport = config.transport || 'websocket';
   relay = url.origin; await checkHealth(); healthTimer = setInterval(checkHealth,15000);
 } catch { status('Desktop connection setup pending'); empty('Desktop connection setup pending','The Mac desktop service has not been connected yet.'); }

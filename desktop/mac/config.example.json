@@ -1,4 +1,5 @@
 {
-  "relayUrl": "https://YOUR-DESKTOP-RELAY.workers.dev",
+  "relayUrl": "https://schafferai-desktop-relay.cjschaffer14.chatgpt.site",
+  "transport": "http",
   "producerKey": "REPLACE_WITH_LOCAL_PRODUCER_KEY_AT_LEAST_32_CHARACTERS"
 }

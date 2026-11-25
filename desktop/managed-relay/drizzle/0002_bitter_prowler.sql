@@ -1,0 +1,1 @@
+ALTER TABLE `desktop_agent` ADD `frame_revision` integer DEFAULT 0 NOT NULL;

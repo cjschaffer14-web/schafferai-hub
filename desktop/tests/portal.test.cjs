@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const source = fs.readFileSync(path.join(__dirname, '..', 'portal.js'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '..', 'portal.js'), 'utf8').replace("import { HTTPDesktopTransport } from './http-transport.js';", '');
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const settle = () => new Promise(resolve => setImmediate(resolve));
 function deferred() {
@@ -54,9 +54,10 @@ async function portal(options = {}) {
     close(code, reason) { this.readyState = 3; this.closed = {code, reason}; }
     remoteClose() { this.readyState = 3; this.onclose?.(); }
   }
-  const fetcher = options.fetch || (async url => ({ok: true, json: async () => url === './config.json' ? {relayUrl: 'https://desktop.example.test'} : {available: true, ready: true}}));
+  const fetcher = options.fetch || (async url => ({ok: true, json: async () => url === './config.json' ? {relayUrl: 'https://desktop.example.test', transport: options.transport || 'websocket'} : {available: true, ready: true}}));
   const bitmapFactory = options.bitmap || (async () => ({width: 1440, height: 900, close() {}}));
-  await new AsyncFunction('document', 'window', 'fetch', 'WebSocket', 'Blob', 'createImageBitmap', 'setInterval', 'setTimeout', 'clearTimeout', 'Date', 'URL', 'AbortSignal', source)(
+  await new AsyncFunction('HTTPDesktopTransport', 'document', 'window', 'fetch', 'WebSocket', 'Blob', 'createImageBitmap', 'setInterval', 'setTimeout', 'clearTimeout', 'Date', 'URL', 'AbortSignal', source)(
+    options.HTTPDesktopTransport || Socket,
     doc, win, fetcher, Socket, Blob, bitmapFactory,
     (fn, period) => { intervals.push({fn, period}); return intervals.length; },
     (fn, delay) => { const id = ++timerId; timeouts.set(id, {fn, due: now + delay}); return id; },
@@ -238,4 +239,26 @@ test('wheel input attempted before a visible frame is never replayed after the f
   const h = await portal(); const ws = h.open();
   h.el('screen').emit('wheel'); await h.frame(); h.advance(40);
   assert.deepEqual(mutations(ws), []);
+});
+
+test('HTTP configuration selects the permanent HTTPS transport without changing input handling', async () => {
+  const h = await portal({transport: 'http'}); const ws = h.open();
+  assert.equal(ws.url, 'https://desktop.example.test');
+  await h.frame(); h.el('screen').emit('keydown');
+  assert.equal(mutations(ws).at(-1).event.type, 'key');
+  h.doc.hidden = true; h.doc.emit('visibilitychange');
+  assert.equal(ws.closed.code, 1000);
+  assert.equal(ws.sent.at(-1).event.type, 'release');
+});
+
+test('Apps sends an ordered Spotlight shortcut and Return works on a touchscreen', async () => {
+  const h = await portal(); const ws = h.open(); await h.frame();
+  h.el('apps').emit('click');
+  assert.deepEqual(mutations(ws).map(x => [x.event.code, x.event.action]), [
+    ['MetaLeft','down'], ['Space','down'], ['Space','up'], ['MetaLeft','up'],
+  ]);
+  h.el('return').emit('click'); h.el('escape').emit('click');
+  assert.deepEqual(mutations(ws).slice(4).map(x => [x.event.code, x.event.action]), [
+    ['Enter','down'], ['Enter','up'], ['Escape','down'], ['Escape','up'],
+  ]);
 });

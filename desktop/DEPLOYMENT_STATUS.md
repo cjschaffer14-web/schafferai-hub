@@ -1,21 +1,19 @@
 # Deployment status — November 25, 2026
 
-**Prepared, not deployed or activated.** `config.json` intentionally has no relay URL. The homepage/developer-hub links in this branch are proposals; production has not been changed. No desktop screen capture or real keyboard/mouse input was performed during this task.
+Permanent relay **deployed successfully**, without a provider sign-in or temporary tunnel. Portal production path: https://schafferai.com/desktop/.
 
-The owner requires a permanent portal with no visitor login, no fresh hosting sign-in, and no temporary connection/address tradeoff. The temporary-tunnel alternative was rejected and was not started.
+- Relay: https://schafferai-desktop-relay.cjschaffer14.chatgpt.site
+- Managed Site: appgprj_6b07433805f48191885008eebf0ebd90, version 1.
+- Source commit: 980177817014b2c73b20cc5ce69aa518a66e8ea5.
+- Deployment: appgdep_6b0745e31438819198766c96199a4e25, succeeded.
+- Public `/health` returns HTTP 200 with no visitor credentials and the correct CORS policy.
+- Mac app is installed under the current user's Library/Application Support/SchafferDesktop and connected to the permanent relay.
+- Login job: com.schafferai.desktop-portal. Configuration is owner-readable only. No real producer key is stored in source or browser code.
 
-The implementation includes a responsive browser client, an isolated permanent Worker relay, an alternative loopback Node relay, and a locally built native Mac app. There is no portal login, MFA, PIN, cookie credential, or secret visitor URL. A private producer key identifies the Mac to the relay; no real key is included in this repository.
+**Mac permissions still required:** macOS currently reports Screen Recording=false and Accessibility=false for the installed app. Consequently the relay reports connected=true, ready=false, state=permissions_required. Capture and input remain blocked. This is the actual current state, not a simulated desktop. A live frame/input acceptance test remains pending those system approvals.
 
-Completed validation:
+Validated: 37 frontend/HTTP transport tests, 8 managed HTTP/D1/R2 integration tests using real SQLite and generated migrations, prior work-account authorization regressions, native input/configuration/HTTPS/idle-state tests, signed app ZIP verification, and successful managed publication. Actual production browser and Mac input verification must be recorded after permission approval.
 
-- 16 frontend regression tests passed.
-- 12 Worker relay tests passed.
-- 7 real loopback HTTP/WebSocket relay tests passed.
-- 23 existing work-account authorization/phone tests passed.
-- Native Swift app compiled; input/configuration self-tests passed; ZIP-extracted app passed strict code-sign verification.
-- Desktop and phone-size browser layout reviewed.
-- Worker deployment dry-run passed; no Worker was published.
+The owner explicitly requires no portal authentication. Anyone reaching the portal can control an available Mac. A producer key only identifies the fixed Mac; it does not authenticate visitors. Existing private Google work-account tools remain separate.
 
-Remaining work requires a reachable permanent HTTPS/WSS host with existing usable deployment authority, then its actual relay URL and producer secret configuration. The checked deployment session could not refresh, the existing Google portal rejected public requests, and the recorded alternative server was unreachable. No provider sign-in was completed and no existing hosting/security configuration was changed.
-
-After hosting is available, validate actual native app-context macOS permissions, live frames, harmless document input, disconnect/lock behavior, and stable recovery before enabling the production links. Live desktop operation requires an awake, unlocked Mac; its display may be off, but actual system sleep cannot run apps or stream the desktop. The app does not bypass macOS lock or lid-close behavior.
+The system must be awake and unlocked. The connection holds an AC-only sleep assertion while permitting display sleep; it does not bypass macOS lock or lid-close behavior. The native app never records audio. Stop access immediately with Pause, Disconnect or Quit in the Schaffer Desktop menu.

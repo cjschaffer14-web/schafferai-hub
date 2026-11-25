@@ -13,20 +13,104 @@ import UniformTypeIdentifiers
 struct Configuration: Decodable {
     let relayUrl: String
     let producerKey: String
+    let transport: String?
 
-    func socketURL() throws -> URL {
+    init(relayUrl: String, producerKey: String, transport: String? = nil) {
+        self.relayUrl = relayUrl
+        self.producerKey = producerKey
+        self.transport = transport
+    }
+
+    var usesHTTP: Bool { transport == "http" }
+
+    func baseURL() throws -> URL {
         guard var url = URLComponents(string: relayUrl),
               let host = url.host, !host.isEmpty,
               url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,
               ["https", "wss"].contains(url.scheme?.lowercased() ?? ""),
+              !usesHTTP || url.scheme?.lowercased() == "https",
+              transport == nil || ["http", "websocket"].contains(transport!),
               producerKey.count >= 32, producerKey.count <= 249,
               !producerKey.contains("\r"), !producerKey.contains("\n") else {
-            throw PortalError.message("Configuration needs an HTTPS relay URL and a valid producer key.")
+            throw PortalError.message("Configuration needs a secure relay URL and a valid producer key.")
+        }
+        url.scheme = "https"
+        url.path = ""
+        guard let result = url.url else { throw PortalError.message("Invalid relay URL.") }
+        return result
+    }
+
+    func socketURL() throws -> URL {
+        let base = try baseURL()
+        guard var url = URLComponents(url: base, resolvingAgainstBaseURL: false) else {
+            throw PortalError.message("Invalid relay URL.")
         }
         url.scheme = "wss"
         url.path = "/agent"
         guard let result = url.url else { throw PortalError.message("Invalid relay URL.") }
         return result
+    }
+}
+
+final class NoRedirects: NSObject, URLSessionTaskDelegate {
+    func urlSession(_ session: URLSession, task: URLSessionTask,
+                    willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest,
+                    completionHandler: @escaping (URLRequest?) -> Void) {
+        completionHandler(nil)
+    }
+}
+
+final class HTTPRelay {
+    let configuration: Configuration
+    private let base: URL
+    private let session: URLSession
+    private let redirects = NoRedirects()
+
+    init(configuration: Configuration, testingSession: URLSessionConfiguration? = nil) throws {
+        self.configuration = configuration
+        base = try configuration.baseURL()
+        let settings = testingSession ?? URLSessionConfiguration.ephemeral
+        settings.httpShouldSetCookies = false
+        settings.urlCache = nil
+        settings.requestCachePolicy = .reloadIgnoringLocalCacheData
+        settings.timeoutIntervalForRequest = 12
+        settings.timeoutIntervalForResource = 20
+        session = URLSession(configuration: settings, delegate: redirects, delegateQueue: nil)
+    }
+
+    func invalidate() { session.invalidateAndCancel() }
+
+    func request(_ path: String, method: String = "GET", query: [String: String] = [:],
+                 json: [String: Any]? = nil, body: Data? = nil,
+                 contentType: String = "application/json") async throws -> [String: Any] {
+        guard path.hasPrefix("/agent/") else { throw PortalError.message("Invalid agent route.") }
+        var components = URLComponents(url: base, resolvingAgainstBaseURL: false)!
+        components.path = path
+        if !query.isEmpty {
+            components.queryItems = query.sorted(by: { $0.key < $1.key }).map { URLQueryItem(name: $0.key, value: $0.value) }
+        }
+        var request = URLRequest(url: components.url!)
+        request.httpMethod = method
+        request.setValue("Bearer " + configuration.producerKey, forHTTPHeaderField: "Authorization")
+        request.setValue("SchafferDesktop/1.1", forHTTPHeaderField: "User-Agent")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("no-store", forHTTPHeaderField: "Cache-Control")
+        if let json {
+            request.httpBody = try JSONSerialization.data(withJSONObject: json)
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        } else if let body {
+            request.httpBody = body
+            request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+        }
+        let (bytes, response) = try await session.data(for: request)
+        guard let response = response as? HTTPURLResponse, (200...299).contains(response.statusCode),
+              bytes.count <= 65_536 else { throw PortalError.message("Desktop relay request failed.") }
+        if bytes.isEmpty { return [:] }
+        guard let value = try JSONSerialization.jsonObject(with: bytes) as? [String: Any] else {
+            throw PortalError.message("Desktop relay response was invalid.")
+        }
+        return value
     }
 }
 
@@ -240,11 +324,57 @@ final class DesktopInput {
     }
 }
 
+// All access is serialized on ScreenCapture.queue. An unchanged display is
+// healthy; blank/suspended/stopped output must never refresh a cached image.
+struct FrameFreshnessPolicy {
+    private(set) var running = false
+    private(set) var status: SCFrameStatus?
+    private(set) var generation = 0
+    private(set) var lastOutput = -Double.infinity
+
+    var liveStatus: Bool {
+        guard let status else { return false }
+        return status == .started || status == .complete || status == .idle
+    }
+
+    mutating func begin(now: Double) {
+        running = true
+        status = .started
+        generation += 1
+        lastOutput = now
+    }
+
+    @discardableResult mutating func observe(_ next: SCFrameStatus?) -> Bool {
+        guard running else { return false }
+        status = next
+        if !liveStatus { generation += 1; return true }
+        return false
+    }
+
+    mutating func stop() {
+        running = false
+        status = .stopped
+        generation += 1
+        lastOutput = -Double.infinity
+    }
+
+    mutating func recordOutput(now: Double) { lastOutput = now }
+    func needsSnapshot(now: Double) -> Bool { running && liveStatus && now - lastOutput >= 0.75 }
+    func acceptsSnapshot(generation expected: Int, permitted: Bool, unlocked: Bool) -> Bool {
+        running && liveStatus && generation == expected && permitted && unlocked
+    }
+}
+
 final class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     private var stream: SCStream?
     private let queue = DispatchQueue(label: "com.schafferai.desktop.frames", qos: .userInitiated)
     private let context = CIContext(options: [.cacheIntermediates: false])
-    private var lastFrame: TimeInterval = 0
+    private var freshness = FrameFreshnessPolicy()
+    private var snapshotTimer: DispatchSourceTimer?
+    private var snapshotPending = false
+    private var snapshotFilter: SCContentFilter?
+    private var snapshotConfiguration: SCStreamConfiguration?
+    private var lifecycleGeneration = 0
     var onFrame: ((Data) -> Void)?
     var onError: ((String) -> Void)?
     private(set) var bounds = CGRect.zero
@@ -252,6 +382,7 @@ final class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     private(set) var height = 0
 
     func start() async throws {
+        let lifecycle = queue.sync { lifecycleGeneration += 1; return lifecycleGeneration }
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         let mainID = CGMainDisplayID()
         guard let display = content.displays.first(where: { $0.displayID == mainID }) ?? content.displays.first else {
@@ -274,35 +405,110 @@ final class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         let newStream = SCStream(filter: filter, configuration: configuration, delegate: self)
         try newStream.addStreamOutput(self, type: .screen, sampleHandlerQueue: queue)
         stream = newStream
-        do { try await newStream.startCapture() }
+        do {
+            try await newStream.startCapture()
+            let accepted = queue.sync { () -> Bool in
+                guard lifecycleGeneration == lifecycle else { return false }
+                freshness.begin(now: ProcessInfo.processInfo.systemUptime)
+                snapshotFilter = filter
+                snapshotConfiguration = configuration
+                let timer = DispatchSource.makeTimerSource(queue: queue)
+                timer.schedule(deadline: .now() + .milliseconds(250), repeating: .milliseconds(250))
+                timer.setEventHandler { [weak self] in self?.refreshUnchangedDisplay() }
+                snapshotTimer = timer
+                timer.resume()
+                return true
+            }
+            if !accepted { try? await newStream.stopCapture(); throw CancellationError() }
+        }
         catch { stream = nil; throw error }
     }
 
     func stop() async {
+        queue.sync {
+            lifecycleGeneration += 1
+            freshness.stop()
+            snapshotTimer?.cancel()
+            snapshotTimer = nil
+            snapshotFilter = nil
+            snapshotConfiguration = nil
+        }
         guard let old = stream else { return }
         stream = nil
         try? await old.stopCapture()
     }
 
     func stream(_ stream: SCStream, didStopWithError error: Error) {
-        onError?("Screen capture stopped. Check macOS Screen Recording permission.")
+        queue.async { [weak self] in
+            guard let self, self.freshness.running else { return }
+            self.freshness.stop()
+            self.snapshotTimer?.cancel()
+            self.snapshotTimer = nil
+            self.onError?("Screen capture stopped. Check macOS Screen Recording permission.")
+        }
     }
 
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
-        guard type == .screen, sampleBuffer.isValid,
+        guard type == .screen, freshness.running else { return }
+        // Idle buffers can lack imageBuffer. Read their status first.
+        let attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]]
+        let raw = attachments?.first?[.status] as? Int
+        let status = sampleBuffer.isValid ? raw.flatMap { SCFrameStatus(rawValue: $0) } : nil
+        if freshness.observe(status) {
+            snapshotTimer?.cancel()
+            snapshotTimer = nil
+            onError?("Screen updates are unavailable, blank, or suspended.")
+            return
+        }
+        guard status == .complete || status == .started,
               let buffer = sampleBuffer.imageBuffer else { return }
         let now = ProcessInfo.processInfo.systemUptime
-        guard now - lastFrame >= 0.12 else { return }
-        lastFrame = now
+        guard now - freshness.lastOutput >= 0.12 else { return }
         autoreleasepool {
             let source = CIImage(cvPixelBuffer: buffer)
             guard let image = context.createCGImage(source, from: source.extent) else { return }
+            emit(image, now: now)
+        }
+    }
+
+    private func emit(_ image: CGImage, now: Double) {
+        guard freshness.running, freshness.liveStatus, CGPreflightScreenCaptureAccess(),
+              AXIsProcessTrusted(), !sessionLocked() else { return }
+        autoreleasepool {
             let bytes = NSMutableData()
             guard let destination = CGImageDestinationCreateWithData(bytes, UTType.jpeg.identifier as CFString, 1, nil) else { return }
             CGImageDestinationAddImage(destination, image,
                                       [kCGImageDestinationLossyCompressionQuality: 0.58] as CFDictionary)
             guard CGImageDestinationFinalize(destination), bytes.length <= 1_500_000 else { return }
+            freshness.recordOutput(now: now)
             onFrame?(bytes as Data)
+        }
+    }
+
+    private func refreshUnchangedDisplay() {
+        guard freshness.needsSnapshot(now: ProcessInfo.processInfo.systemUptime),
+              !snapshotPending, let filter = snapshotFilter, let configuration = snapshotConfiguration,
+              CGPreflightScreenCaptureAccess(), AXIsProcessTrusted(), !sessionLocked() else { return }
+        snapshotPending = true
+        let generation = freshness.generation
+        // Capture new pixels through the OS, rather than assigning a fresh date
+        // to an old JPEG when ScreenCaptureKit has no changed-frame image.
+        SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration) { [weak self] image, error in
+            guard let self else { return }
+            self.queue.async {
+                self.snapshotPending = false
+                guard self.freshness.acceptsSnapshot(generation: generation,
+                    permitted: CGPreflightScreenCaptureAccess() && AXIsProcessTrusted(),
+                    unlocked: !sessionLocked()) else { return }
+                guard error == nil, let image else {
+                    self.freshness.stop()
+                    self.snapshotTimer?.cancel()
+                    self.snapshotTimer = nil
+                    self.onError?("A fresh desktop image is unavailable. Check the display and Screen Recording permission.")
+                    return
+                }
+                self.emit(image, now: ProcessInfo.processInfo.systemUptime)
+            }
         }
     }
 }
@@ -315,6 +521,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var connectItem: NSMenuItem!
     private var networkTask: Task<Void, Never>?
     private var socket: URLSessionWebSocketTask?
+    private var http: HTTPRelay?
+    private var httpEpoch = ""
+    private var httpCursor: Int64 = 0
+    private var httpStatusTask: Task<Void, Never>?
+    private var httpFrameTask: Task<Void, Never>?
+    private var httpStatusFields: [String: Any] = [:]
+    private var httpStatusVersion = 0
+    private var httpReadyAcknowledged = false
+    private var httpFrameDirty = false
+    private var frameGeneration = 0
     private var socketGeneration = 0
     private var reconnectTimer: Timer?
     private var pollTimer: Timer?
@@ -350,12 +566,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        wanted = false
-        input.releaseAll()
-        stopPowerAssertion()
-        socket?.cancel(with: .goingAway, reason: nil)
-        networkTask?.cancel()
-        if let capture { Task { await capture.stop() } }
+        // Normal Disconnect can await the cloud; termination sends best effort.
+        disconnect()
     }
 
     private func setupMenu() {
@@ -416,10 +628,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func quitApp() { NSApp.terminate(nil) }
 
-    private var shouldCapture: Bool {
+    private var canCapture: Bool {
         wanted && connected && !paused && viewers > 0 &&
         CGPreflightScreenCaptureAccess() && AXIsProcessTrusted() && !sessionLocked()
     }
+
+    private var shouldCapture: Bool { canCapture && lastError == nil }
 
     private func connect() {
         guard wanted else { return }
@@ -428,12 +642,77 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         socketGeneration += 1
         let generation = socketGeneration
         networkTask?.cancel()
+        httpStatusTask?.cancel()
+        httpStatusTask = nil
+        httpFrameTask?.cancel()
+        httpFrameTask = nil
+        http?.invalidate()
+        http = nil
         socket?.cancel(with: .goingAway, reason: nil)
+        socket = nil
         connected = false
         viewers = 0
+        lastStatus = ""
+        httpCursor = 0
+        httpStatusFields = [:]
+        httpStatusVersion = 0
+        httpReadyAcknowledged = false
+        httpFrameDirty = false
         do {
             let raw = try Data(contentsOf: URL(fileURLWithPath: configPath))
             let configuration = try JSONDecoder().decode(Configuration.self, from: raw)
+            if configuration.usesHTTP {
+                let client = try HTTPRelay(configuration: configuration)
+                http = client
+                httpEpoch = UUID().uuidString.lowercased()
+                let epoch = httpEpoch
+                networkTask = Task { [weak self] in
+                    guard let self else { return }
+                    do {
+                        let reply = try await client.request("/agent/connect", method: "POST", json: ["epoch": epoch])
+                        guard !Task.isCancelled, self.socketGeneration == generation, self.httpEpoch == epoch else { return }
+                        guard reply["epoch"] as? String == epoch else { throw PortalError.message("Desktop relay session changed.") }
+                        self.connected = true
+                        self.lastError = nil
+                        self.reconnectDelay = 1
+                        self.updateViewers(reply["viewers"])
+                        self.publishStatus(force: true)
+                        while !Task.isCancelled {
+                            let reply = try await client.request("/agent/poll", query: ["epoch": epoch, "after": String(self.httpCursor)])
+                            guard !Task.isCancelled, self.socketGeneration == generation,
+                                  self.httpEpoch == epoch else { return }
+                            guard reply["epoch"] as? String == epoch,
+                                  let events = reply["events"] as? [[String: Any]], events.count <= 256 else {
+                                throw PortalError.message("Desktop relay session changed.")
+                            }
+                            self.updateViewers(reply["viewers"])
+                            for envelope in events {
+                                guard let number = finiteNumber(envelope["id"]), number.rounded() == number,
+                                      number >= 1, number <= 9_007_199_254_740_991 else {
+                                    throw PortalError.message("Desktop relay event identity was invalid.")
+                                }
+                                let identifier = Int64(number)
+                                guard identifier > self.httpCursor else { continue }
+                                let expiry = finiteNumber(envelope["expiresAt"])
+                                if let raw = envelope["event"] as? [String: Any] {
+                                    if raw["type"] as? String == "release" || expiry == nil || expiry! > Date().timeIntervalSince1970 * 1000 {
+                                        self.applyInput(raw)
+                                    } else { self.input.releaseAll() }
+                                }
+                                // Only acknowledge after applying or safely discarding the event.
+                                self.httpCursor = identifier
+                            }
+                            try await Task.sleep(nanoseconds: self.viewers > 0 ? 200_000_000 : 1_000_000_000)
+                        }
+                    } catch {
+                        guard !Task.isCancelled, self.socketGeneration == generation else { return }
+                        self.lostConnection()
+                    }
+                }
+                publishStatus(force: true)
+                reconcileCapture()
+                return
+            }
             let address = try configuration.socketURL()
             var request = URLRequest(url: address, timeoutInterval: 20)
             request.setValue("Bearer " + configuration.producerKey, forHTTPHeaderField: "Authorization")
@@ -478,8 +757,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         wanted = false
         stopPowerAssertion()
         reconnectTimer?.invalidate()
+        bestEffortHTTPDisconnect()
         socketGeneration += 1
         networkTask?.cancel()
+        httpStatusTask?.cancel()
+        httpStatusTask = nil
+        httpFrameTask?.cancel()
+        httpFrameTask = nil
+        http?.invalidate()
+        http = nil
         socket?.cancel(with: .normalClosure, reason: nil)
         socket = nil
         connected = false
@@ -488,7 +774,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func lostConnection() {
-        guard socket != nil || connected else { return }
+        guard socket != nil || http != nil || connected else { return }
+        bestEffortHTTPDisconnect()
+        socketGeneration += 1
+        networkTask?.cancel()
+        httpStatusTask?.cancel()
+        httpStatusTask = nil
+        httpFrameTask?.cancel()
+        httpFrameTask = nil
+        http?.invalidate()
+        http = nil
         connected = false
         viewers = 0
         socket?.cancel(with: .goingAway, reason: nil)
@@ -501,6 +796,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task { @MainActor in self?.connect() }
         }
         reconnectDelay = min(30, reconnectDelay * 2)
+    }
+
+    private func updateViewers(_ raw: Any?) {
+        guard let value = finiteNumber(raw), value.rounded() == value,
+              (0...32).contains(value), Int(value) != viewers else { return }
+        viewers = Int(value)
+        reconcileCapture()
+        publishStatus(force: true)
+    }
+
+    private func bestEffortHTTPDisconnect() {
+        guard let old = http, !httpEpoch.isEmpty,
+              let cleanup = try? HTTPRelay(configuration: old.configuration) else { return }
+        let epoch = httpEpoch
+        Task {
+            _ = try? await cleanup.request("/agent/disconnect", method: "POST", json: ["epoch": epoch])
+            cleanup.invalidate()
+        }
+    }
+
+    private func clearHTTPFrame() {
+        frameGeneration += 1
+        httpFrameTask?.cancel()
+        httpFrameTask = nil
+        sendingFrame = false
+        guard httpFrameDirty, let old = http, !httpEpoch.isEmpty,
+              let cleanup = try? HTTPRelay(configuration: old.configuration) else { return }
+        httpFrameDirty = false
+        let epoch = httpEpoch
+        Task {
+            _ = try? await cleanup.request("/agent/frame", method: "DELETE", query: ["epoch": epoch])
+            cleanup.invalidate()
+        }
     }
 
     private func startPowerAssertion() {
@@ -520,8 +848,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func sendJSON(_ value: [String: Any]) {
-        guard connected, let socket,
-              let data = try? JSONSerialization.data(withJSONObject: value),
+        guard connected else { return }
+        if http != nil { sendHTTPStatus(value); return }
+        guard let socket, let data = try? JSONSerialization.data(withJSONObject: value),
               let text = String(data: data, encoding: .utf8) else { return }
         let generation = socketGeneration
         socket.send(.string(text)) { [weak self] error in
@@ -533,19 +862,93 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func sendHTTPStatus(_ value: [String: Any]) {
+        guard connected, let client = http else { return }
+        if value["ready"] as? Bool == false { httpReadyAcknowledged = false }
+        for (key, field) in value where key != "type" { httpStatusFields[key] = field }
+        httpStatusFields["type"] = "status"
+        httpStatusVersion += 1
+        guard httpStatusTask == nil else { return }
+        let generation = socketGeneration
+        let epoch = httpEpoch
+        httpStatusTask = Task { [weak self] in
+            guard let self else { return }
+            defer { if self.socketGeneration == generation { self.httpStatusTask = nil } }
+            do {
+                while !Task.isCancelled && self.connected && self.socketGeneration == generation {
+                    let version = self.httpStatusVersion
+                    let fields = self.httpStatusFields
+                    let reply = try await client.request("/agent/status", method: "POST",
+                                                         json: ["epoch": epoch, "status": fields])
+                    guard !Task.isCancelled, self.socketGeneration == generation else { return }
+                    guard reply["epoch"] as? String == epoch else { throw PortalError.message("Desktop relay session changed.") }
+                    self.httpReadyAcknowledged = fields["ready"] as? Bool == true && self.httpStatusFields["ready"] as? Bool == true
+                    self.updateViewers(reply["viewers"])
+                    if self.httpStatusVersion == version { return }
+                }
+            } catch {
+                guard !Task.isCancelled, self.socketGeneration == generation else { return }
+                self.lostConnection()
+            }
+        }
+    }
+
+    private func sendFrame(_ data: Data) {
+        guard connected, shouldCapture, !sendingFrame, data.count <= 2_097_152 else { return }
+        if http != nil && !httpReadyAcknowledged { return }
+        sendingFrame = true
+        frameGeneration += 1
+        let frame = frameGeneration
+        let generation = socketGeneration
+        if let client = http {
+            let epoch = httpEpoch
+            httpFrameDirty = true
+            httpFrameTask = Task { [weak self] in
+                guard let self else { return }
+                do {
+                    _ = try await client.request("/agent/frame", method: "PUT",
+                                                  query: ["epoch": epoch, "id": UUID().uuidString.lowercased()],
+                                                  body: data, contentType: "image/jpeg")
+                    guard !Task.isCancelled, self.socketGeneration == generation,
+                          self.frameGeneration == frame else { return }
+                    self.sendingFrame = false
+                    self.httpFrameTask = nil
+                } catch {
+                    guard !Task.isCancelled, self.socketGeneration == generation,
+                          self.frameGeneration == frame else { return }
+                    self.sendingFrame = false
+                    self.httpFrameTask = nil
+                    self.lostConnection()
+                }
+            }
+        } else if let socket {
+            socket.send(.data(data)) { [weak self] error in
+                Task { @MainActor in
+                    guard let self, self.socketGeneration == generation,
+                          self.frameGeneration == frame else { return }
+                    self.sendingFrame = false
+                    if error != nil { self.lostConnection() }
+                }
+            }
+        } else { sendingFrame = false }
+    }
+
+    private func applyInput(_ raw: [String: Any]) {
+        guard let event = validatedEvent(raw) else { return }
+        if event["type"] as? String == "release" { input.releaseAll(); return }
+        guard shouldCapture, capture != nil else { return }
+        input.apply(event)
+    }
+
     private func handle(_ message: URLSessionWebSocketTask.Message) {
         guard case .string(let text) = message, text.utf8.count <= 32_768,
               let bytes = text.data(using: .utf8),
               let value = try? JSONSerialization.jsonObject(with: bytes) as? [String: Any],
               let type = value["type"] as? String else { return }
-        if type == "viewers", let count = finiteNumber(value["count"]), (0...32).contains(count) {
-            viewers = Int(count)
-            reconcileCapture()
-            publishStatus(force: true)
-        } else if type == "input", let raw = value["event"] as? [String: Any], let event = validatedEvent(raw) {
-            if event["type"] as? String == "release" { input.releaseAll(); return }
-            guard shouldCapture, capture != nil else { return }
-            input.apply(event)
+        if type == "viewers" {
+            updateViewers(value["count"])
+        } else if type == "input", let raw = value["event"] as? [String: Any] {
+            applyInput(raw)
         }
     }
 
@@ -595,12 +998,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func reconcileCapture() {
-        if !shouldCapture {
+        if !canCapture {
             captureGeneration += 1
             captureStarting = false
             if let old = capture { capture = nil; Task { await old.stop() } }
             input.releaseAll()
-            sendingFrame = false
+            clearHTTPFrame()
             return
         }
         guard capture == nil, !captureStarting, Date() >= captureRetryAt else { return }
@@ -611,32 +1014,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         source.onFrame = { [weak self] data in
             Task { @MainActor in
                 guard let self, self.captureGeneration == generation, self.shouldCapture,
-                      !self.sendingFrame, let socket = self.socket else { return }
-                self.sendingFrame = true
-                let socketGeneration = self.socketGeneration
-                socket.send(.data(data)) { [weak self] error in
-                    Task { @MainActor in
-                        guard let self, self.socketGeneration == socketGeneration else { return }
-                        self.sendingFrame = false
-                        if error != nil { self.lostConnection() }
-                    }
-                }
+                      !self.sendingFrame else { return }
+                self.sendFrame(data)
             }
         }
         source.onError = { [weak self] message in
             Task { @MainActor in
                 guard let self, self.captureGeneration == generation else { return }
+                self.captureGeneration += 1
+                self.captureStarting = false
                 self.lastError = message
                 self.captureRetryAt = Date().addingTimeInterval(5)
                 if let old = self.capture { self.capture = nil; Task { await old.stop() } }
                 self.input.releaseAll()
+                self.clearHTTPFrame()
                 self.publishStatus(force: true)
             }
         }
         Task {
             do {
                 try await source.start()
-                guard captureGeneration == generation, shouldCapture else { await source.stop(); return }
+                guard captureGeneration == generation, canCapture else { await source.stop(); return }
                 capture = source
                 captureStarting = false
                 lastError = nil
@@ -655,6 +1053,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
     }
+}
+
+func captureSelfTest() -> Bool {
+    var policy = FrameFreshnessPolicy()
+    var passed = !policy.needsSnapshot(now: 100)
+    policy.begin(now: 10)
+    passed = passed && !policy.needsSnapshot(now: 10.74) && policy.needsSnapshot(now: 10.75)
+    passed = passed && !policy.observe(.idle) && policy.needsSnapshot(now: 11)
+    let liveGeneration = policy.generation
+    passed = passed && policy.acceptsSnapshot(generation: liveGeneration, permitted: true, unlocked: true)
+    passed = passed && !policy.acceptsSnapshot(generation: liveGeneration, permitted: false, unlocked: true)
+    passed = passed && !policy.acceptsSnapshot(generation: liveGeneration, permitted: true, unlocked: false)
+    policy.recordOutput(now: 11)
+    passed = passed && !policy.needsSnapshot(now: 11.74) && policy.needsSnapshot(now: 11.75)
+    passed = passed && policy.observe(.suspended) && !policy.needsSnapshot(now: 100)
+    passed = passed && !policy.acceptsSnapshot(generation: liveGeneration, permitted: true, unlocked: true)
+    passed = passed && !policy.observe(.complete)
+    passed = passed && !policy.acceptsSnapshot(generation: liveGeneration, permitted: true, unlocked: true)
+    passed = passed && policy.observe(.blank) && !policy.needsSnapshot(now: 100)
+    passed = passed && policy.observe(nil) && !policy.needsSnapshot(now: 100)
+    policy.stop()
+    let stoppedGeneration = policy.generation
+    passed = passed && !policy.observe(.idle) && !policy.needsSnapshot(now: 100)
+    policy.begin(now: 101)
+    passed = passed && !policy.acceptsSnapshot(generation: stoppedGeneration, permitted: true, unlocked: true)
+    policy.observe(.stopped)
+    passed = passed && !policy.needsSnapshot(now: 200)
+    print("Idle/suspended capture freshness: \(passed ? "passed" : "FAILED")")
+    return passed
 }
 
 func selfTest() -> Bool {
@@ -677,14 +1104,73 @@ func selfTest() -> Bool {
     let inputOK = valid.allSatisfy { validatedEvent($0) != nil } && invalid.allSatisfy { validatedEvent($0) == nil }
     let good = Configuration(relayUrl: "https://example.workers.dev", producerKey: String(repeating: "x", count: 32))
     let bad = Configuration(relayUrl: "https://example.workers.dev?key=exposed", producerKey: "short")
-    let configOK = (try? good.socketURL().absoluteString) == "wss://example.workers.dev/agent" && (try? bad.socketURL()) == nil
+    let http = Configuration(relayUrl: "https://example.chatgpt.site/", producerKey: String(repeating: "x", count: 32), transport: "http")
+    let badHTTP = Configuration(relayUrl: "wss://example.chatgpt.site", producerKey: String(repeating: "x", count: 32), transport: "http")
+    let badMode = Configuration(relayUrl: "https://example.chatgpt.site", producerKey: String(repeating: "x", count: 32), transport: "other")
+    let configOK = (try? good.socketURL().absoluteString) == "wss://example.workers.dev/agent" && (try? bad.socketURL()) == nil &&
+        http.usesHTTP && (try? http.baseURL().absoluteString) == "https://example.chatgpt.site" &&
+        (try? badHTTP.baseURL()) == nil && (try? badMode.baseURL()) == nil
     print("Input validation: \(inputOK ? "passed" : "FAILED")")
     print("Configuration validation: \(configOK ? "passed" : "FAILED")")
-    return inputOK && configOK
+    return inputOK && configOK && captureSelfTest()
+}
+
+// URLProtocol fixtures exercise HTTPS framing without a network, capture, or input.
+final class FixtureHTTP: URLProtocol {
+    static var requests: [URLRequest] = []
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        Self.requests.append(request)
+        let path = request.url!.path
+        let status = path == "/agent/failure" ? 401 : 200
+        let payload = path == "/agent/bad-json" ? Data("not json".utf8) : Data("{\"epoch\":\"fixture\",\"viewers\":0}".utf8)
+        let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: "HTTP/1.1",
+                                       headerFields: ["Content-Type": "application/json"])!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: payload)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+
+func httpSelfTest() async -> Bool {
+    let settings = URLSessionConfiguration.ephemeral
+    settings.protocolClasses = [FixtureHTTP.self]
+    let configuration = Configuration(relayUrl: "https://fixture.example", producerKey: String(repeating: "x", count: 32), transport: "http")
+    do {
+        let client = try HTTPRelay(configuration: configuration, testingSession: settings)
+        defer { client.invalidate() }
+        let connect = try await client.request("/agent/connect", method: "POST", json: ["epoch": "fixture"])
+        _ = try await client.request("/agent/poll", query: ["epoch": "fixture", "after": "7"])
+        _ = try await client.request("/agent/frame", method: "PUT", query: ["epoch": "fixture", "id": "frame"],
+                                     body: Data([0xff, 0xd8, 0xff, 0xd9]), contentType: "image/jpeg")
+        let recorded = FixtureHTTP.requests
+        let framing = connect["epoch"] as? String == "fixture" && recorded.count == 3 &&
+            recorded[0].httpMethod == "POST" && recorded[1].httpMethod == "GET" && recorded[2].httpMethod == "PUT" &&
+            recorded[2].value(forHTTPHeaderField: "Content-Type") == "image/jpeg" &&
+            recorded.allSatisfy { $0.url?.host == "fixture.example" && $0.url?.scheme == "https" &&
+                $0.value(forHTTPHeaderField: "Authorization") == "Bearer " + configuration.producerKey &&
+                !($0.url?.absoluteString.contains(configuration.producerKey) ?? true) }
+        var failedStatus = false, invalidJSON = false
+        do { _ = try await client.request("/agent/failure") } catch { failedStatus = true }
+        do { _ = try await client.request("/agent/bad-json") } catch { invalidJSON = true }
+        let passed = framing && failedStatus && invalidJSON
+        print("Mock HTTPS transport: \(passed ? "passed" : "FAILED")")
+        return passed
+    } catch {
+        print("Mock HTTPS transport: FAILED")
+        return false
+    }
 }
 
 if CommandLine.arguments.contains("--self-test") {
     exit(selfTest() ? 0 : 1)
+} else if CommandLine.arguments.contains("--http-self-test") {
+    Task { exit(await httpSelfTest() ? 0 : 1) }
+    RunLoop.current.run()
+} else if CommandLine.arguments.contains("--capture-self-test") {
+    exit(captureSelfTest() ? 0 : 1)
 } else if CommandLine.arguments.contains("--probe") {
     let bytes = try JSONSerialization.data(withJSONObject: permissionSnapshot(), options: [.sortedKeys])
     print(String(data: bytes, encoding: .utf8)!)
