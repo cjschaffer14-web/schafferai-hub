@@ -584,6 +584,7 @@
     .phone-account-card strong { display: block; font-size: 19px; margin-bottom: 5px; }
     .phone-account-card p { margin: 0; font-size: 12px; color: var(--text-muted); line-height: 1.6; }
     .phone-google-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .phone-dial-form { display: grid; gap: 8px; }
     .phone-google-actions button { min-height: 44px; }
     .phone-inbox-title { margin: 4px 0 0; font-size: 13px; }
     .phone-inbox-date { display: block; margin: 4px 0; font-size: 11px; color: var(--text-muted); }
@@ -762,9 +763,11 @@
       <p>c@schafferai.com</p>
       <p id="phoneLineState">Sign in to check your work line.</p>
     </div>
-    <label class="phone-control-help" for="phoneDialInput">Number to call</label>
-    <input class="glass-input phone-dial-input" id="phoneDialInput" type="tel" placeholder="Enter a phone number" aria-label="Phone number to dial" autocomplete="tel" maxlength="32" />
-    <button class="phone-call-cta" id="phonePrimaryCallBtn" type="button">Open Google Voice ↗</button>
+    <form class="phone-dial-form" autocomplete="off" onsubmit="return false">
+      <label class="phone-control-help" for="phoneDialInput">Number to call</label>
+      <input class="glass-input phone-dial-input" id="phoneDialInput" name="destinationPhoneNumber" type="tel" placeholder="Enter a phone number" aria-label="Phone number to dial" autocomplete="off" maxlength="32" />
+      <button class="phone-call-cta" id="phonePrimaryCallBtn" type="button">Open Google Voice ↗</button>
+    </form>
     <div class="phone-google-actions">
       <button class="glass-btn" id="phoneGvMessagesBtn" type="button">💬 Messages ↗</button>
       <button class="glass-btn" id="phoneGvVoicemailBtn" type="button">📼 Voicemail ↗</button>
