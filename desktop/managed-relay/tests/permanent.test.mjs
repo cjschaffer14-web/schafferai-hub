@@ -174,3 +174,95 @@ test("disconnect immediately invalidates leases and clears cached private data",
   assert.equal((await f.call("/viewer/pulse", "POST", { id })).status, 410);
   assert.equal((await f.DB.prepare("SELECT COUNT(*) AS count FROM desktop_events").first()).count, 0);
 });
+
+async function audioFixture(t, options = {}) {
+  const f = await fixture(t); await f.connect(); await f.ready();
+  const id = await f.open();
+  const status = async (captureReady = true, microphoneReady = true) => f.call("/agent/audio/status", "POST", { epoch: f.epoch, status: { captureReady, microphoneReady, virtualInputName: microphoneReady ? "BlackHole 2ch" : "", message: "Synthetic test helper" } }, true);
+  assert.equal((await status(options.captureReady ?? true, options.microphoneReady ?? true)).status, 200);
+  const control = async (revision, sound, mic, viewerId = id) => f.call("/viewer/audio", "POST", { id: viewerId, revision, sound, mic });
+  const pcm = direction => Buffer.alloc(direction === "output" ? 38400 : 6400, 23).toString("base64");
+  const upload = (direction, generation, seq, extra = {}) => f.call(direction === "output" ? "/agent/audio" : "/microphone", "POST", { ...(direction === "output" ? { epoch: f.epoch } : { id }), generation, seq, sampleRate: direction === "output" ? 48000 : 16000, channels: direction === "output" ? 2 : 1, encoding: "s16le", pcm: pcm(direction), ...extra }, direction === "output");
+  return { ...f, id, status, control, upload, pcm };
+}
+
+test("audio is explicit off; independent helper capabilities and one microphone owner", async t => {
+  const f = await audioFixture(t, { captureReady: false });
+  let health = await f.call("/health").then(r => r.json());
+  assert.equal(health.ready, true); assert.equal(health.audio.available, true);
+  assert.equal(health.audio.captureReady, false); assert.equal(health.audio.microphoneReady, true);
+  assert.equal((await f.control(1, true, false)).status, 409);
+  const on = await f.control(1, false, true).then(r => r.json());
+  assert.equal(on.mic, true); assert.equal(on.sound, false); assert.equal(on.epoch, f.epoch);
+  const second = await f.open(); assert.equal((await f.control(1, false, true, second)).status, 409);
+  const state = await f.call("/agent/audio-state", "GET", undefined, true).then(r => r.json());
+  assert.equal(state.videoReady, true); assert.equal(state.micActive, true); assert.equal(state.soundViewers, 0);
+  assert.equal(state.inputGeneration, on.inputGeneration);
+  assert.equal((await f.upload("input", on.inputGeneration, 1)).status, 200);
+  const batch = await f.call(`/agent/microphone?epoch=${f.epoch}&generation=${on.inputGeneration}&after=0`, "GET", undefined, true).then(r => r.json());
+  assert.equal(batch.sampleRate, 16000); assert.equal(batch.channels, 1); assert.equal(batch.chunks[0].pcm, f.pcm("input"));
+  assert.equal((await f.control(2, false, false)).status, 200);
+  assert.equal((await f.control(1, false, true)).status, 409, "old ON cannot supersede newer OFF");
+  assert.equal((await f.call(`/agent/microphone?epoch=${f.epoch}`, "GET", undefined, true)).status, 409);
+  assert.equal(f.BUCKET.objects.size, 0);
+  assert.equal((await f.control(2, false, true, second)).status, 200, "ownership released after OFF");
+});
+
+test("system sound preserves PCM, sequences, fresh batches and generation fences", async t => {
+  const f = await audioFixture(t);
+  const on = await f.control(1, true, false).then(r => r.json());
+  assert.equal((await f.upload("output", on.outputGeneration, 1, { pcm: "invalid" })).status, 400);
+  assert.equal((await f.upload("output", on.outputGeneration, 1)).status, 200, "separate audio body supports >16KiB sound");
+  assert.equal((await f.upload("output", on.outputGeneration, 1)).status, 409, "sequence cannot replay");
+  let batch = await f.call(`/audio?id=${f.id}&generation=${on.outputGeneration}&after=0`).then(r => r.json());
+  assert.equal(batch.sampleRate, 48000); assert.equal(batch.channels, 2); assert.equal(batch.encoding, "s16le");
+  assert.deepEqual(batch.chunks, [{ seq: 1, ageMs: 0, pcm: f.pcm("output") }]);
+  batch = await f.call(`/audio?id=${f.id}&generation=${on.outputGeneration}&after=1`).then(r => r.json());
+  assert.equal(batch.chunks.length, 0);
+  for (let seq = 2; seq <= 8; seq++) assert.equal((await f.upload("output", on.outputGeneration, seq)).status, 200);
+  batch = await f.call(`/audio?id=${f.id}&generation=${on.outputGeneration}&after=0`).then(r => r.json());
+  assert.deepEqual(batch.chunks.map(x => x.seq), [3, 4, 5, 6, 7, 8]);
+  assert.equal(f.BUCKET.objects.size, 8); assert.equal(new Set(f.BUCKET.objects.keys()).size, 8);
+  f.advance(1201);
+  batch = await f.call(`/audio?id=${f.id}&generation=${on.outputGeneration}&after=0`).then(r => r.json());
+  assert.equal(batch.chunks.length, 0); assert.equal(f.BUCKET.objects.size, 0);
+  assert.equal((await f.control(2, false, false)).status, 200);
+  assert.equal((await f.upload("output", on.outputGeneration, 9)).status, 409);
+});
+
+test("late sound and microphone uploads cannot publish after mute or lock", async t => {
+  const f = await audioFixture(t);
+  const on = await f.control(1, true, true).then(r => r.json());
+  f.BUCKET.beforePut = async () => { assert.equal((await f.control(2, false, false)).status, 200); };
+  assert.equal((await f.upload("output", on.outputGeneration, 1)).status, 204);
+  assert.equal(f.BUCKET.objects.size, 0);
+  const again = await f.control(3, true, true).then(r => r.json());
+  f.BUCKET.beforePut = async () => { await f.ready(false); };
+  assert.equal((await f.upload("input", again.inputGeneration, 1)).status, 204);
+  assert.equal(f.BUCKET.objects.size, 0);
+  const state = await f.call("/agent/audio-state", "GET", undefined, true).then(r => r.json());
+  assert.equal(state.micActive, false); assert.equal(state.soundViewers, 0); assert.equal(state.audio.available, false);
+});
+
+test("helper expiry stops audio without changing healthy desktop readiness", async t => {
+  const f = await audioFixture(t), on = await f.control(1, true, true).then(r => r.json());
+  assert.equal((await f.upload("input", on.inputGeneration, 1)).status, 200);
+  f.advance(8001);
+  const health = await f.call("/health").then(r => r.json());
+  assert.equal(health.ready, true); assert.equal(health.audio.available, false); assert.equal(health.audio.microphoneReady, false);
+  assert.equal(f.BUCKET.objects.size, 0);
+  await f.status(); const state = await f.call("/agent/audio-state", "GET", undefined, true).then(r => r.json());
+  assert.equal(state.soundViewers, 0); assert.equal(state.micActive, false, "helper return never resumes a previous capture");
+  assert.equal((await f.upload("input", on.inputGeneration, 2)).status, 409);
+});
+
+test("viewer close and producer replacement delete audio and reject old epochs", async t => {
+  const f = await audioFixture(t), on = await f.control(1, true, true).then(r => r.json());
+  await f.upload("output", on.outputGeneration, 1); await f.upload("input", on.inputGeneration, 1);
+  assert.equal((await f.call("/viewer/close", "POST", { id: f.id })).status, 200); assert.equal(f.BUCKET.objects.size, 0);
+  assert.equal((await f.upload("input", on.inputGeneration, 2)).status, 410);
+  const newEpoch = crypto.randomUUID(); assert.equal((await f.call("/agent/connect", "POST", { epoch: newEpoch }, true)).status, 200);
+  assert.equal((await f.status()).status, 409);
+  const state = await f.call("/agent/audio-state", "GET", undefined, true).then(r => r.json());
+  assert.equal(state.epoch, newEpoch); assert.equal(state.audio.available, false); assert.equal(state.micActive, false);
+});

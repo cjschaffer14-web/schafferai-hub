@@ -23,8 +23,9 @@
     </section>
     <div class="toolbar">
       <p id="instructions">Click the screen to use your mouse and keyboard. On a touchscreen, tap or drag to control the pointer.</p>
-      <div class="tools"><button id="apps" disabled title="Open Mac app search">Apps</button><button id="text-toggle" disabled aria-expanded="false" aria-controls="text-form">Send text</button><button id="return" disabled>Return</button><button id="escape" disabled>Esc</button><button id="fullscreen" disabled>Full screen</button></div>
+      <div class="tools"><button id="sound" disabled aria-pressed="false">Sound off</button><button id="microphone" disabled aria-pressed="false">Microphone off</button><button id="apps" disabled title="Open Mac app search">Apps</button><button id="text-toggle" disabled aria-expanded="false" aria-controls="text-form">Send text</button><button id="return" disabled>Return</button><button id="escape" disabled>Esc</button><button id="fullscreen" disabled>Full screen</button></div>
     </div>
+    <p id="audio-status" class="audio-status" role="status" aria-live="polite">Sound and microphone are off until you turn them on.</p>
     <form id="text-form" hidden>
       <label for="text">Type on your Mac</label><textarea id="text" rows="2" maxlength="2000" placeholder="Enter text to type in the focused Mac app" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea><button class="primary" type="submit">Type text</button>
     </form>

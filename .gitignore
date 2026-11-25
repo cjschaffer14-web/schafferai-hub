@@ -7,5 +7,6 @@ node_modules/
 .env
 desktop/mac/.build/
 desktop/mac/build/
+desktop/mac/audio/build/
 desktop/mac/config.json
 desktop/mac/runtime/

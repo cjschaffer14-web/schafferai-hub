@@ -1,10 +1,12 @@
 import { HTTPDesktopTransport } from './http-transport.js';
+import { DesktopAudio } from './audio.js';
 
 const $ = id => document.getElementById(id);
 const screen = $('screen'), desktop = $('desktop'), ctx = screen.getContext('2d', {alpha: false});
 let relay, socket, healthTimer, live = false, connecting = false, generation = 0, agentReady = false;
 let currentFrame = null, decoding = false, frameAt = 0, pointer = null, moveAt = 0;
 let wheelTimer = null, wheelX = 0, wheelY = 0, transport = 'websocket';
+const audio = new DesktopAudio({soundButton:$('sound'),micButton:$('microphone'),message:$('audio-status'),onFailure:message=>disconnect(message)});
 
 function fitCanvas() {
   const width = Number(desktop.clientWidth), height = Number(desktop.clientHeight);
@@ -16,6 +18,7 @@ function fitCanvas() {
 
 function status(message) { $('status').textContent = message; }
 function empty(title, message) {
+  audio.stop();
   if(wheelTimer !== null) clearTimeout(wheelTimer);
   wheelTimer = null; wheelX = 0; wheelY = 0;
   generation++; currentFrame = null; frameAt = 0;
@@ -46,6 +49,7 @@ function controls(connected) {
   if (!connected) { $('text-form').hidden = true; $('text-toggle').setAttribute('aria-expanded','false'); }
 }
 function disconnect(message = 'Disconnected. Connect again when you’re ready.') {
+  audio.clearSession();
   release(); generation++; currentFrame = null; connecting = false;
   socket?.close(1000,'Disconnected'); socket = null; agentReady = false; controls(false);
   empty('Your Mac, from here.',message); status(message); checkHealth();
@@ -88,11 +92,12 @@ function connect() {
   connecting = true; agentReady = false; controls(false); status('Connecting to your Mac…');
   const ws = transport === 'http' ? new HTTPDesktopTransport(relay) : new WebSocket(`${relay.replace(/^http/,'ws')}/viewer`); socket = ws;
   ws.binaryType = 'blob';
-  ws.onopen = () => { if (socket !== ws) return; connecting = false; controls(true); status('Connected · waiting for desktop…'); };
+  ws.onopen = () => { if (socket !== ws) return; connecting = false; controls(true); if(transport === 'http') audio.setSession(relay,ws.viewerId,{available:false,ready:false}); status('Connected · waiting for desktop…'); };
   ws.onmessage = event => {
     if (socket !== ws) return;
     if (event.data instanceof Blob) { if(agentReady) { currentFrame = event.data; drawFrames(); } return; }
     let data; try { data = JSON.parse(event.data); } catch { return; }
+    if (data.type === 'status' || data.type === 'hello') audio.updateStatus(data);
     if (data.type === 'status' && (data.available === false || data.ready === false)) {
       release(); agentReady = false; empty('Desktop unavailable',data.message || 'Check your Mac’s connection and permissions.');
       status(data.message || 'Desktop unavailable');
@@ -103,7 +108,7 @@ function connect() {
   ws.onerror = () => { if (socket === ws) status('Desktop connection failed'); };
   ws.onclose = () => {
     if (socket !== ws) return;
-    release();
+    release(); audio.clearSession();
     socket = null; generation++; currentFrame = null; agentReady = false; connecting = false; controls(false);
     empty('Mac disconnected','Reconnect when your Mac is available.'); status('Desktop disconnected'); checkHealth();
   };
