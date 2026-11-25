@@ -287,9 +287,8 @@
         b.classList.toggle('active', open);
         b.setAttribute('aria-expanded', String(open));
       });
-      if (open && !workAuth.hasSession() && els.passwordInput && typeof els.passwordInput.focus === 'function') {
-        els.passwordInput.focus();
-      }
+      const input = mode === 'gvoice' ? els.dialInput : !workAuth.hasSession() ? els.passwordInput : null;
+      if (open && input && typeof input.focus === 'function') input.focus();
     }
 
     function openCompanionPopup(url) {
