@@ -196,6 +196,8 @@
       const inCall = Boolean(activeCall);
       const isRec = Boolean(recorder && recorder.state === 'recording');
       const authed = workAuth.hasSession();
+      if (els.dialInput) els.dialInput.readOnly = inCall;
+      if (els.backspaceBtn) els.backspaceBtn.disabled = inCall;
       renderLineStatus();
       [els.openGvMessagesBtn, els.openGvVoicemailBtn, els.openGvSettingsBtn].forEach(b => { if (b) b.disabled = false; });
       if (els.checkStatusBtn) {
@@ -735,7 +737,7 @@
         if (!digit) return;
         playDtmf(win, digit);
         if (els.dialInput && !activeCall) {
-          els.dialInput.value = (els.dialInput.value || '') + digit;
+          els.dialInput.value = (els.dialInput.value || '').slice(0, 31) + digit;
           renderActionLinks();
         }
         if (activeCall && typeof activeCall.sendDigits === 'function') {

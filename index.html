@@ -740,6 +740,30 @@
     .phone-settings-heading { margin-top:3px; font-size:12px; font-weight:600; }
     .phone-settings-pane .phone-control-help { margin:0; }
     .phone-status-line { font-size:12px; }
+
+    /* A phone dialer: digits remain visible while idle and during a call. */
+    .phone-drawer { width:min(360px, calc(100vw - 24px)); padding:20px; border-radius:30px; background:rgba(16,21,29,.98); gap:12px; }
+    .phone-drawer .popover-title { font-size:15px; font-weight:600; }
+    .phone-field-label { position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+    .phone-number-display { display:flex; align-items:center; min-height:74px; margin:3px 0 6px; }
+    .phone-number-display .phone-dial-input { flex:1; width:100%; min-height:68px; padding:10px 0; border:0; border-radius:0; background:transparent; box-shadow:none; color:#fff; font-size:30px; font-weight:400; font-variant-numeric:tabular-nums; text-align:center; letter-spacing:.01em; }
+    .phone-number-display .phone-dial-input::placeholder { font-size:25px; color:#7e8795; }
+    .phone-delete-btn { width:36px; height:44px; flex-shrink:0; border:0; background:transparent; color:#aeb8c5; font-size:24px; cursor:pointer; border-radius:12px; }
+    .phone-delete-btn:hover { background:rgba(255,255,255,.07); color:#fff; }
+    .phone-keypad { width:100%; max-width:294px; margin:0 auto 8px; grid-template-columns:repeat(3,1fr); justify-items:center; gap:10px 18px; }
+    .phone-keypad .keypad-btn { display:flex; flex-direction:column; align-items:center; justify-content:center; width:72px; height:72px; padding:0; border:1px solid rgba(255,255,255,.05); border-radius:50%; background:#252d38; color:#fff; line-height:1; transition:background .12s,transform .12s; touch-action:manipulation; }
+    .phone-keypad .keypad-btn:hover { background:#354252; }
+    .phone-keypad .keypad-btn:active { background:#46576a; transform:scale(.95); }
+    .phone-key-digit { font-size:30px; font-weight:400; }
+    .phone-key-letters { margin-top:5px; min-height:10px; font-size:9px; font-weight:600; letter-spacing:2px; color:#c4cfdb; }
+    .phone-call-cta { display:flex; align-items:center; justify-content:center; gap:10px; min-height:54px; margin-top:3px; border:0; border-radius:28px; background:#20b86a; color:#fff; font-size:17px; font-weight:600; box-shadow:0 5px 20px rgba(32,184,106,.16); }
+    .phone-call-cta::before { content:'☎'; font-size:24px; line-height:1; }
+    .phone-call-cta:hover { background:#27c776; }
+    .phone-call-cta:disabled { background:#284736; color:#8ba999; opacity:.8; }
+    .phone-inline-controls #phoneHangupBtn { background:#e54859 !important; border:0 !important; color:#fff; border-radius:24px; min-height:46px; }
+    .phone-inline-controls #phoneMuteCallBtn { border-radius:24px; min-height:46px; }
+    .phone-status-line { text-align:center; background:transparent; padding:4px 0; border:0; min-height:22px; color:#b8c4d2; }
+    @media (max-height:760px) { .phone-keypad .keypad-btn { width:62px; height:62px; } .phone-keypad { gap:8px 18px; } .phone-number-display { min-height:62px; } .phone-drawer { gap:9px; padding:16px; } }
   </style>
 </head>
 <body>
@@ -786,7 +810,24 @@
     </div>
     <form class="phone-dial-form" autocomplete="off" onsubmit="return false">
       <label class="phone-field-label" for="phoneDialInput">Number to call</label>
-      <input class="glass-input phone-dial-input" id="phoneDialInput" name="destinationPhoneNumber" type="tel" inputmode="tel" placeholder="Enter phone number" aria-label="Phone number to dial" autocomplete="off" maxlength="32" />
+      <div class="phone-number-display">
+        <input class="glass-input phone-dial-input" id="phoneDialInput" name="destinationPhoneNumber" type="tel" inputmode="tel" placeholder="Enter number" aria-label="Phone number to dial" autocomplete="off" maxlength="32" />
+        <button class="phone-delete-btn" id="phoneBackspaceBtn" type="button" aria-label="Delete last digit" title="Delete last digit">⌫</button>
+      </div>
+      <div class="phone-keypad" id="phoneKeypad" aria-label="Phone keypad">
+        <button class="keypad-btn" type="button" data-digit="1" aria-label="Dial 1"><span class="phone-key-digit">1</span><span class="phone-key-letters">&nbsp;</span></button>
+        <button class="keypad-btn" type="button" data-digit="2" aria-label="Dial 2"><span class="phone-key-digit">2</span><span class="phone-key-letters">ABC</span></button>
+        <button class="keypad-btn" type="button" data-digit="3" aria-label="Dial 3"><span class="phone-key-digit">3</span><span class="phone-key-letters">DEF</span></button>
+        <button class="keypad-btn" type="button" data-digit="4" aria-label="Dial 4"><span class="phone-key-digit">4</span><span class="phone-key-letters">GHI</span></button>
+        <button class="keypad-btn" type="button" data-digit="5" aria-label="Dial 5"><span class="phone-key-digit">5</span><span class="phone-key-letters">JKL</span></button>
+        <button class="keypad-btn" type="button" data-digit="6" aria-label="Dial 6"><span class="phone-key-digit">6</span><span class="phone-key-letters">MNO</span></button>
+        <button class="keypad-btn" type="button" data-digit="7" aria-label="Dial 7"><span class="phone-key-digit">7</span><span class="phone-key-letters">PQRS</span></button>
+        <button class="keypad-btn" type="button" data-digit="8" aria-label="Dial 8"><span class="phone-key-digit">8</span><span class="phone-key-letters">TUV</span></button>
+        <button class="keypad-btn" type="button" data-digit="9" aria-label="Dial 9"><span class="phone-key-digit">9</span><span class="phone-key-letters">WXYZ</span></button>
+        <button class="keypad-btn" type="button" data-digit="*" aria-label="Dial *"><span class="phone-key-digit">*</span><span class="phone-key-letters">&nbsp;</span></button>
+        <button class="keypad-btn" type="button" data-digit="0" aria-label="Dial 0"><span class="phone-key-digit">0</span><span class="phone-key-letters">+</span></button>
+        <button class="keypad-btn" type="button" data-digit="#" aria-label="Dial #"><span class="phone-key-digit">#</span><span class="phone-key-letters">&nbsp;</span></button>
+      </div>
       <button class="phone-call-cta" id="phonePrimaryCallBtn" type="button">Call</button>
     </form>
     <div class="phone-incoming" id="phoneIncomingBanner">
@@ -802,10 +843,6 @@
           <button class="glass-btn" id="phoneMuteCallBtn" type="button" disabled aria-pressed="false">Mute</button>
           <button class="glass-btn" id="phoneHangupBtn" type="button" disabled style="background:rgba(251,113,133,0.32);border-color:rgba(251,113,133,0.55);">End call</button>
         </div>
-        <details class="phone-keypad-disclosure" id="phoneKeypadDetails">
-          <summary>Keypad</summary>
-          <div class="phone-keypad" id="phoneKeypad" aria-label="Call keypad"><button class="keypad-btn" type="button" data-digit="1" aria-label="Dial 1">1</button><button class="keypad-btn" type="button" data-digit="2" aria-label="Dial 2">2</button><button class="keypad-btn" type="button" data-digit="3" aria-label="Dial 3">3</button><button class="keypad-btn" type="button" data-digit="4" aria-label="Dial 4">4</button><button class="keypad-btn" type="button" data-digit="5" aria-label="Dial 5">5</button><button class="keypad-btn" type="button" data-digit="6" aria-label="Dial 6">6</button><button class="keypad-btn" type="button" data-digit="7" aria-label="Dial 7">7</button><button class="keypad-btn" type="button" data-digit="8" aria-label="Dial 8">8</button><button class="keypad-btn" type="button" data-digit="9" aria-label="Dial 9">9</button><button class="keypad-btn" type="button" data-digit="*" aria-label="Dial *">*</button><button class="keypad-btn" type="button" data-digit="0" aria-label="Dial 0">0</button><button class="keypad-btn" type="button" data-digit="#" aria-label="Dial #">#</button></div>
-        </details>
       </div>
     </div>
     <div class="phone-status-line" id="phoneStatusLine" role="status" aria-live="polite">Sign in under Settings to connect your phone.</div>
@@ -929,9 +966,9 @@
     </section>
   </main>
 
-  <script src="./work-auth.js?v=20261125-google-sip-simple"></script>
-  <script src="./google-sip-client.js?v=20261125-google-sip-simple"></script>
-  <script src="./web-phone.js?v=20261125-google-sip-simple"></script>
+  <script src="./work-auth.js?v=20261125-google-sip-dialpad"></script>
+  <script src="./google-sip-client.js?v=20261125-google-sip-dialpad"></script>
+  <script src="./web-phone.js?v=20261125-google-sip-dialpad"></script>
   <script>
     (() => {
       // Work-account Apps Script Web App endpoint (c@schafferai.com)
