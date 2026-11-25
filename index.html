@@ -742,7 +742,7 @@
     </div>
 
     <div class="topbar-right">
-      <button class="glass-pill" id="topPhoneBtn" type="button" title="Open browser phone" aria-controls="webPhoneDrawer" aria-expanded="false">📱 <span class="hide-sm">Phone</span></button>
+      <button class="glass-pill" id="topPhoneBtn" type="button" title="Open Google Voice work phone" aria-controls="webPhoneDrawer" aria-expanded="false">📱 <span class="hide-sm">Phone</span></button>
       <button class="glass-pill" id="muteBtn" type="button" title="Toggle background audio">🔇 <span class="hide-sm">Muted</span></button>
       <button class="glass-pill" id="wallpaperBtn" type="button" title="Switch live background">📺 <span class="hide-sm">Live Feed</span></button>
       <button class="glass-pill" id="zenBtn" type="button" title="Toggle chat visibility">✨ <span class="hide-sm">Cinema</span></button>
@@ -753,60 +753,49 @@
   <!-- Floating Glass Web Phone Drawer -->
   <aside class="phone-drawer" id="webPhoneDrawer" aria-label="SchafferAI Work Phone">
     <div class="phone-drawer-top">
-      <div class="popover-title">📱 Browser Phone</div>
+      <div class="popover-title">📱 Google Voice</div>
       <button class="icon-btn" id="phoneCloseBtn" type="button" title="Close phone">✕</button>
     </div>
 
 
-    <div class="phone-incoming" id="phoneIncomingBanner" role="alert" aria-live="assertive">
+    <div class="phone-account-card">
+      <strong id="phoneLineNumber">Work phone</strong>
+      <p>c@schafferai.com</p>
+      <p id="phoneLineState">Sign in to check your work line.</p>
+    </div>
+    <form class="phone-dial-form" autocomplete="off" onsubmit="return false">
+      <label class="phone-control-help" for="phoneDialInput">Number to call</label>
+      <input class="glass-input phone-dial-input" id="phoneDialInput" name="destinationPhoneNumber" type="tel" placeholder="Enter a phone number" aria-label="Phone number to dial" autocomplete="off" maxlength="32" />
+      <button class="phone-call-cta" id="phonePrimaryCallBtn" type="button">Open Google Voice in this tab →</button>
+    </form>
+    <div class="phone-google-actions">
+      <button class="glass-btn" id="phoneGvMessagesBtn" type="button">💬 Messages ↗</button>
+      <button class="glass-btn" id="phoneGvVoicemailBtn" type="button">📼 Voicemail ↗</button>
+      <button class="glass-btn" id="phoneGvSettingsBtn" type="button">⚙ Settings ↗</button>
+      <button class="glass-btn" id="phoneCheckStatusBtn" type="button" title="Read-only voice health check">Refresh status</button>
+    </div>
+    <p class="phone-control-help">Google Voice opens in this tab for calls, messages, and audio controls. Google does not allow its dialer inside this website. Sign in there as c@schafferai.com and keep Google Voice open to receive calls.</p>
+
+    <div class="phone-incoming" id="phoneIncomingBanner">
       <span id="phoneIncomingLabel">Incoming call…</span>
       <div style="display:flex;gap:6px;">
         <button class="glass-btn" id="phoneAnswerBtn" type="button" style="background:rgba(52,211,153,0.34);">Answer</button>
         <button class="glass-btn" id="phoneDeclineBtn" type="button" style="background:rgba(251,113,133,0.3);">Decline</button>
       </div>
     </div>
-    <div class="phone-account-card">
-      <strong id="phoneLineNumber">Work phone</strong>
-      <p>c@schafferai.com</p>
-      <p id="phoneLineState">Sign in to enable browser calling.</p>
-    </div>
-    <button class="glass-btn" id="phoneConnectBtn" type="button" disabled>Enable calling</button>
-    <form class="phone-dial-form" autocomplete="off" onsubmit="return false">
-      <label class="phone-control-help" for="phoneDialInput">Number to call</label>
-      <input class="glass-input phone-dial-input" id="phoneDialInput" name="destinationPhoneNumber" type="tel" placeholder="Enter a phone number" aria-label="Phone number to dial" autocomplete="off" maxlength="32" />
-      <button class="phone-call-cta" id="phonePrimaryCallBtn" type="button" disabled>📞 Call</button>
-    </form>
-    <div class="phone-keypad" id="phoneKeypad">
-      <button class="keypad-btn" data-digit="1" type="button">1<span class="keypad-sub">&nbsp;</span></button>
-      <button class="keypad-btn" data-digit="2" type="button">2<span class="keypad-sub">ABC</span></button>
-      <button class="keypad-btn" data-digit="3" type="button">3<span class="keypad-sub">DEF</span></button>
-      <button class="keypad-btn" data-digit="4" type="button">4<span class="keypad-sub">GHI</span></button>
-      <button class="keypad-btn" data-digit="5" type="button">5<span class="keypad-sub">JKL</span></button>
-      <button class="keypad-btn" data-digit="6" type="button">6<span class="keypad-sub">MNO</span></button>
-      <button class="keypad-btn" data-digit="7" type="button">7<span class="keypad-sub">PQRS</span></button>
-      <button class="keypad-btn" data-digit="8" type="button">8<span class="keypad-sub">TUV</span></button>
-      <button class="keypad-btn" data-digit="9" type="button">9<span class="keypad-sub">WXYZ</span></button>
-      <button class="keypad-btn" data-digit="*" type="button">*<span class="keypad-sub">&nbsp;</span></button>
-      <button class="keypad-btn" data-digit="0" type="button">0<span class="keypad-sub">+</span></button>
-      <button class="keypad-btn" data-digit="#" type="button">#<span class="keypad-sub">&nbsp;</span></button>
-    </div>
-    <button class="glass-btn" id="phoneCheckStatusBtn" type="button" title="Read-only voice health check">Refresh status</button>
-    <p class="phone-control-help">Make and answer calls here using your browser microphone and speakers. Keep this page open with calling enabled for incoming calls. Your browser calling line is shown above once configured.</p>
 
-
-
-    <div class="phone-status-line" id="phoneStatusLine" role="status" aria-live="polite">Sign in to enable private browser calling.</div>
+    <div class="phone-status-line" id="phoneStatusLine" role="status" aria-live="polite">Google Voice opens in this tab. In-page calling is unavailable. Website sign-in unlocks status and inbox sync.</div>
     <div class="phone-action-links" id="phoneActionLinks"></div>
     <h2 class="phone-inbox-title">Forwarded messages &amp; voicemail</h2>
     <p class="phone-control-help phone-inbox-note">Sync copies from your work Gmail. Enable message, missed-call, and voicemail email forwarding in Google Voice Settings first.</p>
     <div class="phone-login-row" id="phoneLoginRow">
-      <input class="glass-input" id="phonePasswordInput" type="password" placeholder="Website password" autocomplete="current-password" aria-label="Website password for browser phone" maxlength="256" />
+      <input class="glass-input" id="phonePasswordInput" type="password" placeholder="Website password for inbox" autocomplete="current-password" aria-label="Website password for phone inbox" maxlength="256" />
       <button class="glass-btn" id="phoneLoginBtn" type="button">Sign in</button>
     </div>
     <button class="glass-btn" id="phoneSyncInboxBtn" type="button">Sync work inbox</button>
     <div class="phone-inbox-list" id="phoneInboxList"></div>
-    <div class="phone-controls" id="phoneControls" aria-label="In-page audio controls">
-      <div id="phoneLocalControls">
+    <div class="phone-controls" id="phoneControls" aria-label="In-page audio controls" style="display:none;">
+      <div id="phoneLocalControls" style="display:none;">
       <div class="phone-cta-row">
         <button class="glass-btn" id="phoneMuteCallBtn" type="button" disabled aria-pressed="false">Mute</button>
         <button class="glass-btn" id="phoneHangupBtn" type="button" disabled style="background:rgba(251,113,133,0.32);border-color:rgba(251,113,133,0.55);">End call</button>
@@ -818,7 +807,7 @@
       </div>
       <button class="glass-btn" id="phoneMicTestBtn" type="button">🎙 Test microphone</button>
       </div>
-      <p class="phone-control-help" id="phoneControlHelp">Calls, microphone, speakers, mute and hangup stay inside this page.</p>
+      <p class="phone-control-help" id="phoneControlHelp">Calls and audio controls run in Google Voice.</p>
     </div>
   </aside>
 
@@ -851,7 +840,7 @@
           </div>
         </div>
         <div class="header-actions">
-          <button class="icon-btn" id="phoneDrawerBtn" type="button" title="Browser phone" aria-controls="webPhoneDrawer" aria-expanded="false">📱</button>
+          <button class="icon-btn" id="phoneDrawerBtn" type="button" title="Google Voice work phone" aria-controls="webPhoneDrawer" aria-expanded="false">📱</button>
           <button class="icon-btn active" id="voiceAutoBtn" type="button" title="Natural voice replies (ElevenLabs free tier + browser fallback)">🔊</button>
           <button class="icon-btn" id="callAiBtn" type="button" title="Live voice call with c@schafferai.com">📞</button>
           <button class="icon-btn" id="rtcToggleBtn" type="button" title="Peer-to-peer WebRTC voice room">🎙️</button>
@@ -879,9 +868,9 @@
         <span id="rtcStatus" style="color:var(--text-muted);">Idle</span>
         <audio id="rtcRemoteAudio" autoplay playsinline></audio>
         <span style="width:100%;height:1px;background:rgba(255,255,255,0.08);margin:2px 0;"></span>
-        <span style="color:var(--text-muted);">Browser phone:</span>
-        <button class="glass-btn" id="phoneCallBtn" type="button">Open phone</button>
-        <button class="glass-btn" id="phoneSmsBtn" type="button">Sync inbox</button>
+        <span style="color:var(--text-muted);">Google Voice (browser):</span>
+        <button class="glass-btn" id="phoneCallBtn" type="button">Open dialer ↗</button>
+        <button class="glass-btn" id="phoneSmsBtn" type="button">Open SMS ↗</button>
       </div>
 
       <div class="auth-banner visible" id="authBanner" role="region" aria-label="Private work-account sign in">
@@ -914,7 +903,7 @@
   </main>
 
   <script src="./work-auth.js"></script>
-  <script src="./web-phone.js?v=20261125-inline-calls2"></script>
+  <script src="./web-phone.js?v=20261125-google-only-same-tab"></script>
   <script>
     (() => {
       // Work-account Apps Script Web App endpoint (c@schafferai.com)
@@ -979,8 +968,6 @@
       const privateControls = [
         sendBtn, document.getElementById("callAiBtn"), document.getElementById("rtcToggleBtn"),
         document.getElementById("textModeBtn"), document.getElementById("rtcJoinBtn"),
-        document.getElementById("phonePrimaryCallBtn"), document.getElementById("phoneConnectBtn"),
-        document.getElementById("phoneCallBtn"), document.getElementById("phoneSmsBtn"),
         document.getElementById("phoneSyncInboxBtn"), document.getElementById("phoneCheckStatusBtn"),
         ...quickPrompts.querySelectorAll("button")
       ].filter(Boolean);
@@ -1575,15 +1562,16 @@
       }
       rtcJoinBtn.addEventListener("click", startRtcRoom);
 
+      // Google Voice owns phone calls and new SMS in its browser window.
       document.getElementById("phoneCallBtn").addEventListener("click", () => {
-        if (!workAuth.requireSession() || !webPhone) return;
-        webPhone.setMode('webrtc');
+        if (!webPhone) return;
         webPhone.toggleDrawer(true);
+        webPhone.openGoogleVoice();
       });
       document.getElementById("phoneSmsBtn").addEventListener("click", () => {
-        if (!workAuth.requireSession() || !webPhone) return;
+        if (!webPhone) return;
         webPhone.toggleDrawer(true);
-        document.getElementById('phoneSyncInboxBtn').click();
+        webPhone.openGoogleVoice('', true);
       });
 
       // Poll for agent-initiated texts, incoming calls, and WebRTC signals

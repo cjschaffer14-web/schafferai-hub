@@ -10,7 +10,10 @@
     '*': [941, 1209], '0': [941, 1336], '#': [941, 1477]
   };
 
-  const TWILIO_SDK_URL = './vendor/twilio-voice-2.18.0.min.js';
+  const WORK_ACCOUNT = 'c@schafferai.com';
+  const GV_BASE = 'https://voice.google.com';
+  const GV_ACCOUNT = 'authuser=' + encodeURIComponent(WORK_ACCOUNT);
+
   function normalizeE164(raw) {
     const s = String(raw || '').trim();
     if (!s) return '';
@@ -21,6 +24,23 @@
     if (!hasPlus && digits.length === 11 && digits[0] === '1') return '+' + digits;
     if (digits.length >= 8 && digits.length <= 15) return '+' + digits;
     return '';
+  }
+
+  function buildGoogleVoiceUrl(page) {
+    const path = ['calls', 'messages', 'voicemail', 'settings'].includes(page) ? page : 'calls';
+    return GV_BASE + '/' + path + '?' + GV_ACCOUNT;
+  }
+
+  function buildGoogleVoiceCallUrl(rawNumber) {
+    const number = normalizeE164(rawNumber);
+    // Google's documented call URL. The explicit account path keeps the call
+    // action through Google's account redirect; authuser selects the work user.
+    return number ? GV_BASE + '/u/0/calls?' + GV_ACCOUNT + '&a=nc,' + encodeURIComponent(number)
+      : buildGoogleVoiceUrl('calls');
+  }
+
+  function buildGoogleVoiceSmsUrl() {
+    return buildGoogleVoiceUrl('messages');
   }
 
   function playDtmf(win, digit) {
@@ -93,7 +113,6 @@
       keypad: doc.getElementById('phoneKeypad'),
       primaryCallBtn: doc.getElementById('phonePrimaryCallBtn'),
       localControls: doc.getElementById('phoneLocalControls'),
-      connectBtn: doc.getElementById('phoneConnectBtn'),
       controls: doc.getElementById('phoneControls'),
       hangupBtn: doc.getElementById('phoneHangupBtn'),
       muteCallBtn: doc.getElementById('phoneMuteCallBtn'),
@@ -122,10 +141,8 @@
       return { teardown() {}, setAuthenticated() {} };
     }
 
-    let mode = opts.defaultMode === 'ailine' ? 'ailine' : 'webrtc';
+    let mode = opts.defaultMode === 'ailine' ? 'ailine' : 'gvoice';
     let device = null;
-    let devicePromise = null;
-    let deviceRegistered = false;
     let activeCall = null;
     let pendingIncoming = null;
     let callTimer = null;
@@ -154,16 +171,37 @@
       if (els.lineNumber) els.lineNumber.textContent = 'Work phone';
       if (els.lineState) els.lineState.textContent = 'Sign in to check your work line.';
       if (!workAuth.hasSession()) return;
-      const line = lastVoiceStatus && lastVoiceStatus.twilio_webrtc;
-      const number = line && normalizeE164(line.from_number);
+      const gv = lastVoiceStatus && lastVoiceStatus.google_voice;
+      const number = gv && normalizeE164(gv.phone_number);
       if (els.lineNumber && number) els.lineNumber.textContent = number;
-      if (els.lineState) els.lineState.textContent = deviceRegistered ? 'Online · Ready to receive calls in this page.'
-        : line && !line.browser_webrtc_ready ? 'Calling setup required. No active browser line is available.'
-        : 'Offline · Enable calling to receive calls in this page.';
+      if (els.lineState) els.lineState.textContent = !gv ? 'Open Google Voice or refresh status to check your line.'
+        : number ? 'Work-account line on record. Confirm your current number in Google Voice.'
+          : 'Line not confirmed. Check your number and license in Google Voice.';
     }
 
-    function renderActionLinks() {
-      if (els.actionLinks) els.actionLinks.innerHTML = '';
+    function fmtSec(sec) {
+      const m = String(Math.floor(sec / 60)).padStart(2, '0');
+      const s = String(sec % 60).padStart(2, '0');
+      return m + ':' + s;
+    }
+
+    function renderActionLinks(rawNumber) {
+      if (!els.actionLinks) return;
+      els.actionLinks.innerHTML = '';
+      const e164 = normalizeE164(rawNumber !== undefined ? rawNumber : (els.dialInput ? els.dialInput.value : ''));
+      const gvUrl = buildGoogleVoiceCallUrl(e164);
+
+      const mkLink = (label, href, accent) => {
+        const a = doc.createElement('a');
+        a.className = 'phone-quick-link' + (accent ? ' accent' : '');
+        a.href = href;
+        a.target = '_self';
+        a.rel = 'noopener noreferrer';
+        a.textContent = label;
+        els.actionLinks.appendChild(a);
+      };
+
+      mkLink(e164 ? 'Continue call in Google Voice →' : 'Open Google Voice in this tab →', gvUrl, false);
     }
 
     function updateCallButtons() {
@@ -171,23 +209,19 @@
       const isRec = Boolean(recorder && recorder.state === 'recording');
       const authed = workAuth.hasSession();
       renderLineStatus();
-      if (els.connectBtn) {
-        els.connectBtn.disabled = !authed || Boolean(devicePromise) || deviceRegistered || Boolean(activeCall) || Boolean(pendingIncoming) || callStarting;
-        els.connectBtn.textContent = deviceRegistered ? 'Receiving calls' : devicePromise ? 'Connecting…' : 'Enable calling';
-      }
-      if (els.dialInput) els.dialInput.disabled = Boolean(activeCall) || callStarting;
+      [els.openGvMessagesBtn, els.openGvVoicemailBtn, els.openGvSettingsBtn].forEach(b => { if (b) b.disabled = false; });
       if (els.checkStatusBtn) {
-        els.checkStatusBtn.disabled = !authed || statusLoading || Boolean(activeCall) || callStarting;
+        els.checkStatusBtn.disabled = !authed || statusLoading;
         els.checkStatusBtn.textContent = statusLoading ? 'Checking…' : 'Refresh status';
       }
       if (els.syncInboxBtn) {
         els.syncInboxBtn.disabled = !authed || inboxLoading;
         els.syncInboxBtn.textContent = inboxLoading ? 'Syncing…' : 'Sync work inbox';
       }
-      if (els.localControls) els.localControls.style.display = '';
-      if (els.controls) els.controls.style.display = '';
-      const localAudio = mode === 'ailine' || (mode === 'webrtc' && inCall);
-      const setupRequired = mode === 'webrtc' && lastVoiceStatus && !lastVoiceStatus.twilio_webrtc?.browser_webrtc_ready;
+      if (els.localControls) els.localControls.style.display = mode === 'gvoice' ? 'none' : '';
+      if (els.controls) els.controls.style.display = mode === 'gvoice' ? 'none' : '';
+      const localAudio = mode === 'ailine';
+      const setupRequired = false;
       if (els.hangupBtn) {
         els.hangupBtn.style.display = '';
         els.hangupBtn.disabled = !authed || !(inCall || isRec || voiceTurnPending || mode === 'ailine');
@@ -204,15 +238,19 @@
       if (els.volumeInput) els.volumeInput.disabled = !authed || !localAudio;
       if (els.volumeLabel) els.volumeLabel.textContent = mode === 'ailine' ? 'Reply volume' : 'Volume';
       if (els.micTestBtn) els.micTestBtn.disabled = !authed || inCall || isRec || callStarting;
-      if (els.controlHelp) els.controlHelp.textContent = mode === 'ailine'
-        ? 'Speak records a voice message to Work AI. Mute pauses the microphone; Stop voice cancels the turn.'
-        : 'Calls use this page’s microphone and speakers. Mute, End call and Volume work here during a call. Keep this page open and calling enabled to receive calls.';
+      if (els.controlHelp) els.controlHelp.style.display = mode === 'gvoice' ? 'none' : '';
+      if (els.controlHelp) els.controlHelp.textContent = mode === 'gvoice'
+        ? 'Google Voice opens in this tab. Calls and audio controls run on Google Voice; embedded calling is unavailable.'
+        : mode === 'ailine' ? 'Speak records a voice message to Work AI. Mute pauses your microphone; Stop voice cancels the turn and stops replies.'
+          : 'Calls and audio controls are available in Google Voice.';
       [els.modeGvoiceBtn, els.modeAiLineBtn, els.modeWebrtcBtn].forEach(b => {
         if (b) b.disabled = inCall || isRec || callStarting || voiceTurnPending;
       });
       if (els.primaryCallBtn) {
-        els.primaryCallBtn.disabled = !authed || setupRequired || callStarting || (mode === 'webrtc' && (inCall || pendingIncoming)) || voiceTurnPending;
-        if (mode === 'ailine') {
+        els.primaryCallBtn.disabled = (mode !== 'gvoice' && !authed) || setupRequired || callStarting || voiceTurnPending;
+        if (mode === 'gvoice') {
+          els.primaryCallBtn.textContent = els.dialInput && els.dialInput.value.trim() ? 'Continue call in Google Voice →' : 'Open Google Voice in this tab →';
+        } else if (mode === 'ailine') {
           els.primaryCallBtn.textContent = isRec ? '⏹ Send Spoken Turn' : '🎙️ Speak to Work AI';
         } else {
           els.primaryCallBtn.textContent = inCall ? 'In Call…' : setupRequired ? 'Phone setup required' : '📞 Call';
@@ -222,19 +260,17 @@
     }
 
     function setMode(nextMode) {
-      mode = nextMode === 'ailine' ? 'ailine' : 'webrtc';
+      mode = nextMode === 'ailine' ? 'ailine' : 'gvoice';
       if (els.modeAiLineBtn) els.modeAiLineBtn.classList.toggle('active', mode === 'ailine');
-      if (els.modeWebrtcBtn) els.modeWebrtcBtn.classList.toggle('active', mode === 'webrtc');
       updateCallButtons();
       if (!workAuth.hasSession()) {
         setStatus('Enter your website password above to unlock your phone.');
         return;
       }
-      if (mode === 'ailine') {
+      if (mode === 'gvoice') {
+        setStatus('Google Voice · c@schafferai.com · Continue in Google Voice to place or receive calls.');
+      } else if (mode === 'ailine') {
         setStatus('Work AI Voice Line · Works right inside this tab on any computer (tap Speak)');
-      } else {
-        setStatus('In-Page WebRTC Softphone · Checking Twilio WebRTC token…');
-        ensureWebRtcDevice().catch(() => {});
       }
     }
 
@@ -246,32 +282,39 @@
         b.classList.toggle('active', open);
         b.setAttribute('aria-expanded', String(open));
       });
-      const input = !workAuth.hasSession() ? els.passwordInput : els.dialInput;
+      const input = mode === 'gvoice' ? els.dialInput : !workAuth.hasSession() ? els.passwordInput : null;
       if (open && input && typeof input.focus === 'function') input.focus();
     }
 
-    function loadTwilioSdk() {
-      if (win && win.Twilio && win.Twilio.Device) return Promise.resolve(win.Twilio.Device);
-      if (sdkPromise) return sdkPromise;
-      sdkPromise = new Promise((resolve, reject) => {
-        if (!doc || typeof doc.createElement !== 'function' || !doc.head) {
-          reject(new Error('Browser DOM unavailable for WebRTC SDK.'));
-          return;
-        }
-        const s = doc.createElement('script');
-        s.src = TWILIO_SDK_URL;
-        s.async = true;
-        s.onload = () => {
-          if (win.Twilio && win.Twilio.Device) resolve(win.Twilio.Device);
-          else reject(new Error('Twilio Voice SDK loaded without Device API.'));
-        };
-        s.onerror = () => {
-          sdkPromise = null;
-          reject(new Error('Could not load Twilio Voice SDK from CDN.'));
-        };
-        doc.head.appendChild(s);
-      });
-      return sdkPromise;
+    function navigateGoogleVoice(url) {
+      if (!win || !win.location || typeof win.location.assign !== 'function') return false;
+      try { win.location.assign(url); return true; } catch (_) { return false; }
+    }
+
+    function openGoogleVoice(rawNumber, messages) {
+      const raw = String(rawNumber || '').trim();
+      if (raw && (!/^[+\d\s().-]+$/.test(raw) || !normalizeE164(raw))) {
+        setStatus('Enter a valid phone number before opening the dialer.');
+        return false;
+      }
+      return openGoogleVoicePage(messages ? 'messages' : 'calls', raw);
+    }
+
+    function openGoogleVoicePage(page, rawNumber) {
+      const number = page === 'calls' && normalizeE164(rawNumber);
+      const url = page === 'calls' ? buildGoogleVoiceCallUrl(number) : buildGoogleVoiceUrl(page);
+      const opened = navigateGoogleVoice(url);
+      setStatus(opened ? number ? 'Opening Google Voice in this tab to confirm the call to ' + number + '.'
+        : 'Opening Google Voice ' + page + ' in this tab as ' + WORK_ACCOUNT + '.'
+        : 'Use the Google Voice link below to continue in this tab.');
+      if (!opened && els.actionLinks) {
+        els.actionLinks.innerHTML = '';
+        const a = doc.createElement('a');
+        a.className = 'phone-quick-link'; a.href = url; a.target = '_self';
+        a.rel = 'noopener noreferrer'; a.textContent = number ? 'Call ' + number + ' with Google Voice ↗' : 'Open Google Voice ' + page + ' ↗';
+        els.actionLinks.appendChild(a);
+      }
+      return opened;
     }
 
     function stopCallTimer() {
@@ -377,126 +420,12 @@
       }
     }
 
-    function attachCallHandlers(call, label) {
-      activeCall = call;
-      updateCallButtons();
-      stopCallTimer();
-      const connected = () => {
-        if (activeCall !== call || callTimer) return;
-        setStatus('Connected · ' + label + ' · 00:00');
-        if (typeof setInterval === 'function') {
-        callTimer = setInterval(() => {
-          callSeconds++;
-          setStatus('Connected · ' + label + ' · ' + fmtSec(callSeconds));
-        }, 1000);
-        }
-      };
-      setStatus('Connecting · ' + label);
-      const cleanup = () => {
-        if (activeCall !== call) return;
-        activeCall = null;
-        remoteAudio = null;
-        stopCallTimer();
-        if (els.muteCallBtn) els.muteCallBtn.textContent = 'Mute';
-        updateCallButtons();
-        setStatus('Call ended.');
-      };
-      if (call && typeof call.on === 'function') {
-        call.on('accept', connected);
-        call.on('ringing', () => { if (activeCall === call) setStatus('Ringing · ' + label); });
-        call.on('audio', audio => { if (activeCall === call) { remoteAudio = audio; audio.volume = playbackVolume; } });
-        call.on('disconnect', cleanup);
-        call.on('cancel', cleanup);
-        call.on('error', (err) => {
-          if (activeCall !== call) return;
-          cleanup();
-          setStatus('Call error: ' + (err && err.message || 'disconnected'));
-        });
-      }
-      if (call && typeof call.status === 'function' && call.status() === 'open') connected();
-    }
-
-    async function ensureWebRtcDevice() {
-      if (!workAuth.requireSession()) return null;
-      if (device && deviceRegistered) return device;
-      if (devicePromise) return devicePromise;
-      const generation = authGeneration;
-      const current = () => generation === authGeneration && workAuth.hasSession();
-      const start = async () => {
-        setStatus('Connecting browser phone…');
-        const tokData = await workAuth.request({ action: 'voice_token' });
-        if (!current()) return null;
-        if (!tokData || !tokData.ok || !tokData.token || !normalizeE164(tokData.from_number)) {
-          throw new Error(tokData && tokData.code === 'TWILIO_WEBRTC_UNCONFIGURED'
-            ? 'The browser calling service needs an active provider line and server credentials.'
-            : (tokData && tokData.error) || 'An active calling line and browser credentials must be configured before calling.');
-        }
-        const DeviceCtor = await loadTwilioSdk();
-        if (!current()) return null;
-        if (device) { try { device.destroy(); } catch (_) {} }
-        const instance = new DeviceCtor(tokData.token, { codecPreferences: ['opus', 'pcmu'], tokenRefreshMs: 60000 });
-        device = instance;
-        const live = () => current() && device === instance;
-        instance.on('registered', () => {
-          if (!live()) return;
-          deviceRegistered = true;
-          lastVoiceStatus = Object.assign({}, lastVoiceStatus, {twilio_webrtc:{browser_webrtc_ready:true,from_number:tokData.from_number}});
-          updateCallButtons();
-          if (!activeCall) setStatus('Online · Ready for incoming and outgoing calls.');
-        });
-        instance.on('unregistered', () => {
-          if (!live()) return;
-          deviceRegistered = false;
-          updateCallButtons();
-          if (!activeCall) setStatus('Phone offline. Enable calling to reconnect.');
-        });
-        instance.on('tokenWillExpire', async () => {
-          try {
-            const refreshed = await workAuth.request({action:'voice_token'});
-            if (!live()) return;
-            if (!refreshed || !refreshed.ok || !refreshed.token) throw new Error('Voice session renewal failed.');
-            instance.updateToken(refreshed.token);
-          } catch (error) {
-            if (!live()) return;
-            deviceRegistered = false;
-            updateCallButtons();
-            setStatus('Calling session expired. Enable calling to reconnect.');
-          }
-        });
-        instance.on('error', error => {
-          if (!live()) return;
-          setStatus('Phone error: ' + (error && error.message || 'connection unavailable'));
-        });
-        instance.on('incoming', call => {
-          if (!live() || activeCall || pendingIncoming) { call.reject(); return; }
-          pendingIncoming = call;
-          toggleDrawer(true);
-          if (els.incomingBanner) els.incomingBanner.classList.add('visible');
-          if (els.incomingLabel) els.incomingLabel.textContent = 'Incoming call from ' + ((call.parameters && call.parameters.From) || 'Unknown');
-          const clear = () => {
-            if (!live() || pendingIncoming !== call) return;
-            pendingIncoming = null;
-            if (els.incomingBanner) els.incomingBanner.classList.remove('visible');
-            updateCallButtons();
-            setStatus('Incoming call ended.');
-          };
-          call.on('cancel', clear);
-          call.on('disconnect', clear);
-          call.on('reject', clear);
-          updateCallButtons();
-        });
-        await instance.register();
-        if (!live()) { try { instance.destroy(); } catch (_) {} return null; }
-        return instance;
-      };
-      devicePromise = start();
-      updateCallButtons();
-      try { return await devicePromise; }
-      finally { if (current()) { devicePromise = null; updateCallButtons(); } }
-    }
-
     async function handlePrimaryCall() {
-      if (callStarting || activeCall || pendingIncoming || voiceTurnPending) return;
+      if (mode === 'gvoice') {
+        openGoogleVoice(els.dialInput ? els.dialInput.value : '');
+        return;
+      }
+      if (callStarting || activeCall || voiceTurnPending) return;
       if (!workAuth.requireSession()) {
         if (els.passwordInput && typeof els.passwordInput.focus === 'function') els.passwordInput.focus();
         return;
@@ -506,36 +435,6 @@
         return;
       }
 
-      const raw = els.dialInput ? els.dialInput.value.trim() : '';
-      const e164 = normalizeE164(raw);
-      if (raw && (!/^[+\d\s().-]+$/.test(raw) || !e164)) {
-        setStatus('Enter a valid phone number before calling.');
-        return;
-      }
-
-      if (!e164) {
-        setStatus('Enter a valid phone number (+1...) first.');
-        return;
-      }
-      try {
-        const generation = voiceTurnGeneration;
-        callStarting = true;
-        updateCallButtons();
-        const dev = await ensureWebRtcDevice();
-        if (!dev) return;
-        setStatus('Dialing ' + e164 + ' in browser…');
-        const call = await dev.connect({ params: { To: e164 } });
-        if (!workAuth.hasSession() || generation !== voiceTurnGeneration) {
-          call.disconnect();
-          return;
-        }
-        attachCallHandlers(call, e164);
-      } catch (err) {
-        setStatus('Call could not start: ' + (err && err.message || 'check microphone and phone setup'));
-      } finally {
-        callStarting = false;
-        updateCallButtons();
-      }
     }
 
     async function handleCheckStatus() {
@@ -553,13 +452,12 @@
         }
         lastVoiceStatus = data;
         updateCallButtons();
-        const tw = data.twilio_webrtc || {};
+        const gv = data.google_voice || {};
         renderActionLinks();
-        const parts = ['Browser Phone: ' + (tw.browser_webrtc_ready ? ('Configured (' + tw.from_number + ')') : 'Not configured')];
-        if (tw.browser_setup && tw.browser_setup.error) parts.push(tw.browser_setup.error);
-        if (tw.browser_setup && Array.isArray(tw.browser_setup.available_lines) && !tw.browser_setup.available_lines.length) parts.push('No active Twilio phone number on this account');
-        setStatus(parts.join(' · '));
-        renderLineStatus();
+        if (mode === 'gvoice') {
+          setStatus('Google Voice · ' + (gv.number_assigned ? gv.phone_number : 'Check number in Google Voice') + ' · c@schafferai.com. Calls and audio controls are in Google Voice.');
+          return;
+        }
       } catch (err) {
         if (generation !== authGeneration || !workAuth.hasSession()) return;
         setStatus(err && err.code === 'AUTH_REQUIRED' ? 'Sign in required.' : 'Voice status check failed.');
@@ -691,8 +589,6 @@
 
     function teardown() {
       authGeneration++;
-      devicePromise = null;
-      deviceRegistered = false;
       statusLoading = false;
       inboxLoading = false;
       voiceTurnGeneration++;
@@ -724,12 +620,12 @@
     }
 
     function setAuthenticated(authed, optsArg) {
-      const gated = [els.primaryCallBtn, els.connectBtn, els.syncInboxBtn, els.checkStatusBtn];
+      const gated = [els.syncInboxBtn, els.checkStatusBtn];
       gated.forEach((b) => { if (b) b.disabled = !authed; });
       if (els.loginRow) els.loginRow.style.display = authed ? 'none' : 'flex';
       if (!authed) {
         teardown();
-        setStatus('Sign in to enable private browser calling.');
+        setStatus('Google Voice opens in this tab. In-page calling is unavailable. Website sign-in unlocks status and inbox sync.');
       } else {
         renderActionLinks();
         setStatus(mode === 'ailine'
@@ -762,8 +658,11 @@
         }
       });
     }
+    if (els.modeGvoiceBtn) els.modeGvoiceBtn.addEventListener('click', () => {
+      const opened = navigateGoogleVoice(buildGoogleVoiceCallUrl(els.dialInput ? els.dialInput.value : ''));
+      setStatus(opened ? 'Opening Google Voice in this tab.' : 'Use the Google Voice link to continue in this tab.');
+    });
     if (els.modeAiLineBtn) els.modeAiLineBtn.addEventListener('click', () => setMode('ailine'));
-    if (els.modeWebrtcBtn) els.modeWebrtcBtn.addEventListener('click', () => setMode('webrtc'));
 
     if (els.dialInput) {
       els.dialInput.addEventListener('input', updateCallButtons);
@@ -781,7 +680,7 @@
         if (!digit) return;
         playDtmf(win, digit);
         if (els.dialInput) {
-          if (!activeCall) els.dialInput.value = (els.dialInput.value || '') + digit;
+          els.dialInput.value = (els.dialInput.value || '') + digit;
           renderActionLinks();
         }
         if (activeCall && typeof activeCall.sendDigits === 'function') {
@@ -854,45 +753,26 @@
         updateCallButtons();
       }
     });
-    if (els.connectBtn) els.connectBtn.addEventListener('click', async () => {
-      if (!workAuth.requireSession()) return;
-      try { await ensureWebRtcDevice(); }
-      catch (error) { setStatus('Calling unavailable: ' + (error && error.message || 'check line setup')); }
-    });
+    if (els.openGvMessagesBtn) {
+      els.openGvMessagesBtn.addEventListener('click', () => openGoogleVoicePage('messages'));
+    }
+    if (els.openGvVoicemailBtn) els.openGvVoicemailBtn.addEventListener('click', () => openGoogleVoicePage('voicemail'));
+    if (els.openGvSettingsBtn) els.openGvSettingsBtn.addEventListener('click', () => openGoogleVoicePage('settings'));
     if (els.syncInboxBtn) els.syncInboxBtn.addEventListener('click', handleSyncInbox);
     if (els.checkStatusBtn) els.checkStatusBtn.addEventListener('click', handleCheckStatus);
 
-    if (els.answerBtn) {
-      els.answerBtn.addEventListener('click', () => {
-        if (!pendingIncoming) return;
-        const call = pendingIncoming;
-        pendingIncoming = null;
-        if (els.incomingBanner) els.incomingBanner.classList.remove('visible');
-        if (!workAuth.requireSession()) { call.reject(); return; }
-        attachCallHandlers(call, (call.parameters && call.parameters.From) || 'Inbound Call');
-        try { call.accept(); } catch (error) { call.disconnect(); setStatus('Could not answer call.'); }
-      });
-    }
-    if (els.declineBtn) {
-      els.declineBtn.addEventListener('click', () => {
-        if (!pendingIncoming) return;
-        pendingIncoming.reject();
-        pendingIncoming = null;
-        if (els.incomingBanner) els.incomingBanner.classList.remove('visible');
-        setStatus('Declined incoming call.');
-      });
-    }
-
-    if (els.modeWebrtcBtn) els.modeWebrtcBtn.classList.toggle('active', mode === 'webrtc');
     setAuthenticated(workAuth.hasSession(), { skipAutoStatus: true });
     updateCallButtons();
 
-    return { teardown, setAuthenticated, toggleDrawer, setMode, getPlaybackVolume: () => playbackVolume };
+    return { teardown, setAuthenticated, toggleDrawer, setMode, openGoogleVoice, getPlaybackVolume: () => playbackVolume };
   }
 
   const api = {
     init,
-    normalizeE164
+    normalizeE164,
+    buildGoogleVoiceCallUrl,
+    buildGoogleVoiceSmsUrl,
+    buildGoogleVoiceUrl
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
