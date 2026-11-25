@@ -82,15 +82,15 @@ function googleOnly({signedIn=false,handler}={}) {
  const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
  const els=Object.fromEntries([...html.matchAll(/\bid="([^"]+)"/g)].map(m=>[m[1],new Element(m[1])]));
  for(const el of Object.values(els))Object.defineProperty(el,'innerHTML',{get(){return '';},set(){this.children=[];}});
- let authenticated=signedIn;const navigated=[],requests=[],calls=[];let sessionRequests=0,device;
+ let authenticated=signedIn;const navigated=[],requests=[],calls=[];let sessionRequests=0,device,registrationFailures=0,timerId=0;const reconnectTimers=new Map();
  class FakeCall {constructor(){this.handlers={};this.parameters={From:'+15555550101'};this.accepted=false;}on(k,f){(this.handlers[k]??=[]).push(f);}emit(k,...v){for(const f of this.handlers[k]||[])f(...v);}accept(){this.accepted=true;this.emit('accept');}disconnect(){this.emit('disconnect');}status(){return this.accepted?'open':'connecting';}}
- class FakeDevice {constructor(){this.handlers={};device=this;}on(k,f){(this.handlers[k]??=[]).push(f);}emit(k,...v){for(const f of this.handlers[k]||[])f(...v);}async register(){this.emit('registered');}async connect(data){calls.push(data.params.To);return new FakeCall();}unregister(){}destroy(){}}
+ class FakeDevice {constructor(){this.handlers={};device=this;}on(k,f){(this.handlers[k]??=[]).push(f);}emit(k,...v){for(const f of this.handlers[k]||[])f(...v);}async register(){if(registrationFailures>0){registrationFailures--;throw Error('network offline');}this.emit('registered');}async connect(data){calls.push(data.params.To);return new FakeCall();}unregister(){}destroy(){}}
 
  const auth={hasSession:()=>authenticated,requireSession:()=>authenticated,googlePhoneSession:async()=>{sessionRequests++;return {phoneNumber:'+13026359389'};},request:async p=>{
   requests.push(p.action);return handler?handler(p):{ok:true,google_voice:{number_assigned:true,phone_number:'+13026359389'}};
  }};
- const ctrl=WebPhone.init({workAuth:auth,document:{getElementById:id=>els[id],createElement:t=>new Element(t)},window:{SchafferGoogleSip:{Device:FakeDevice},location:{assign:url=>navigated.push(url)},open(){throw new Error('No new windows allowed');}}});
- return {els,ctrl,navigated,requests,calls,sessionRequests:()=>sessionRequests,incoming(){const call=new FakeCall();device.emit('incoming',call);return call;},logout(){authenticated=false;ctrl.setAuthenticated(false);}};
+ const ctrl=WebPhone.init({setTimeout:(fn,delay)=>{const id=++timerId;reconnectTimers.set(id,{fn,delay});return id;},clearTimeout:id=>reconnectTimers.delete(id),workAuth:auth,document:{getElementById:id=>els[id],createElement:t=>new Element(t)},window:{SchafferGoogleSip:{Device:FakeDevice},location:{assign:url=>navigated.push(url)},open(){throw new Error('No new windows allowed');}}});
+ return {els,ctrl,navigated,requests,calls,reconnectTimers,setRegistrationFailures:n=>{registrationFailures=n;},disconnectDevice:()=>device.emit('unregistered'),async runReconnect(){const entry=reconnectTimers.entries().next().value;assert(entry,'expected reconnect timer');reconnectTimers.delete(entry[0]);await entry[1].fn();},sessionRequests:()=>sessionRequests,incoming(){const call=new FakeCall();device.emit('incoming',call);return call;},logout(){authenticated=false;ctrl.setAuthenticated(false);}};
 }
 
 test('Google phone loads native SIP and contains no redirect or alternate-provider path',()=>{
@@ -188,4 +188,26 @@ test('in-call keypad preserves the destination while sending menu digits',async(
  assert.equal(h.els.phoneDialInput.value,'+15555550101');
  await h.els.phoneKeypad.emit('click',{target:{dataset:{digit:'1'}}});
  assert.equal(h.els.phoneDialInput.value,'+15555550101');assert.equal(incoming.sentDigits,'1');await h.els.phoneHangupBtn.click();
+});
+
+
+test('idle Google transport reconnects with bounded backoff and never repeats a call',async()=>{
+ const h=googleOnly();await h.els.phoneConnectBtn.click();h.disconnectDevice();h.disconnectDevice();
+ assert.equal(h.reconnectTimers.size,1);assert.equal([...h.reconnectTimers.values()][0].delay,2000);
+ h.setRegistrationFailures(4);
+ for (const expected of [5000,15000,30000,30000]) { await h.runReconnect();assert.equal([...h.reconnectTimers.values()][0].delay,expected); }
+ await h.runReconnect();assert.equal(h.reconnectTimers.size,0);assert.equal(h.els.phoneLineState.textContent,'Connected');assert.deepEqual(h.calls,[]);
+ h.disconnectDevice();assert.equal([...h.reconnectTimers.values()][0].delay,2000);h.ctrl.teardown();assert.equal(h.reconnectTimers.size,0);
+});
+
+test('transport reconnect waits until an active call ends and teardown cancels recovery',async()=>{
+ const h=googleOnly();await h.els.phoneConnectBtn.click();const call=h.incoming();await h.els.phoneAnswerBtn.click();
+ h.disconnectDevice();assert.equal(h.reconnectTimers.size,0);assert.equal(h.sessionRequests(),1);assert.equal(h.els.phoneHangupBtn.disabled,false);
+ await h.els.phoneHangupBtn.click();assert.equal(h.reconnectTimers.size,1);assert.equal(h.sessionRequests(),1);
+ h.ctrl.teardown();assert.equal(h.reconnectTimers.size,0);assert.deepEqual(h.calls,[]);
+});
+
+test('transport reconnect waits while an incoming call is awaiting an answer',async()=>{
+ const h=googleOnly();await h.els.phoneConnectBtn.click();const call=h.incoming();h.disconnectDevice();
+ assert.equal(h.reconnectTimers.size,0);call.emit('cancel');assert.equal(h.reconnectTimers.size,1);h.ctrl.teardown();
 });

@@ -170,6 +170,32 @@
     let phoneGeneration = 0;
     let statusLoading = false;
     let inboxLoading = false;
+    let reconnectTimer = null;
+    let reconnectAttempt = 0;
+    let reconnectNeeded = false;
+    let phoneWasConnected = false;
+    const reconnectDelays = [2000, 5000, 15000, 30000];
+    const later = opts.setTimeout || setTimeout;
+    const cancelLater = opts.clearTimeout || clearTimeout;
+
+    function cancelReconnect() {
+      if (reconnectTimer !== null) cancelLater(reconnectTimer);
+      reconnectTimer = null;
+    }
+
+    function scheduleReconnect() {
+      if (!reconnectNeeded || deviceRegistered || devicePromise || reconnectTimer !== null || activeCall || pendingIncoming || callStarting || !(phoneWasConnected || els.drawer.classList.contains('open'))) return;
+      const generation = phoneGeneration;
+      const delay = reconnectDelays[Math.min(reconnectAttempt++, reconnectDelays.length - 1)];
+      reconnectTimer = later(async () => {
+        reconnectTimer = null;
+        if (generation !== phoneGeneration || activeCall || pendingIncoming || callStarting || deviceRegistered || devicePromise || !(phoneWasConnected || els.drawer.classList.contains('open'))) return;
+        try { await ensureGoogleDevice(); }
+        catch (_) { if (generation === phoneGeneration && !activeCall) setStatus('Google Voice disconnected. Reconnecting…'); }
+        finally { if (generation === phoneGeneration) scheduleReconnect(); }
+      }, delay);
+    }
+
 
     function setStatus(text) {
       if (els.statusLine) els.statusLine.textContent = text;
@@ -415,6 +441,7 @@
         if (els.muteCallBtn) els.muteCallBtn.textContent = 'Mute';
         updateCallButtons();
         setStatus('Call ended.');
+        scheduleReconnect();
       };
       if (call && typeof call.on === 'function') {
         call.on('accept', connected);
@@ -434,6 +461,7 @@
     async function ensureGoogleDevice() {
       if (device && deviceRegistered) return device;
       if (devicePromise) return devicePromise;
+      cancelReconnect();
       const generation = phoneGeneration;
       const current = () => generation === phoneGeneration;
       devicePromise = (async () => {
@@ -441,19 +469,20 @@
         const config = await workAuth.googlePhoneSession();
         if (!current()) return null;
         if (!win.SchafferGoogleSip || !win.SchafferGoogleSip.Device) throw new Error('The Google phone client did not load. Refresh this page.');
-        if (device) { try { device.destroy(); } catch (_) {} }
+        if (device) { const previous = device; device = null; try { previous.destroy(); } catch (_) {} }
         const instance = new win.SchafferGoogleSip.Device(config);
         device = instance;
         const live = () => current() && device === instance;
         instance.on('registered', () => {
           if (!live()) return;
           deviceRegistered = true;
+          phoneWasConnected = true; reconnectNeeded = false; reconnectAttempt = 0; cancelReconnect();
           if (els.sessionExpires) els.sessionExpires.textContent = 'Google session expires ' + new Date(config.expiresAt).toLocaleString() + '. Keep this website open to receive calls.';
           lastVoiceStatus = Object.assign({}, lastVoiceStatus, {google_voice:{phone_number:config.phoneNumber}});
           updateCallButtons();
           if (!activeCall) setStatus('Ready to call.');
         });
-        instance.on('unregistered', () => { if (!live()) return; deviceRegistered = false; updateCallButtons(); if (!activeCall) setStatus('Google Voice disconnected. Reconnect to receive calls.'); });
+        instance.on('unregistered', () => { if (!live()) return; deviceRegistered = false; reconnectNeeded = true; updateCallButtons(); if (!activeCall && !pendingIncoming) setStatus('Google Voice disconnected. Reconnecting…'); scheduleReconnect(); });
         instance.on('diagnostics', data => { if (live()) win.googlePhoneDiagnostics = Object.freeze(Object.assign({}, data)); });
         instance.on('incoming', call => {
           if (!live() || activeCall || pendingIncoming || recorder || voiceTurnPending) { call.reject(); return; }
@@ -463,7 +492,7 @@
           if (els.incomingBanner) els.incomingBanner.classList.add('visible');
           if (els.incomingLabel) els.incomingLabel.textContent = 'Incoming Google Voice call from ' + (call.parameters.From || 'Unknown');
           setStatus('Incoming call · Answer inside this website.');
-          const clear = () => { if (!live() || pendingIncoming !== call) return; pendingIncoming = null; if (els.incomingBanner) els.incomingBanner.classList.remove('visible'); updateCallButtons(); setStatus('Incoming call ended.'); };
+          const clear = () => { if (!live() || pendingIncoming !== call) return; pendingIncoming = null; if (els.incomingBanner) els.incomingBanner.classList.remove('visible'); updateCallButtons(); setStatus('Incoming call ended.'); scheduleReconnect(); };
           call.on('disconnect', clear); call.on('cancel', clear); call.on('reject', clear);
           updateCallButtons();
         });
@@ -473,7 +502,8 @@
       })();
       updateCallButtons();
       try { return await devicePromise; }
-      finally { if (current()) { devicePromise = null; updateCallButtons(); } }
+      catch (error) { if (current()) reconnectNeeded = true; throw error; }
+      finally { if (current()) { devicePromise = null; updateCallButtons(); scheduleReconnect(); } }
     }
 
     async function handlePrimaryCall() {
@@ -492,7 +522,7 @@
         if (generation !== phoneGeneration) { call.disconnect(); return; }
         attachCallHandlers(call, number);
       } catch (error) { setStatus('Call could not start: ' + (error && error.message || 'phone connection unavailable')); }
-      finally { callStarting = false; updateCallButtons(); }
+      finally { callStarting = false; updateCallButtons(); scheduleReconnect(); }
     }
 
     async function handleCheckStatus() {
@@ -648,6 +678,7 @@
     function teardown() {
       authGeneration++;
       phoneGeneration++;
+      reconnectNeeded = false; phoneWasConnected = false; reconnectAttempt = 0; cancelReconnect();
       deviceRegistered = false;
       devicePromise = null;
       if (win) win.googlePhoneDiagnostics = Object.freeze({registered:false});
@@ -840,7 +871,7 @@
       if (!pendingIncoming) return;
       pendingIncoming.reject(); pendingIncoming = null;
       if (els.incomingBanner) els.incomingBanner.classList.remove('visible');
-      setStatus('Incoming call declined.'); updateCallButtons();
+      setStatus('Incoming call declined.'); updateCallButtons(); scheduleReconnect();
     });
     if (els.syncInboxBtn) els.syncInboxBtn.addEventListener('click', handleSyncInbox);
     if (els.checkStatusBtn) els.checkStatusBtn.addEventListener('click', handleCheckStatus);
