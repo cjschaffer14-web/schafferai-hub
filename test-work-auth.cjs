@@ -53,7 +53,7 @@ test('page login and logout use server session; polling stops and paid actions r
  const h=page();await flush();h.elements.tokenInput.value='fixture-only-input';await h.elements.saveTokenBtn.emit('click');assert.equal(h.elements.tokenInput.value,'');assert.equal(h.elements.sendBtn.disabled,false);assert(h.session.getItem(SESSION_KEY));await h.elements.tokenBtn.emit('click');assert.equal(h.session.getItem(SESSION_KEY),null);assert.equal(h.elements.sendBtn.disabled,true);const count=h.calls.length;await h.elements.phoneCallBtn.emit('click');for(const t of h.timers.filter(t=>t.ms===4000))await t.f();assert.equal(h.calls.length,count);
 });
 test('all protected page requests use central auth client, with no embedded credential/default or direct fetch bypass',()=>{
- const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');assert(!html.includes('fetch('));assert(!html.includes('state.token'));assert(!/password\s*[:=]\s*["']password["']/.test(html));assert(!/localStorage\.(?:getItem|setItem)\(STORAGE_TOKEN/.test(html));assert(html.includes('src="./work-auth.js"'));for(const action of ['chat','tts','send_text','rtc_signal','twilio_call','twilio_sms','poll_events'])assert(html.includes('workAuth.request({ action: "'+action+'"'),action);
+ const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');assert(!html.includes('fetch('));assert(!html.includes('state.token'));assert(!/password\s*[:=]\s*["']password["']/.test(html));assert(!/localStorage\.(?:getItem|setItem)\(STORAGE_TOKEN/.test(html));assert(html.includes('src="./work-auth.js"'));for(const action of ['chat','tts','send_text','rtc_signal','poll_events'])assert(html.includes('workAuth.request({ action: "'+action+'"'),action);
 });
 test('logout discards an in-flight private response instead of showing data after logout',async()=>{
  let finish;const h=harness(p=>p.action==='auth_login'?response({ok:true,authenticated:true,token,expires_at:new Date(Date.UTC(2026,10,24,19)).toISOString()}):new Promise(resolve=>finish=()=>resolve(response({ok:true,reply:'private result'}))));await h.client.login('fixture-only-input');const pending=h.client.request({action:'chat',message:'private'});h.client.clear();finish();await assert.rejects(pending,{code:'SESSION_CHANGED'});assert.equal(h.client.hasSession(),false);assert.equal(h.calls.length,2);
@@ -82,7 +82,7 @@ test('web-phone module contains no direct fetch bypass and normalizes E.164 & Go
   assert(!src.includes('fetch('));
   assert.equal(WebPhone.normalizeE164('(267) 264-7302'), '+12672647302');
   assert.equal(WebPhone.normalizeE164('1-215-555-0199'), '+12155550199');
-  assert.equal(WebPhone.buildGoogleVoiceCallUrl('267-264-7302'), 'https://voice.google.com/calls?authuser=c%40schafferai.com&a=nc,%2B12672647302');
+  assert.equal(WebPhone.buildGoogleVoiceCallUrl('267-264-7302'), 'https://voice.google.com/calls?authuser=c%40schafferai.com');
   assert.equal(WebPhone.buildGoogleVoiceCallUrl(''), 'https://voice.google.com/calls?authuser=c%40schafferai.com');
 });
 
@@ -115,11 +115,11 @@ test('inline phone drawer login unlocks phone and popup-blocked Google Voice ren
   assert.equal(loginHookCalled, 1);
   assert.equal(els.phoneLoginRow.style.display, 'none');
 
-  await els.phoneModeGvoiceBtn.emit('click');
+  await els.phonePrimaryCallBtn.emit('click');
   assert(els.phoneStatusLine.textContent.includes('Popup blocked'));
   const hrefs = els.phoneActionLinks.children.map((a) => a.href);
   assert(!hrefs.includes('https://admin.google.com/ac/voice'));
-  assert(hrefs.includes('https://voice.google.com/calls?authuser=c%40schafferai.com&a=nc,%2B12672647302'));
+  assert(hrefs.includes('https://voice.google.com/calls?authuser=c%40schafferai.com'));
   assert(!hrefs.some(url => url.startsWith('tel:')));
 });
 
@@ -155,7 +155,7 @@ test('web-phone UI gates calls on auth, opens Google Voice companion, syncs inbo
   const doc = { getElementById: (id) => els[id], createElement: (t) => new Element(t) };
   const win = { open: (url) => opened.push(url), Twilio: { Device: FakeDevice } };
 
-  const ctrl = WebPhone.init({ workAuth: h.client, document: doc, window: win });
+  const ctrl = WebPhone.init({ workAuth: h.client, document: doc, window: win, defaultMode:'webrtc' });
   assert.equal(els.phonePrimaryCallBtn.disabled, true);
 
   await h.client.login('fixture-only-input');
@@ -163,12 +163,12 @@ test('web-phone UI gates calls on auth, opens Google Voice companion, syncs inbo
   assert.equal(els.phonePrimaryCallBtn.disabled, false);
 
   await els.phoneModeGvoiceBtn.emit('click');
-  assert.deepEqual(opened, ['https://voice.google.com/calls?authuser=c%40schafferai.com&a=nc,%2B12672647302']);
+  assert.deepEqual(opened, ['https://voice.google.com/calls?authuser=c%40schafferai.com']);
 
   await els.phoneSyncInboxBtn.emit('click');
   assert.equal(els.phoneInboxList.children.length, 1);
   await els.phoneCheckStatusBtn.emit('click');
-  assert(els.phoneStatusLine.textContent.includes('Open work account to check line status'));
+  assert(els.phoneStatusLine.textContent.includes('Browser Phone: Configured'));
 
   await els.phoneModeWebrtcBtn.emit('click');
   await flush();
@@ -192,11 +192,12 @@ test('call controls stay visible, never fake Google Voice control, and follow re
     async connect() { connected++; return call; }
   }
   const ids = [...fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8').matchAll(/\bid="(phone[^"]+|webPhoneDrawer)"/g)].map(m => m[1]);
+  ids.push('phoneDialInput'); // Optional input in the reusable in-page controller fixture.
   const els = Object.fromEntries(ids.map(id => [id, new Element(id)]));
   const auth = { hasSession: () => true, requireSession: () => true, request: async ({action}) =>
     action === 'voice_token' ? {ok:true, token:'fixture', identity:'owner'} : {ok:true} };
   let released = 0;
-  const ctrl = WebPhone.init({workAuth:auth, document:{getElementById:id=>els[id], createElement:t=>new Element(t)},
+  const ctrl = WebPhone.init({defaultMode:'webrtc', workAuth:auth, document:{getElementById:id=>els[id], createElement:t=>new Element(t)},
     window:{open:()=>{popups++;}, Twilio:{Device}, navigator:{mediaDevices:{getUserMedia:async()=>({getAudioTracks:()=>[{label:'Headset'}], getTracks:()=>[{stop:()=>released++}]})}}}});
   assert.equal(els.phoneMuteCallBtn.style.display, '');
   assert.equal(els.phoneHangupBtn.style.display, '');
@@ -237,11 +238,30 @@ test('unconfigured phone has a visible setup state and never opens a page from C
     if(action==='voice_token'){tokens++;return {ok:false,error:'Not configured'};}
     return {ok:true,twilio_webrtc:{browser_webrtc_ready:false,browser_setup:{available_lines:[]}}};
   }};
-  WebPhone.init({workAuth:auth,document:{getElementById:id=>els[id],createElement:t=>new Element(t)},window:{open:()=>{popups++;}}});
+  WebPhone.init({defaultMode:'webrtc',workAuth:auth,document:{getElementById:id=>els[id],createElement:t=>new Element(t)},window:{open:()=>{popups++;}}});
   await els.phoneCheckStatusBtn.emit('click');
   assert.equal(els.phonePrimaryCallBtn.disabled,true);
   assert.equal(els.phonePrimaryCallBtn.textContent,'Phone setup required');
   assert.match(els.phoneStatusLine.textContent,/No active Twilio phone number/);
   await els.phonePrimaryCallBtn.click();
   assert.equal(popups,0);assert.equal(tokens,0);
+});
+
+
+test('the deployed phone defaults to Google Voice without requesting Twilio or exposing inactive call controls', async () => {
+ const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+ assert(!html.includes('id="phoneModeWebrtcBtn"'));
+ assert(!html.includes('Phone (Twilio)'));
+ assert(!html.includes('action: "twilio_call"'));assert(!html.includes('action: "twilio_sms"'));
+ const ids=[...html.matchAll(/\bid="(phone[^"]+|webPhoneDrawer)"/g)].map(m=>m[1]);
+ const els=Object.fromEntries(ids.map(id=>[id,new Element(id)]));const requested=[],opened=[];
+ const auth={hasSession:()=>true,requireSession:()=>true,request:async p=>{requested.push(p.action);return {ok:true,google_voice:{number_assigned:true,phone_number:'+13026359389'},twilio_webrtc:{browser_webrtc_ready:false}};}};
+ WebPhone.init({workAuth:auth,document:{getElementById:id=>els[id],createElement:t=>new Element(t)},window:{open:url=>{opened.push(url);return {focus(){}};}}});
+ await els.phoneCheckStatusBtn.emit('click');
+ assert.equal(els.phoneLocalControls.style.display,'none');assert.equal(els.phonePrimaryCallBtn.disabled,false);
+ assert.equal(els.phonePrimaryCallBtn.textContent,'Open Google Voice ↗');
+ assert.match(els.phoneStatusLine.textContent,/Google Voice/);assert(!els.phoneStatusLine.textContent.includes('Twilio'));
+ await els.phonePrimaryCallBtn.emit('click');
+ assert.equal(opened.length,1);assert.match(opened[0],/authuser=c%40schafferai.com/);
+ assert.deepEqual(requested,['voice_status']);
 });

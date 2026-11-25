@@ -562,7 +562,7 @@
       top: 64px;
       right: max(16px, env(safe-area-inset-right));
       z-index: 35;
-      width: min(350px, calc(100vw - 24px));
+      width: min(390px, calc(100vw - 24px));
       max-height: calc(100dvh - 80px);
       overflow-y: auto;
       padding: 16px;
@@ -580,6 +580,14 @@
     .phone-drawer > * { flex-shrink: 0; }
     .phone-drawer input { min-width: 0; }
     .phone-drawer-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .phone-account-card { padding: 14px; border: 1px solid var(--glass-border); border-radius: 14px; background: rgba(125, 211, 252, 0.08); }
+    .phone-account-card strong { display: block; font-size: 19px; margin-bottom: 5px; }
+    .phone-account-card p { margin: 0; font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+    .phone-google-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .phone-google-actions button { min-height: 44px; }
+    .phone-inbox-title { margin: 4px 0 0; font-size: 13px; }
+    .phone-inbox-date { display: block; margin: 4px 0; font-size: 11px; color: var(--text-muted); }
+    .phone-inbox-note { margin: 0; }
     .phone-login-row {
       display: flex;
       gap: 6px;
@@ -733,7 +741,7 @@
     </div>
 
     <div class="topbar-right">
-      <button class="glass-pill" id="topPhoneBtn" type="button" title="Open Work Phone (Google Voice &amp; WebRTC)">📱 <span class="hide-sm">Phone</span></button>
+      <button class="glass-pill" id="topPhoneBtn" type="button" title="Open Google Voice work phone" aria-controls="webPhoneDrawer" aria-expanded="false">📱 <span class="hide-sm">Phone</span></button>
       <button class="glass-pill" id="muteBtn" type="button" title="Toggle background audio">🔇 <span class="hide-sm">Muted</span></button>
       <button class="glass-pill" id="wallpaperBtn" type="button" title="Switch live background">📺 <span class="hide-sm">Live Feed</span></button>
       <button class="glass-pill" id="zenBtn" type="button" title="Toggle chat visibility">✨ <span class="hide-sm">Cinema</span></button>
@@ -744,7 +752,7 @@
   <!-- Floating Glass Web Phone Drawer -->
   <aside class="phone-drawer" id="webPhoneDrawer" aria-label="SchafferAI Work Phone">
     <div class="phone-drawer-top">
-      <div class="popover-title">📱 Work Phone · c@schafferai.com</div>
+      <div class="popover-title">📱 Google Voice</div>
       <button class="icon-btn" id="phoneCloseBtn" type="button" title="Close phone">✕</button>
     </div>
 
@@ -753,11 +761,19 @@
       <button class="glass-btn" id="phoneLoginBtn" type="button">Unlock</button>
     </div>
 
-    <div class="phone-mode-tabs">
-      <button class="phone-tab active" id="phoneModeWebrtcBtn" type="button">Browser Phone</button>
-      <button class="phone-tab" id="phoneModeAiLineBtn" type="button">AI Voice Line</button>
-      <button class="phone-tab" id="phoneModeGvoiceBtn" type="button">Open Google Voice ↗</button>
+    <div class="phone-account-card">
+      <strong id="phoneLineNumber">Work phone</strong>
+      <p>c@schafferai.com</p>
+      <p id="phoneLineState">Sign in to check your work line.</p>
     </div>
+    <button class="phone-call-cta" id="phonePrimaryCallBtn" type="button">Open Google Voice ↗</button>
+    <div class="phone-google-actions">
+      <button class="glass-btn" id="phoneGvMessagesBtn" type="button">💬 Messages ↗</button>
+      <button class="glass-btn" id="phoneGvVoicemailBtn" type="button">📼 Voicemail ↗</button>
+      <button class="glass-btn" id="phoneGvSettingsBtn" type="button">⚙ Settings ↗</button>
+      <button class="glass-btn" id="phoneCheckStatusBtn" type="button" title="Read-only voice health check">Refresh status</button>
+    </div>
+    <p class="phone-control-help">Use Google Voice in its own window for calls, messages, and audio controls. Sign in there as c@schafferai.com and keep it open to receive calls. Your Mac can be off when you use another computer.</p>
 
     <div class="phone-incoming" id="phoneIncomingBanner">
       <span id="phoneIncomingLabel">Incoming call…</span>
@@ -767,38 +783,15 @@
       </div>
     </div>
 
-    <div class="phone-dial-row">
-      <input class="glass-input phone-dial-input" id="phoneDialInput" type="tel" placeholder="Enter a phone number" aria-label="Phone number to dial" autocomplete="tel" />
-      <button class="icon-btn" id="phoneBackspaceBtn" type="button" title="Backspace">⌫</button>
-    </div>
-
-    <div class="phone-keypad" id="phoneKeypad">
-      <button class="keypad-btn" data-digit="1" type="button">1<span class="keypad-sub">&nbsp;</span></button>
-      <button class="keypad-btn" data-digit="2" type="button">2<span class="keypad-sub">ABC</span></button>
-      <button class="keypad-btn" data-digit="3" type="button">3<span class="keypad-sub">DEF</span></button>
-      <button class="keypad-btn" data-digit="4" type="button">4<span class="keypad-sub">GHI</span></button>
-      <button class="keypad-btn" data-digit="5" type="button">5<span class="keypad-sub">JKL</span></button>
-      <button class="keypad-btn" data-digit="6" type="button">6<span class="keypad-sub">MNO</span></button>
-      <button class="keypad-btn" data-digit="7" type="button">7<span class="keypad-sub">PQRS</span></button>
-      <button class="keypad-btn" data-digit="8" type="button">8<span class="keypad-sub">TUV</span></button>
-      <button class="keypad-btn" data-digit="9" type="button">9<span class="keypad-sub">WXYZ</span></button>
-      <button class="keypad-btn" data-digit="*" type="button">*<span class="keypad-sub">&nbsp;</span></button>
-      <button class="keypad-btn" data-digit="0" type="button">0<span class="keypad-sub">+</span></button>
-      <button class="keypad-btn" data-digit="#" type="button">#<span class="keypad-sub">&nbsp;</span></button>
-    </div>
-
-    <div class="phone-cta-row">
-      <button class="glass-btn" id="phoneGvMessagesBtn" type="button" style="flex:1;">💬 Open SMS</button>
-      <button class="glass-btn" id="phoneSyncInboxBtn" type="button" style="flex:1;">🔄 Sync Inbox</button>
-      <button class="glass-btn" id="phoneCheckStatusBtn" type="button" title="Read-only voice health check">🩺 Status</button>
-    </div>
-
-    <div class="phone-action-links" id="phoneActionLinks"></div>
     <div class="phone-status-line" id="phoneStatusLine" role="status" aria-live="polite">Enter your website password above to unlock your work phone &amp; SMS.</div>
+    <div class="phone-action-links" id="phoneActionLinks"></div>
+    <h2 class="phone-inbox-title">Forwarded messages &amp; voicemail</h2>
+    <p class="phone-control-help phone-inbox-note">Sync copies from your work Gmail. Enable message, missed-call, and voicemail email forwarding in Google Voice Settings first.</p>
+    <button class="glass-btn" id="phoneSyncInboxBtn" type="button">Sync work inbox</button>
     <div class="phone-inbox-list" id="phoneInboxList"></div>
-    <div class="phone-controls" aria-label="Call controls">
+    <div class="phone-controls" aria-label="Google Voice dialer">
+      <div id="phoneLocalControls" style="display:none;">
       <div class="phone-cta-row">
-        <button class="phone-call-cta" id="phonePrimaryCallBtn" type="button">📞 Call</button>
         <button class="glass-btn" id="phoneMuteCallBtn" type="button" disabled aria-pressed="false">Mute</button>
         <button class="glass-btn" id="phoneHangupBtn" type="button" disabled style="background:rgba(251,113,133,0.32);border-color:rgba(251,113,133,0.55);">End call</button>
       </div>
@@ -808,7 +801,8 @@
         <output id="phoneVolumeValue" for="phoneVolumeInput">100%</output>
       </div>
       <button class="glass-btn" id="phoneMicTestBtn" type="button">🎙 Test microphone</button>
-      <p class="phone-control-help" id="phoneControlHelp">Calls use your browser microphone and speakers. Google Voice opens separately.</p>
+      </div>
+      <p class="phone-control-help" id="phoneControlHelp">Place and answer calls in Google Voice. Mute, Hang up and Audio settings are in its phone window.</p>
     </div>
   </aside>
 
@@ -841,7 +835,7 @@
           </div>
         </div>
         <div class="header-actions">
-          <button class="icon-btn" id="phoneDrawerBtn" type="button" title="Work Phone keypad (Google Voice &amp; WebRTC)">📱</button>
+          <button class="icon-btn" id="phoneDrawerBtn" type="button" title="Google Voice work phone" aria-controls="webPhoneDrawer" aria-expanded="false">📱</button>
           <button class="icon-btn active" id="voiceAutoBtn" type="button" title="Natural voice replies (ElevenLabs free tier + browser fallback)">🔊</button>
           <button class="icon-btn" id="callAiBtn" type="button" title="Live voice call with c@schafferai.com">📞</button>
           <button class="icon-btn" id="rtcToggleBtn" type="button" title="Peer-to-peer WebRTC voice room">🎙️</button>
@@ -869,10 +863,9 @@
         <span id="rtcStatus" style="color:var(--text-muted);">Idle</span>
         <audio id="rtcRemoteAudio" autoplay playsinline></audio>
         <span style="width:100%;height:1px;background:rgba(255,255,255,0.08);margin:2px 0;"></span>
-        <span style="color:var(--text-muted);">Phone (Twilio):</span>
-        <input class="glass-input" id="phoneToInput" type="tel" value="+12672647302" placeholder="+1..." style="max-width:140px;padding:6px 10px;" />
-        <button class="glass-btn" id="phoneCallBtn" type="button">Dial</button>
-        <button class="glass-btn" id="phoneSmsBtn" type="button">Send SMS</button>
+        <span style="color:var(--text-muted);">Google Voice (browser):</span>
+        <button class="glass-btn" id="phoneCallBtn" type="button">Open dialer ↗</button>
+        <button class="glass-btn" id="phoneSmsBtn" type="button">Open SMS ↗</button>
       </div>
 
       <div class="auth-banner visible" id="authBanner" role="region" aria-label="Private work-account sign in">
@@ -905,7 +898,7 @@
   </main>
 
   <script src="./work-auth.js"></script>
-  <script src="./web-phone.js?v=20261124-direct-call"></script>
+  <script src="./web-phone.js?v=20261125-google-panel"></script>
   <script>
     (() => {
       // Work-account Apps Script Web App endpoint (c@schafferai.com)
@@ -1566,33 +1559,16 @@
       }
       rtcJoinBtn.addEventListener("click", startRtcRoom);
 
-      // Twilio Phone Call & SMS buttons
-      const phoneToInput = document.getElementById("phoneToInput");
-      const phoneCallBtn = document.getElementById("phoneCallBtn");
-      const phoneSmsBtn = document.getElementById("phoneSmsBtn");
-
-      phoneCallBtn.addEventListener("click", async () => {
-        if (!workAuth.requireSession()) return;
-        const to = phoneToInput.value.trim();
-        const say = chatInput.value.trim() || "Hello from SchafferAI work account.";
-        appendMessage("sys", `Dialing ${to} via Twilio…`);
-        try {
-          const data = await workAuth.request({ action: "twilio_call", to, say });
-          appendMessage("sys", data.ok ? `Twilio call queued (${data.sid}) to ${data.to}` : `Twilio error: ${data.error || "failed"}`);
-        } catch (err) { appendMessage("sys", err.code === "AUTH_REQUIRED" ? "Sign in again; call was not retried." : "Call outcome is unconfirmed. The request was not retried."); }
+      // Google Voice owns phone calls and new SMS in its browser window.
+      document.getElementById("phoneCallBtn").addEventListener("click", () => {
+        if (!workAuth.requireSession() || !webPhone) return;
+        webPhone.toggleDrawer(true);
+        webPhone.openGoogleVoice();
       });
-
-      phoneSmsBtn.addEventListener("click", async () => {
-        if (!workAuth.requireSession()) return;
-        const to = phoneToInput.value.trim();
-        const body = chatInput.value.trim();
-        if (!body) { appendMessage("sys", "Type your SMS message in the box below first."); chatInput.focus(); return; }
-        chatInput.value = "";
-        appendMessage("user", body, `SMS -> ${to}`);
-        try {
-          const data = await workAuth.request({ action: "twilio_sms", to, body });
-          appendMessage("sys", data.ok ? `Twilio SMS sent (${data.sid})` : `Twilio SMS error: ${data.error || "failed"}`);
-        } catch (err) { appendMessage("sys", err.code === "AUTH_REQUIRED" ? "Sign in again; SMS was not retried." : "SMS delivery is unconfirmed. The request was not retried."); }
+      document.getElementById("phoneSmsBtn").addEventListener("click", () => {
+        if (!workAuth.requireSession() || !webPhone) return;
+        webPhone.toggleDrawer(true);
+        webPhone.openGoogleVoice('', true);
       });
 
       // Poll for agent-initiated texts, incoming calls, and WebRTC signals
