@@ -82,7 +82,7 @@ test('web-phone module contains no direct fetch bypass and normalizes E.164 & Go
   assert(!src.includes('fetch('));
   assert.equal(WebPhone.normalizeE164('(267) 264-7302'), '+12672647302');
   assert.equal(WebPhone.normalizeE164('1-215-555-0199'), '+12155550199');
-  assert.equal(WebPhone.buildGoogleVoiceCallUrl('267-264-7302'), 'https://voice.google.com/calls?authuser=c%40schafferai.com');
+  assert.equal(WebPhone.buildGoogleVoiceCallUrl('267-264-7302'), 'https://voice.google.com/u/0/calls?authuser=c%40schafferai.com&a=nc,%2B12672647302');
   assert.equal(WebPhone.buildGoogleVoiceCallUrl(''), 'https://voice.google.com/calls?authuser=c%40schafferai.com');
 });
 
@@ -119,7 +119,7 @@ test('inline phone drawer login unlocks phone and popup-blocked Google Voice ren
   assert(els.phoneStatusLine.textContent.includes('Popup blocked'));
   const hrefs = els.phoneActionLinks.children.map((a) => a.href);
   assert(!hrefs.includes('https://admin.google.com/ac/voice'));
-  assert(hrefs.includes('https://voice.google.com/calls?authuser=c%40schafferai.com'));
+  assert(hrefs.includes('https://voice.google.com/u/0/calls?authuser=c%40schafferai.com&a=nc,%2B12672647302'));
   assert(!hrefs.some(url => url.startsWith('tel:')));
 });
 
@@ -163,7 +163,7 @@ test('web-phone UI gates calls on auth, opens Google Voice companion, syncs inbo
   assert.equal(els.phonePrimaryCallBtn.disabled, false);
 
   await els.phoneModeGvoiceBtn.emit('click');
-  assert.deepEqual(opened, ['https://voice.google.com/calls?authuser=c%40schafferai.com']);
+  assert.deepEqual(opened, ['https://voice.google.com/u/0/calls?authuser=c%40schafferai.com&a=nc,%2B12672647302']);
 
   await els.phoneSyncInboxBtn.emit('click');
   assert.equal(els.phoneInboxList.children.length, 1);
@@ -344,4 +344,19 @@ test('status shows a line on record without claiming verified call readiness; Es
  assert.equal(h.els.topPhoneBtn.focused, true);
  h.logout();
  assert.equal(h.els.phoneLineNumber.textContent, 'Work phone');
+});
+
+test('the website Call button sends the entered number to Google once and rejects invalid destinations', async () => {
+ const h = googlePanel();
+ h.els.phoneDialInput.value = '(267) 264-7302';
+ await h.els.phoneDialInput.emit('input');
+ assert.equal(h.opened.length, 0);
+ assert.equal(h.els.phonePrimaryCallBtn.textContent, 'Call with Google Voice ↗');
+ await h.els.phonePrimaryCallBtn.click();
+ assert.deepEqual(h.opened, ['https://voice.google.com/u/0/calls?authuser=c%40schafferai.com&a=nc,%2B12672647302']);
+ assert.deepEqual(h.requests, []);
+ h.els.phoneDialInput.value = 'invalid number';
+ await h.els.phonePrimaryCallBtn.click();
+ assert.equal(h.opened.length, 1);
+ assert.match(h.els.phoneStatusLine.textContent, /valid phone number/);
 });

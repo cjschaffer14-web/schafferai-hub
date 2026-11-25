@@ -32,10 +32,12 @@
     return GV_BASE + '/' + path + '?' + GV_ACCOUNT;
   }
 
-  function buildGoogleVoiceCallUrl() {
-    // Google Voice's old a=nc deep link can leave the current dialer blank.
-    // Open its supported calls page; dialing happens in the Google Voice UI.
-    return buildGoogleVoiceUrl('calls');
+  function buildGoogleVoiceCallUrl(rawNumber) {
+    const number = normalizeE164(rawNumber);
+    // Google's documented call URL. The explicit account path keeps the call
+    // action through Google's account redirect; authuser selects the work user.
+    return number ? GV_BASE + '/u/0/calls?' + GV_ACCOUNT + '&a=nc,' + encodeURIComponent(number)
+      : buildGoogleVoiceUrl('calls');
   }
 
   function buildGoogleVoiceSmsUrl() {
@@ -200,7 +202,7 @@
         els.actionLinks.appendChild(a);
       };
 
-      mkLink('↗ Open Google Voice separately', gvUrl, false);
+      mkLink(e164 ? 'Call ' + e164 + ' with Google Voice ↗' : '↗ Open Google Voice separately', gvUrl, false);
     }
 
     function updateCallButtons() {
@@ -248,7 +250,7 @@
       if (els.primaryCallBtn) {
         els.primaryCallBtn.disabled = (mode !== 'gvoice' && !authed) || setupRequired || callStarting || (mode === 'webrtc' && (inCall || pendingIncoming)) || voiceTurnPending;
         if (mode === 'gvoice') {
-          els.primaryCallBtn.textContent = 'Open Google Voice ↗';
+          els.primaryCallBtn.textContent = els.dialInput && els.dialInput.value.trim() ? 'Call with Google Voice ↗' : 'Open Google Voice ↗';
         } else if (mode === 'ailine') {
           els.primaryCallBtn.textContent = isRec ? '⏹ Send Spoken Turn' : '🎙️ Speak to Work AI';
         } else {
@@ -304,22 +306,25 @@
 
     function openGoogleVoice(rawNumber, messages) {
       const raw = String(rawNumber || '').trim();
-      if (raw && !normalizeE164(raw)) {
+      if (raw && (!/^[+\d\s().-]+$/.test(raw) || !normalizeE164(raw))) {
         setStatus('Enter a valid phone number before opening the dialer.');
         return false;
       }
-      return openGoogleVoicePage(messages ? 'messages' : 'calls');
+      return openGoogleVoicePage(messages ? 'messages' : 'calls', raw);
     }
 
-    function openGoogleVoicePage(page) {
-      const url = buildGoogleVoiceUrl(page);
+    function openGoogleVoicePage(page, rawNumber) {
+      const number = page === 'calls' && normalizeE164(rawNumber);
+      const url = page === 'calls' ? buildGoogleVoiceCallUrl(number) : buildGoogleVoiceUrl(page);
       const opened = openCompanionPopup(url);
-      setStatus(opened ? 'Google Voice ' + page + ' opened. Sign in as ' + WORK_ACCOUNT + ' in that window.' : 'Popup blocked — use the direct Google Voice link below.');
+      setStatus(opened ? number ? 'Call request opened for ' + number + ' in Google Voice. Check that window for connection and call controls.'
+        : 'Google Voice ' + page + ' opened. Sign in as ' + WORK_ACCOUNT + ' in that window.'
+        : 'Popup blocked — use the direct Google Voice link below.');
       if (!opened && els.actionLinks) {
         els.actionLinks.innerHTML = '';
         const a = doc.createElement('a');
         a.className = 'phone-quick-link'; a.href = url; a.target = '_blank';
-        a.rel = 'noopener noreferrer'; a.textContent = 'Open Google Voice ' + page + ' ↗';
+        a.rel = 'noopener noreferrer'; a.textContent = number ? 'Call ' + number + ' with Google Voice ↗' : 'Open Google Voice ' + page + ' ↗';
         els.actionLinks.appendChild(a);
       }
       return opened;
@@ -805,7 +810,12 @@
     if (els.modeWebrtcBtn) els.modeWebrtcBtn.addEventListener('click', () => setMode('webrtc'));
 
     if (els.dialInput) {
-      els.dialInput.addEventListener('input', () => renderActionLinks());
+      els.dialInput.addEventListener('input', updateCallButtons);
+      els.dialInput.addEventListener('keydown', event => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        handlePrimaryCall();
+      });
     }
 
     if (els.keypad) {
