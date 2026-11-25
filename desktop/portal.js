@@ -1,10 +1,18 @@
 import { HTTPDesktopTransport } from './http-transport.js';
 
 const $ = id => document.getElementById(id);
-const screen = $('screen'), ctx = screen.getContext('2d', {alpha: false});
+const screen = $('screen'), desktop = $('desktop'), ctx = screen.getContext('2d', {alpha: false});
 let relay, socket, healthTimer, live = false, connecting = false, generation = 0, agentReady = false;
 let currentFrame = null, decoding = false, frameAt = 0, pointer = null, moveAt = 0;
 let wheelTimer = null, wheelX = 0, wheelY = 0, transport = 'websocket';
+
+function fitCanvas() {
+  const width = Number(desktop.clientWidth), height = Number(desktop.clientHeight);
+  if (![width,height,screen.width,screen.height].every(value => Number.isFinite(value) && value > 0)) return;
+  const scale = Math.min(width / screen.width, height / screen.height);
+  screen.style.width = `${screen.width * scale}px`;
+  screen.style.height = `${screen.height * scale}px`;
+}
 
 function status(message) { $('status').textContent = message; }
 function empty(title, message) {
@@ -63,6 +71,7 @@ async function drawFrames() {
         if (screen.width !== bitmap.width || screen.height !== bitmap.height) {
           screen.width = bitmap.width; screen.height = bitmap.height;
         }
+        fitCanvas();
         ctx.drawImage(bitmap,0,0); frameAt = Date.now();
         screen.classList.add('live'); $('placeholder').hidden = true;
         $('fullscreen').disabled = false; $('text-toggle').disabled = false;
@@ -139,6 +148,9 @@ screen.addEventListener('keydown',event=>key(event,'down'));
 screen.addEventListener('keyup',event=>key(event,'up'));
 screen.addEventListener('blur',release);
 window.addEventListener('blur',release);
+window.addEventListener('resize',fitCanvas);
+document.addEventListener('fullscreenchange',fitCanvas);
+if (typeof ResizeObserver === 'function') new ResizeObserver(fitCanvas).observe(desktop);
 window.addEventListener('pagehide',()=>disconnect('Disconnected'));
 document.addEventListener('visibilitychange',()=>{if(document.hidden && socket) disconnect('Disconnected while this page was in the background.');});
 $('connect').addEventListener('click',connect);
