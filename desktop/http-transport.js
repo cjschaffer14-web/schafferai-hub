@@ -32,6 +32,8 @@ export class HTTPDesktopTransport {
     queueMicrotask(() => this._open());
   }
 
+  get viewerId() { return this.readyState === HTTPDesktopTransport.OPEN ? this._id : null; }
+
   _isOpen(epoch = this._epoch) { return this.readyState === HTTPDesktopTransport.OPEN && epoch === this._epoch; }
   _emit(name, event) { this[name]?.(event); }
   _emitStatus(status = this._status) {

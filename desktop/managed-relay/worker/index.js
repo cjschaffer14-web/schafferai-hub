@@ -1,5 +1,5 @@
 // Anonymous public desktop access is intentional. Only the fixed Mac producer
-// authenticates. Frames overwrite one epoch-specific object; never log content.
+// authenticates. Transient screen and audio content is never logged.
 export const LIMITS = Object.freeze({ freshnessMs: 35000, leaseMs: 15000,
   inputTtlMs: 2000, frameTtlMs: 3000, maxFrameBytes: 2097152, maxViewers: 2 });
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
@@ -35,8 +35,8 @@ async function bytes(req, limit) {
   const out = new Uint8Array(size); let offset = 0;
   for (const chunk of chunks) { out.set(chunk, offset); offset += chunk.length; } return out;
 }
-async function body(req) {
-  let value; try { value = JSON.parse(new TextDecoder().decode(await bytes(req, 16384))); }
+async function body(req, limit = 16384) {
+  let value; try { value = JSON.parse(new TextDecoder().decode(await bytes(req, limit))); }
   catch (e) { if (e.status) throw e; fail(400, "Invalid JSON"); }
   if (!object(value)) fail(400, "JSON object required"); return value;
 }
@@ -68,11 +68,11 @@ export function normalizeStatus(s) {
 }
 const readAgent = env => first(env, "SELECT * FROM desktop_agent WHERE id = ?", FIXED);
 const countViewers = async (env, epoch, now) => Number((await first(env, "SELECT COUNT(*) AS count FROM desktop_viewers WHERE epoch = ? AND expires_at >= ?", epoch || "", now))?.count || 0);
-export function health(agent, viewers, now) {
+export function health(agent, viewers, now, audio) {
   let s = {}; try { s = JSON.parse(agent?.status_json || "{}"); } catch { /* Remain offline. */ }
   const available = !!agent && agent.last_seen > 0 && now >= agent.last_seen && now - agent.last_seen <= LIMITS.freshnessMs;
   const ready = available && s.ready === true;
-  return { type: "status", available, ready, connected: available, viewers,
+  return { type: "status", available, ready, connected: available, viewers, ...(audio ? { audio: audioHealth(agent, audio, now) } : {}),
     width: available ? s.width || 0 : 0, height: available ? s.height || 0 : 0,
     state: !available ? "offline" : s.state || (ready ? "ready" : "permissions_required"),
     screenRecording: available && s.screenRecording === true, accessibility: available && s.accessibility === true,
@@ -84,6 +84,94 @@ async function clearFrame(env, agent) {
   if (agent.frame_key) await env.BUCKET.delete(agent.frame_key);
 }
 const release = (env, epoch, now) => run(env, "INSERT INTO desktop_events (epoch, viewer_id, event_json, expires_at) VALUES (?, NULL, ?, ?)", epoch, '{"type":"release"}', now + LIMITS.inputTtlMs);
+const AUDIO_TTL = 1200, HELPER_TTL = 8000;
+const readAudio = env => first(env, "SELECT * FROM desktop_audio_state WHERE id = ?", FIXED);
+function audioHealth(agent, state, now) {
+  let value = {}; try { value = JSON.parse(state?.status_json || "{}"); } catch {}
+  const video = health(agent, 0, now), live = video.ready && video.state === "ready" && state?.epoch === agent?.epoch && state.last_seen > 0 && now >= state.last_seen && now - state.last_seen <= HELPER_TTL;
+  return { available: !!live, captureReady: !!live && value.captureReady === true,
+    microphoneReady: !!live && value.microphoneReady === true,
+    virtualInputName: typeof value.virtualInputName === "string" ? value.virtualInputName : "",
+    message: !live ? "Mac audio helper is not ready." : value.message || "Mac audio is ready.",
+    micInUse: !!live && !!state.input_owner };
+}
+async function deleteAudioChunks(env, rows) {
+  if (!rows.length) return;
+  await env.DB.batch(rows.map(row => stmt(env, "DELETE FROM desktop_audio_chunks WHERE key = ? AND generation = ? AND seq = ?", row.key, row.generation, row.seq)));
+  await Promise.all(rows.map(row => env.BUCKET.delete(row.key)));
+}
+async function clearAllAudio(env) {
+  await deleteAudioChunks(env, await all(env, "SELECT * FROM desktop_audio_chunks"));
+}
+async function syncAudio(env, agent, now) {
+  agent = await readAgent(env); // Never let an old request roll a newer producer epoch back.
+  if (!agent) { await clearAllAudio(env); return null; }
+  await run(env, "INSERT OR IGNORE INTO desktop_audio_state (id, epoch, output_generation, input_generation) SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM desktop_agent WHERE id = ? AND epoch = ?)", FIXED, agent.epoch, crypto.randomUUID(), crypto.randomUUID(), FIXED, agent.epoch);
+  let state = await readAudio(env);
+  if (state.epoch !== agent.epoch) {
+    await run(env, "UPDATE desktop_audio_state SET epoch = ?, status_json = '{}', last_seen = 0, output_active = 0, input_owner = '', output_generation = ?, input_generation = ?, output_sequence = 0, input_sequence = 0 WHERE id = ? AND EXISTS (SELECT 1 FROM desktop_agent WHERE id = ? AND epoch = ?)", agent.epoch, crypto.randomUUID(), crypto.randomUUID(), FIXED, FIXED, agent.epoch);
+    state = await readAudio(env);
+  }
+  const capability = audioHealth(agent, state, now);
+  if (!capability.captureReady || !capability.microphoneReady) await run(env, "UPDATE desktop_viewers SET sound = CASE WHEN ? = 0 THEN 0 ELSE sound END, mic = CASE WHEN ? = 0 THEN 0 ELSE mic END WHERE epoch = ?", Number(capability.captureReady), Number(capability.microphoneReady), agent.epoch);
+  // Expressions execute atomically against current leases, rather than the caller's
+  // earlier snapshot. A generation changes whenever a direction stops or starts.
+  const active = "EXISTS (SELECT 1 FROM desktop_viewers WHERE epoch = desktop_audio_state.epoch AND expires_at >= ? AND sound = 1)";
+  const owner = "COALESCE((SELECT id FROM desktop_viewers WHERE epoch = desktop_audio_state.epoch AND expires_at >= ? AND mic = 1 ORDER BY id LIMIT 1), '')";
+  await run(env, `UPDATE desktop_audio_state SET output_generation = CASE WHEN output_active != ${active} THEN ? ELSE output_generation END, output_sequence = CASE WHEN output_active != ${active} THEN 0 ELSE output_sequence END, output_active = ${active}, input_generation = CASE WHEN input_owner != ${owner} THEN ? ELSE input_generation END, input_sequence = CASE WHEN input_owner != ${owner} THEN 0 ELSE input_sequence END, input_owner = ${owner} WHERE id = ? AND epoch = ?`, now, crypto.randomUUID(), now, now, now, crypto.randomUUID(), now, now, FIXED, agent.epoch);
+  state = await readAudio(env);
+  await deleteAudioChunks(env, await all(env, "SELECT * FROM desktop_audio_chunks WHERE epoch != ? OR created_at < ? OR (direction = 'output' AND generation != ?) OR (direction = 'input' AND generation != ?)", agent.epoch, now - AUDIO_TTL, state.output_generation, state.input_generation));
+  return state;
+}
+function streamResponse(agent, state, direction, chunks = []) {
+  return { epoch: agent.epoch, generation: state[direction + "_generation"], sampleRate: direction === "output" ? 48000 : 16000, channels: direction === "output" ? 2 : 1, encoding: "s16le", chunks };
+}
+function normalizePcm(value, direction) {
+  const expected = direction === "output" ? 38400 : 6400;
+  if (value.encoding !== "s16le" || value.sampleRate !== (direction === "output" ? 48000 : 16000) || value.channels !== (direction === "output" ? 2 : 1) || !Number.isSafeInteger(value.seq) || value.seq < 1 || value.seq > 2147483647 || !UUID.test(value.generation || "") || typeof value.pcm !== "string" || value.pcm.length !== Math.ceil(expected / 3) * 4 || !/^[A-Za-z0-9+/]+={0,2}$/.test(value.pcm)) fail(400, "Invalid PCM audio chunk");
+  let decoded; try { decoded = atob(value.pcm); } catch { fail(400, "Invalid PCM encoding"); }
+  if (decoded.length !== expected || btoa(decoded) !== value.pcm) fail(400, "Invalid PCM length");
+  return Uint8Array.from(decoded, c => c.charCodeAt(0));
+}
+async function uploadAudio(req, env, agent, state, value, direction, now, viewer) {
+  const pcm = normalizePcm(value, direction), generation = direction + "_generation", sequence = direction + "_sequence", slotField = direction + "_slot", countField = direction + "_count";
+  if (value.generation !== state?.[generation]) fail(409, "Audio generation changed");
+  const capability = audioHealth(agent, state, now);
+  if (!(direction === "output" ? capability.captureReady && state.output_active : capability.microphoneReady && state.input_owner === viewer?.id)) fail(409, "Audio is stopped");
+  const slot = Math.floor(now / 1000);
+  const reserved = await run(env, `UPDATE desktop_audio_state SET ${sequence} = ?, ${countField} = CASE WHEN ${slotField} = ? THEN ${countField} + 1 ELSE 1 END, ${slotField} = ? WHERE id = ? AND epoch = ? AND ${generation} = ? AND ${sequence} < ? AND (${slotField} != ? OR ${countField} < 10) AND last_seen >= ? AND ${direction === "output" ? "output_active = 1" : "input_owner = ?"}`, value.seq, slot, slot, FIXED, agent.epoch, value.generation, value.seq, slot, now - HELPER_TTL, ...(direction === "input" ? [viewer.id] : []));
+  if (!changed(reserved)) fail(409, "Audio sequence, rate or generation changed");
+  const key = `desktop-audio/${agent.epoch}/${direction}/${value.generation}/${value.seq}.pcm`;
+  await env.BUCKET.put(key, pcm, { httpMetadata: { contentType: "application/octet-stream", cacheControl: "no-store" }, customMetadata: { generation: value.generation, seq: String(value.seq) } });
+  const refreshedAgent = await readAgent(env), latest = await syncAudio(env, refreshedAgent, Date.now()), fresh = audioHealth(refreshedAgent, latest, Date.now());
+  const allowed = refreshedAgent?.epoch === agent.epoch && latest?.[generation] === value.generation && (direction === "output" ? fresh.captureReady && latest.output_active : fresh.microphoneReady && latest.input_owner === viewer?.id);
+  if (!allowed) { await env.BUCKET.delete(key); return empty(req, 204); }
+  const published = await run(env, `INSERT OR REPLACE INTO desktop_audio_chunks (key, epoch, direction, generation, seq, created_at) SELECT ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM desktop_audio_state WHERE id = ? AND epoch = ? AND ${generation} = ? AND ${direction === "output" ? "output_active = 1" : "input_owner = ?"} AND last_seen >= ?) AND EXISTS (SELECT 1 FROM desktop_agent WHERE id = ? AND epoch = ? AND last_seen >= ? AND json_extract(status_json, '$.ready') = 1)`, key, agent.epoch, direction, value.generation, value.seq, now, FIXED, agent.epoch, value.generation, ...(direction === "input" ? [viewer.id] : []), Date.now() - HELPER_TTL, FIXED, agent.epoch, Date.now() - LIMITS.freshnessMs);
+  if (!changed(published)) { await env.BUCKET.delete(key); return empty(req, 204); }
+  return json(req, { accepted: true, seq: value.seq, generation: value.generation });
+}
+async function readAudioChunks(req, env, agent, state, direction, generation, after, now, viewerId) {
+  if (!Number.isSafeInteger(after) || after < 0) fail(400, "Valid audio sequence required");
+  if (generation && generation !== state[direction + "_generation"]) fail(409, "Audio generation changed");
+  const rows = await all(env, "SELECT * FROM desktop_audio_chunks WHERE epoch = ? AND direction = ? AND generation = ? AND seq > ? AND created_at >= ? ORDER BY seq DESC LIMIT 6", agent.epoch, direction, state[direction + "_generation"], after, now - AUDIO_TTL);
+  const chunks = [];
+  for (const row of rows.reverse()) {
+    const chunk = await env.BUCKET.get(row.key);
+    if (!chunk || chunk.customMetadata?.generation !== row.generation || chunk.customMetadata?.seq !== String(row.seq)) continue;
+    const data = new Uint8Array(await new Response(chunk.body).arrayBuffer());
+    const expected = direction === "output" ? 38400 : 6400;
+    if (data.length !== expected || Date.now() - row.created_at > AUDIO_TTL) continue;
+    let binary = ""; for (const byte of data) binary += String.fromCharCode(byte);
+    chunks.push({ seq: row.seq, ageMs: Math.max(0, Date.now() - row.created_at), pcm: btoa(binary) });
+  }
+  // A mute/lock while R2 reads were pending must invalidate the whole response.
+  const latestAgent = await readAgent(env), latest = await syncAudio(env, latestAgent, Date.now()), capability = audioHealth(latestAgent, latest, Date.now());
+  const allowed = latestAgent?.epoch === agent.epoch && latest?.[direction + "_generation"] === state[direction + "_generation"] && (direction === "output" ? capability.captureReady && latest.output_active : capability.microphoneReady && !!latest.input_owner);
+  if (!allowed) fail(409, "Audio stopped while reading");
+  if (viewerId && !(await requireViewer(env, viewerId, latestAgent, Date.now())).sound) fail(409, "Sound stopped while reading");
+  return json(req, streamResponse(agent, state, direction, chunks));
+}
+
 async function cleanup(env, now) {
   const agent = await readAgent(env);
   const expired = await all(env, "SELECT id FROM desktop_viewers WHERE expires_at < ?", now);
@@ -91,7 +179,8 @@ async function cleanup(env, now) {
   if (agent && expired.length) await release(env, agent.epoch, now);
   const count = await countViewers(env, agent?.epoch, now);
   if (agent?.frame_key && (!health(agent, count, now).ready || count === 0 || now - agent.frame_at > LIMITS.frameTtlMs)) await clearFrame(env, agent);
-  return { agent: await readAgent(env), count };
+  const current = await readAgent(env);
+  return { agent: current, count, audio: await syncAudio(env, current, now) };
 }
 function requireEpoch(epoch, agent) { if (!UUID.test(epoch || "")) fail(400, "Valid epoch required"); if (!agent || agent.epoch !== epoch) fail(409, "Producer epoch changed"); }
 async function requireViewer(env, id, agent, now) {
@@ -99,7 +188,7 @@ async function requireViewer(env, id, agent, now) {
   const viewer = await first(env, "SELECT * FROM desktop_viewers WHERE id = ? AND epoch = ? AND expires_at >= ?", id, agent?.epoch || "", now);
   if (!viewer) fail(410, "Viewer lease expired"); return viewer;
 }
-const ROUTES = new Map([["/health", "GET"], ["/agent/connect", "POST"], ["/agent/status", "POST"], ["/agent/poll", "GET"], ["/agent/frame", "PUT,DELETE"], ["/agent/disconnect", "POST"], ["/viewer/open", "POST"], ["/viewer/pulse", "POST"], ["/viewer/close", "POST"], ["/input", "POST"], ["/frame", "GET"]]);
+const ROUTES = new Map([["/health", "GET"], ["/agent/connect", "POST"], ["/agent/status", "POST"], ["/agent/poll", "GET"], ["/agent/frame", "PUT,DELETE"], ["/agent/disconnect", "POST"], ["/viewer/open", "POST"], ["/viewer/pulse", "POST"], ["/viewer/close", "POST"], ["/input", "POST"], ["/frame", "GET"], ["/viewer/audio", "POST"], ["/audio", "GET"], ["/microphone", "POST"], ["/agent/audio-state", "GET"], ["/agent/audio/status", "POST"], ["/agent/audio", "POST"], ["/agent/microphone", "GET"]]);
 export default { async fetch(req, env) { try { return await handle(req, env); } catch (e) { return json(req, { error: e.status ? e.message : "Relay unavailable" }, e.status || 503); } } };
 async function handle(req, env) {
   const url = new URL(req.url), path = url.pathname, now = Date.now();
@@ -110,25 +199,75 @@ async function handle(req, env) {
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: { ...headers(req), "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type" } });
   }
   if (!ROUTES.get(path).split(",").includes(req.method)) fail(405, "Method not allowed");
-  const query = path === "/agent/poll" ? ["epoch", "after"] : path === "/agent/frame" ? ["epoch", "id"] : path === "/frame" ? ["id", "after"] : [];
+  const query = path === "/agent/poll" ? ["epoch", "after"] : path === "/agent/frame" ? ["epoch", "id"] : path === "/frame" ? ["id", "after"] : path === "/audio" ? ["id", "generation", "after"] : path === "/agent/microphone" ? ["epoch", "generation", "after"] : [];
   if ([...url.searchParams.keys()].some(k => !query.includes(k))) fail(400, "Unknown query parameter");
-  const { agent, count } = await cleanup(env, now);
-  if (path === "/health") return json(req, health(agent, count, now));
+  const { agent, count, audio } = await cleanup(env, now);
+  if (path === "/health") return json(req, { ...health(agent, count, now, audio), audio: audioHealth(agent, audio, now) });
+  if (path === "/agent/audio-state") {
+    const video = health(agent, count, now), state = audio;
+    return json(req, { epoch: agent?.epoch || null, videoHealthy: video.available, videoReady: video.ready,
+      unlocked: video.ready && video.state === "ready", soundViewers: state?.output_active ? Number((await first(env, "SELECT COUNT(*) AS count FROM desktop_viewers WHERE epoch = ? AND expires_at >= ? AND sound = 1", agent.epoch, now))?.count || 0) : 0,
+      micActive: !!state?.input_owner, outputGeneration: state?.output_generation || null,
+      inputGeneration: state?.input_generation || null, outputSequence: state?.output_sequence || 0,
+      inputSequence: state?.input_sequence || 0, audio: audioHealth(agent, state, now) });
+  }
+  if (path === "/agent/audio/status") {
+    const v = await body(req); requireEpoch(v.epoch, agent);
+    const s = v.status;
+    if (!keys(v, ["epoch", "status"]) || !object(s) || !keys(s, ["captureReady", "microphoneReady", "virtualInputName", "message"]) || typeof s.captureReady !== "boolean" || typeof s.microphoneReady !== "boolean" || typeof s.virtualInputName !== "string" || s.virtualInputName.length > 80 || typeof s.message !== "string" || s.message.length > 240) fail(400, "Invalid audio helper status");
+    await run(env, "UPDATE desktop_audio_state SET status_json = ?, last_seen = ? WHERE id = ? AND epoch = ?", JSON.stringify(s), now, FIXED, agent.epoch);
+    const state = await syncAudio(env, await readAgent(env), now);
+    return json(req, { epoch: agent.epoch, audio: audioHealth(agent, state, now) });
+  }
+  if (path === "/viewer/audio") {
+    const v = await body(req), viewer = await requireViewer(env, v.id, agent, now);
+    if (!keys(v, ["id", "revision", "sound", "mic"]) || !Number.isSafeInteger(v.revision) || v.revision < 1 || v.revision > 2147483647 || (v.sound !== undefined && typeof v.sound !== "boolean") || (v.mic !== undefined && typeof v.mic !== "boolean")) fail(400, "Invalid audio controls");
+    const sound = v.sound === undefined ? !!viewer.sound : v.sound, mic = v.mic === undefined ? !!viewer.mic : v.mic;
+    const capability = audioHealth(agent, audio, now);
+    if (sound && !capability.captureReady) fail(409, "Mac system audio is not ready");
+    if (mic && !capability.microphoneReady) fail(409, "Mac virtual microphone is not ready");
+    const updated = await run(env, "UPDATE desktop_viewers SET sound = ?, mic = ?, audio_revision = ? WHERE id = ? AND epoch = ? AND expires_at >= ? AND audio_revision < ? AND (? = 0 OR NOT EXISTS (SELECT 1 FROM desktop_viewers WHERE epoch = ? AND expires_at >= ? AND mic = 1 AND id != ?))", Number(sound), Number(mic), v.revision, viewer.id, agent.epoch, now, v.revision, Number(mic), agent.epoch, now, viewer.id);
+    if (!changed(updated)) fail(409, "Audio controls changed or microphone is in use");
+    const state = await syncAudio(env, await readAgent(env), now), current = await requireViewer(env, viewer.id, agent, now);
+    return json(req, { epoch: agent.epoch, sound: !!current.sound, mic: !!current.mic, revision: current.audio_revision,
+      outputGeneration: state.output_generation, inputGeneration: state.input_generation, audio: audioHealth(agent, state, now) });
+  }
+  if (path === "/agent/audio") {
+    const v = await body(req, 71680); requireEpoch(v.epoch, agent);
+    if (!keys(v, ["epoch", "generation", "seq", "sampleRate", "channels", "encoding", "pcm"])) fail(400, "Unknown audio field");
+    return uploadAudio(req, env, agent, audio, v, "output", now);
+  }
+  if (path === "/microphone") {
+    const v = await body(req), viewer = await requireViewer(env, v.id, agent, now);
+    if (!keys(v, ["id", "generation", "seq", "sampleRate", "channels", "encoding", "pcm"])) fail(400, "Unknown microphone field");
+    return uploadAudio(req, env, agent, audio, v, "input", now, viewer);
+  }
+  if (path === "/audio") {
+    const viewer = await requireViewer(env, url.searchParams.get("id"), agent, now);
+    if (!viewer.sound || !audioHealth(agent, audio, now).captureReady) fail(409, "Sound is stopped");
+    return readAudioChunks(req, env, agent, audio, "output", url.searchParams.get("generation"), Number(url.searchParams.get("after") || 0), now, viewer.id);
+  }
+  if (path === "/agent/microphone") {
+    requireEpoch(url.searchParams.get("epoch"), agent);
+    if (!audio?.input_owner || !audioHealth(agent, audio, now).microphoneReady) fail(409, "Microphone is stopped");
+    return readAudioChunks(req, env, agent, audio, "input", url.searchParams.get("generation"), Number(url.searchParams.get("after") || 0), now);
+  }
+
   if (path === "/agent/connect") {
     const v = await body(req); if (!keys(v, ["epoch"]) || !UUID.test(v.epoch || "")) fail(400, "Valid epoch required");
     await env.DB.batch([stmt(env, "DELETE FROM desktop_events"), stmt(env, "DELETE FROM desktop_viewers"), stmt(env, "INSERT INTO desktop_agent (id, epoch, status_json, last_seen, frame_at, frame_id, frame_key, frames_slot, frames_count) VALUES (?, ?, ?, ?, 0, '', '', 0, 0) ON CONFLICT(id) DO UPDATE SET epoch = excluded.epoch, status_json = excluded.status_json, last_seen = excluded.last_seen, frame_at = 0, frame_id = '', frame_key = '', frames_slot = 0, frames_count = 0", FIXED, v.epoch, '{"ready":false}', now)]);
-    if (agent?.frame_key) await env.BUCKET.delete(agent.frame_key); return json(req, { epoch: v.epoch, viewers: 0 });
+    if (agent?.frame_key) await env.BUCKET.delete(agent.frame_key); await clearAllAudio(env); await run(env, "DELETE FROM desktop_audio_state"); return json(req, { epoch: v.epoch, viewers: 0 });
   }
   if (path === "/agent/status") {
     const v = await body(req); requireEpoch(v.epoch, agent); const s = normalizeStatus(v.status); if (!s) fail(400, "Invalid desktop status");
     await run(env, "UPDATE desktop_agent SET status_json = ?, last_seen = ? WHERE id = ? AND epoch = ?", JSON.stringify({ ...JSON.parse(agent.status_json || "{}"), ...s }), now, FIXED, agent.epoch);
-    if (!s.ready) { await clearFrame(env, agent); await run(env, "DELETE FROM desktop_events WHERE epoch = ?", agent.epoch); }
+    if (!s.ready) { await clearFrame(env, agent); await run(env, "DELETE FROM desktop_events WHERE epoch = ?", agent.epoch); await syncAudio(env, await readAgent(env), now); }
     return json(req, { epoch: agent.epoch, viewers: count });
   }
   if (path === "/agent/disconnect") {
     const v = await body(req); requireEpoch(v.epoch, agent);
     await env.DB.batch([stmt(env, "DELETE FROM desktop_events WHERE epoch = ?", agent.epoch), stmt(env, "DELETE FROM desktop_viewers WHERE epoch = ?", agent.epoch), stmt(env, "UPDATE desktop_agent SET last_seen = 0, status_json = ? WHERE id = ? AND epoch = ?", '{"ready":false}', FIXED, agent.epoch)]);
-    await clearFrame(env, agent); return json(req, { disconnected: true });
+    await clearFrame(env, agent); await clearAllAudio(env); await run(env, "DELETE FROM desktop_audio_state"); return json(req, { disconnected: true });
   }
   if (path === "/agent/poll") {
     requireEpoch(url.searchParams.get("epoch"), agent); const after = Number(url.searchParams.get("after") || 0);
@@ -143,38 +282,39 @@ async function handle(req, env) {
     requireEpoch(url.searchParams.get("epoch"), agent);
     if (req.method === "DELETE") { await clearFrame(env, agent); return json(req, { cleared: true }); }
     const id = url.searchParams.get("id"); if (!UUID.test(id || "")) fail(400, "Valid frame id required");
-    if (!health(agent, count, now).ready || count === 0) return empty(req, 204);
+    if (!health(agent, count, now, audio).ready || count === 0) return empty(req, 204);
     const frame = await bytes(req, LIMITS.maxFrameBytes);
     if (frame.length < 4 || frame[0] !== 255 || frame[1] !== 216 || frame.at(-2) !== 255 || frame.at(-1) !== 217) fail(400, "JPEG required");
     const slot = Math.floor(now / 1000);
     const quota = await run(env, "UPDATE desktop_agent SET frames_count = CASE WHEN frames_slot = ? THEN frames_count + 1 ELSE 1 END, frames_slot = ? WHERE id = ? AND epoch = ? AND (frames_slot != ? OR frames_count < 8)", slot, slot, FIXED, agent.epoch, slot);
     if (!changed(quota)) return empty(req, 204);
-    const key = `desktop/${agent.epoch}/latest.jpg`;
+    const key = `desktop/${agent.epoch}/${id}-${crypto.randomUUID()}.jpg`;
     await env.BUCKET.put(key, frame, { httpMetadata: { contentType: "image/jpeg", cacheControl: "no-store" }, customMetadata: { frameId: id } });
     const latest = await readAgent(env), viewers = await countViewers(env, agent.epoch, Date.now());
     if (latest?.epoch !== agent.epoch || latest.frame_revision !== agent.frame_revision || !health(latest, viewers, Date.now()).ready || viewers === 0) { await env.BUCKET.delete(key); return empty(req, 204); }
     const published = await run(env, "UPDATE desktop_agent SET frame_at = ?, frame_id = ?, frame_key = ? WHERE id = ? AND epoch = ? AND frame_revision = ? AND last_seen >= ? AND json_extract(status_json, '$.ready') = 1 AND EXISTS (SELECT 1 FROM desktop_viewers WHERE epoch = ? AND expires_at >= ?)", Date.now(), id, key, FIXED, agent.epoch, agent.frame_revision, Date.now() - LIMITS.freshnessMs, agent.epoch, Date.now());
-    if (!changed(published)) { await env.BUCKET.delete(key); return empty(req, 204); } return json(req, { id });
+    if (!changed(published)) { await env.BUCKET.delete(key); return empty(req, 204); }
+    if (agent.frame_key && agent.frame_key !== key) await env.BUCKET.delete(agent.frame_key); return json(req, { id });
   }
   if (path === "/viewer/open") {
-    await body(req); if (!health(agent, count, now).ready) return json(req, { error: "Mac desktop is not ready", status: health(agent, count, now) }, 503);
+    await body(req); if (!health(agent, count, now, audio).ready) return json(req, { error: "Mac desktop is not ready", status: health(agent, count, now, audio) }, 503);
     const id = crypto.randomUUID();
     const created = await run(env, "INSERT INTO desktop_viewers (id, epoch, expires_at) SELECT ?, ?, ? WHERE (SELECT COUNT(*) FROM desktop_viewers WHERE epoch = ? AND expires_at >= ?) < 2 AND EXISTS (SELECT 1 FROM desktop_agent WHERE id = ? AND epoch = ? AND last_seen >= ? AND json_extract(status_json, '$.ready') = 1)", id, agent.epoch, now + LIMITS.leaseMs, agent.epoch, now, FIXED, agent.epoch, now - LIMITS.freshnessMs);
-    if (!changed(created)) fail(429, "Desktop viewer limit reached"); return json(req, { id, status: health(agent, count + 1, now) });
+    if (!changed(created)) fail(429, "Desktop viewer limit reached"); return json(req, { id, status: health(agent, count + 1, now, audio) });
   }
   if (["/viewer/pulse", "/viewer/close", "/input"].includes(path)) {
     const v = await body(req), viewer = await requireViewer(env, v.id, agent, now);
-    if (path === "/viewer/pulse") { await run(env, "UPDATE desktop_viewers SET expires_at = ? WHERE id = ? AND epoch = ?", now + LIMITS.leaseMs, viewer.id, agent.epoch); return json(req, health(agent, count, now)); }
+    if (path === "/viewer/pulse") { await run(env, "UPDATE desktop_viewers SET expires_at = ? WHERE id = ? AND epoch = ?", now + LIMITS.leaseMs, viewer.id, agent.epoch); return json(req, health(agent, count, now, audio)); }
     if (path === "/viewer/close") {
       await env.DB.batch([stmt(env, "DELETE FROM desktop_events WHERE viewer_id = ?", viewer.id), stmt(env, "DELETE FROM desktop_viewers WHERE id = ?", viewer.id)]);
-      await release(env, agent.epoch, now); if (count <= 1) await clearFrame(env, agent); return json(req, { closed: true });
+      await release(env, agent.epoch, now); if (count <= 1) await clearFrame(env, agent); await syncAudio(env, await readAgent(env), now); return json(req, { closed: true });
     }
     if (!keys(v, ["id", "event", "events"]) || (v.event === undefined) === (v.events === undefined)) fail(400, "Provide one event or one events batch");
     const raw = v.event === undefined ? v.events : [v.event];
     if (!Array.isArray(raw) || raw.length < 1 || raw.length > 64) fail(400, "Input batch must contain 1 to 64 events");
     const events = raw.map(normalizeInput); if (events.some(event => !event)) fail(400, "Invalid desktop input");
     const requireReady = events.some(event => event.type !== "release") ? 1 : 0;
-    if (requireReady && !health(agent, count, now).ready) fail(409, "Mac desktop is not ready");
+    if (requireReady && !health(agent, count, now, audio).ready) fail(409, "Mac desktop is not ready");
     const slot = Math.floor(now / 1000);
     const batchId = crypto.randomUUID();
     // The quota reservation and all event inserts form one D1 transaction. A
@@ -188,7 +328,7 @@ async function handle(req, env) {
   }
   if (path === "/frame") {
     await requireViewer(env, url.searchParams.get("id"), agent, now);
-    if (!health(agent, count, now).ready || !agent.frame_id || now - agent.frame_at > LIMITS.frameTtlMs) return empty(req, 204);
+    if (!health(agent, count, now, audio).ready || !agent.frame_id || now - agent.frame_at > LIMITS.frameTtlMs) return empty(req, 204);
     if (url.searchParams.get("after") === agent.frame_id) return empty(req, 304);
     const frame = await env.BUCKET.get(agent.frame_key); if (!frame || frame.customMetadata?.frameId !== agent.frame_id) return empty(req, 204);
     return new Response(frame.body, { headers: { ...headers(req, "image/jpeg"), "X-Frame-ID": agent.frame_id, "X-Frame-Age-Ms": String(Math.max(0, Date.now() - agent.frame_at)) } });

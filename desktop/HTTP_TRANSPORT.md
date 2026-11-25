@@ -10,6 +10,10 @@ Input is collected for about 10 milliseconds and submitted as ordered batches of
 
 The **Apps** control sends the Mac Spotlight shortcut through the remote connection. Use **Send text** to enter an app name, then **Return** to open it; **Esc** cancels. These controls help on touchscreens and when the local browser reserves keyboard shortcuts.
 
+Optional audio uses the same public lease, with separate opt-in Sound and Microphone flags and monotonically increasing control revisions. Muting fences older in-flight enable requests. Each direction has a generation ID that changes when it stops or starts; reconnecting, locking or losing helper readiness invalidates old chunks. The audio companion authenticates as the producer without creating a new video epoch. Audio readiness is reported separately from desktop readiness.
+
+System sound is PCM16LE at 48 kHz stereo; remote microphone input is PCM16LE at 16 kHz mono. Both use 200 ms chunks. Responses contain at most six fresh chunks; clients discard backlog, stop playback and browser microphone tracks on disconnect or hiding, and never retry audio uploads. The Mac routes remote microphone samples only to BlackHole 2ch. See [managed relay protocol](./managed-relay/README.md) and the [Mac audio helper](./mac/audio/README.md).
+
 Offline validation from the repository root:
 
 ```sh

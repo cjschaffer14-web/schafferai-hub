@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const source = fs.readFileSync(path.join(__dirname, '..', 'portal.js'), 'utf8').replace("import { HTTPDesktopTransport } from './http-transport.js';", '');
+const source = fs.readFileSync(path.join(__dirname, '..', 'portal.js'), 'utf8').replace("import { HTTPDesktopTransport } from './http-transport.js';", '').replace("import { DesktopAudio } from './audio.js';", '');
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const settle = () => new Promise(resolve => setImmediate(resolve));
 function deferred() {
@@ -65,7 +65,8 @@ async function portal(options = {}) {
   }
   const fetcher = options.fetch || (async url => ({ok: true, json: async () => url === './config.json' ? {relayUrl: 'https://desktop.example.test', transport: options.transport || 'websocket'} : {available: true, ready: true}}));
   const bitmapFactory = options.bitmap || (async () => ({width: 1440, height: 900, close() {}}));
-  await new AsyncFunction('HTTPDesktopTransport', 'document', 'window', 'fetch', 'WebSocket', 'Blob', 'createImageBitmap', 'setInterval', 'setTimeout', 'clearTimeout', 'Date', 'URL', 'AbortSignal', 'ResizeObserver', source)(
+  await new AsyncFunction('DesktopAudio', 'HTTPDesktopTransport', 'document', 'window', 'fetch', 'WebSocket', 'Blob', 'createImageBitmap', 'setInterval', 'setTimeout', 'clearTimeout', 'Date', 'URL', 'AbortSignal', 'ResizeObserver', source)(
+    class { setSession() {} updateStatus() {} stop() {} clearSession() {} },
     options.HTTPDesktopTransport || Socket,
     doc, win, fetcher, Socket, Blob, bitmapFactory,
     (fn, period) => { intervals.push({fn, period}); return intervals.length; },
