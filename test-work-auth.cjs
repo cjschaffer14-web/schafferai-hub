@@ -47,7 +47,7 @@ function page(options = {}){
 }
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
 test('signed-out page starts only public ping, removes legacy and URL credentials, and locks every private control',async()=>{
- const h=page();await flush();assert.deepEqual(h.calls.map(p=>p.action),['ping']);assert.equal(h.local.getItem('schafferai_work_token'),null);assert.equal(h.window.cleanUrl,'/?x=1#view');assert.equal(h.session.getItem(SESSION_KEY),null);assert(h.elements.authBanner.classList.contains('visible'));for(const id of ['sendBtn','callAiBtn','rtcJoinBtn','phoneCallBtn','phoneSmsBtn','textModeBtn'])assert.equal(h.elements[id].disabled,true,id);for(const id of ['phoneCallBtn','phoneSmsBtn','callAiBtn','rtcJoinBtn'])await h.elements[id].emit('click');h.elements.chatInput.value='private request';await h.elements.chatForm.emit('submit');await flush();assert.deepEqual(h.calls.map(p=>p.action),['ping']);assert.equal(h.media(),0);
+ const h=page();await flush();assert.deepEqual(h.calls.map(p=>p.action),['ping']);assert.equal(h.local.getItem('schafferai_work_token'),null);assert.equal(h.window.cleanUrl,'/?x=1#view');assert.equal(h.session.getItem(SESSION_KEY),null);assert(h.elements.authBanner.classList.contains('visible'));for(const id of ['sendBtn','callAiBtn','rtcJoinBtn','phoneSyncInboxBtn','phoneCheckStatusBtn','textModeBtn'])assert.equal(h.elements[id].disabled,true,id);for(const id of ['phoneCallBtn','phoneSmsBtn','callAiBtn','rtcJoinBtn'])await h.elements[id].emit('click');h.elements.chatInput.value='private request';await h.elements.chatForm.emit('submit');await flush();assert.deepEqual(h.calls.map(p=>p.action),['ping']);assert.equal(h.media(),0);
 });
 test('page login and logout use server session; polling stops and paid actions remain blocked after logout',async()=>{
  const h=page();await flush();h.elements.tokenInput.value='fixture-only-input';await h.elements.saveTokenBtn.emit('click');assert.equal(h.elements.tokenInput.value,'');assert.equal(h.elements.sendBtn.disabled,false);assert(h.session.getItem(SESSION_KEY));await h.elements.tokenBtn.emit('click');assert.equal(h.session.getItem(SESSION_KEY),null);assert.equal(h.elements.sendBtn.disabled,true);const count=h.calls.length;await h.elements.phoneCallBtn.emit('click');for(const t of h.timers.filter(t=>t.ms===4000))await t.f();assert.equal(h.calls.length,count);
@@ -264,4 +264,84 @@ test('the deployed phone defaults to Google Voice without requesting Twilio or e
  await els.phonePrimaryCallBtn.emit('click');
  assert.equal(opened.length,1);assert.match(opened[0],/authuser=c%40schafferai.com/);
  assert.deepEqual(requested,['voice_status']);
+});
+
+function googlePanel({ signedIn = false, popupBlocked = false, handler } = {}) {
+ const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+ const els = Object.fromEntries([...html.matchAll(/\bid="([^"]+)"/g)].map(m => [m[1], new Element(m[1])]));
+ for (const el of Object.values(els)) {
+  Object.defineProperty(el, 'innerHTML', { set() { this.children = []; }, get() { return ''; } });
+ }
+ const requests = [], opened = [];
+ let authenticated = signedIn;
+ const auth = { hasSession: () => authenticated, requireSession: () => authenticated, request: async p => {
+  requests.push(p.action);
+  return handler ? handler(p) : { ok: true, google_voice: { phone_number: '+13026359389' } };
+ }};
+ const ctrl = WebPhone.init({workAuth: auth, document: {getElementById: id => els[id], createElement: t => new Element(t)},
+  window: {open: url => {opened.push(url); return popupBlocked ? null : {focus(){}};}}});
+ return {els, requests, opened, ctrl, logout() { authenticated = false; ctrl.setAuthenticated(false); }};
+}
+
+test('Google handles its own sign-in: calls, messages, voicemail and settings open without exposing the private backend', async () => {
+ const h = googlePanel();
+ for (const [id, route] of [['phonePrimaryCallBtn','calls'],['phoneGvMessagesBtn','messages'],['phoneGvVoicemailBtn','voicemail'],['phoneGvSettingsBtn','settings']]) {
+  assert.equal(h.els[id].disabled, false);
+  await h.els[id].click();
+  assert.equal(h.opened.at(-1), 'https://voice.google.com/' + route + '?authuser=c%40schafferai.com');
+ }
+ await h.els.phoneSyncInboxBtn.emit('click');
+ await h.els.phoneCheckStatusBtn.emit('click');
+ assert.deepEqual(h.requests, []);
+ assert.equal(h.els.phoneSyncInboxBtn.disabled, true);
+ assert.equal(h.els.phoneCheckStatusBtn.disabled, true);
+ assert.equal(h.els.phoneLineNumber.textContent, 'Work phone');
+});
+
+test('a blocked popup provides a safe direct link to the exact requested Google Voice page', async () => {
+ const h = googlePanel({popupBlocked: true});
+ for (const [id, route] of [['phonePrimaryCallBtn','calls'],['phoneGvMessagesBtn','messages'],['phoneGvVoicemailBtn','voicemail'],['phoneGvSettingsBtn','settings']]) {
+  await h.els[id].click();
+  assert.match(h.els.phoneStatusLine.textContent, /Popup blocked/);
+  const link = h.els.phoneActionLinks.children[0];
+  assert.equal(link.href, 'https://voice.google.com/' + route + '?authuser=c%40schafferai.com');
+  assert.equal(link.target, '_blank');
+  assert.equal(link.rel, 'noopener noreferrer');
+ }
+ assert.equal(WebPhone.buildGoogleVoiceUrl('//evil.example'), WebPhone.buildGoogleVoiceCallUrl());
+});
+
+test('late status and inbox responses after logout cannot restore private data or overwrite the sign-in state', async () => {
+ const pending = {};
+ const h = googlePanel({signedIn: true, handler: p => new Promise(resolve => pending[p.action] = resolve)});
+ const status = h.els.phoneCheckStatusBtn.emit('click');
+ const inbox = h.els.phoneSyncInboxBtn.emit('click');
+ assert.equal(h.els.phoneCheckStatusBtn.disabled, true);
+ assert.equal(h.els.phoneSyncInboxBtn.disabled, true);
+ await h.els.phoneCheckStatusBtn.emit('click');
+ await h.els.phoneSyncInboxBtn.emit('click');
+ assert.deepEqual(h.requests, ['voice_status', 'voice_inbox']);
+ h.logout();
+ const signedOutStatus = h.els.phoneStatusLine.textContent;
+ pending.voice_status({ok:true, google_voice:{phone_number:'+13026359389'}});
+ pending.voice_inbox({ok:true, items:[{subject:'Private message',text:'Private content'}],count:1});
+ await Promise.all([status, inbox]);
+ assert.equal(h.els.phoneLineNumber.textContent, 'Work phone');
+ assert.equal(h.els.phoneInboxList.children.length, 0);
+ assert.equal(h.els.phoneStatusLine.textContent, signedOutStatus);
+ assert.equal(h.els.phoneCheckStatusBtn.disabled, true);
+});
+
+test('status shows a line on record without claiming verified call readiness; Escape closes the panel', async () => {
+ const h = googlePanel({signedIn: true});
+ await h.els.phoneCheckStatusBtn.click();
+ assert.equal(h.els.phoneLineNumber.textContent, '+13026359389');
+ assert.match(h.els.phoneLineState.textContent, /Confirm your current number/);
+ await h.els.topPhoneBtn.click();
+ assert.equal(h.els.topPhoneBtn.attributes['aria-expanded'], 'true');
+ await h.els.webPhoneDrawer.emit('keydown', {key:'Escape'});
+ assert.equal(h.els.topPhoneBtn.attributes['aria-expanded'], 'false');
+ assert.equal(h.els.topPhoneBtn.focused, true);
+ h.logout();
+ assert.equal(h.els.phoneLineNumber.textContent, 'Work phone');
 });

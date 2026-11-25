@@ -756,10 +756,6 @@
       <button class="icon-btn" id="phoneCloseBtn" type="button" title="Close phone">✕</button>
     </div>
 
-    <div class="phone-login-row" id="phoneLoginRow">
-      <input class="glass-input" id="phonePasswordInput" type="password" placeholder="Website password to unlock phone" autocomplete="current-password" aria-label="Website password for phone" maxlength="256" />
-      <button class="glass-btn" id="phoneLoginBtn" type="button">Unlock</button>
-    </div>
 
     <div class="phone-account-card">
       <strong id="phoneLineNumber">Work phone</strong>
@@ -783,13 +779,17 @@
       </div>
     </div>
 
-    <div class="phone-status-line" id="phoneStatusLine" role="status" aria-live="polite">Enter your website password above to unlock your work phone &amp; SMS.</div>
+    <div class="phone-status-line" id="phoneStatusLine" role="status" aria-live="polite">Open Google Voice with your Google sign-in. Website sign-in unlocks status and inbox sync.</div>
     <div class="phone-action-links" id="phoneActionLinks"></div>
     <h2 class="phone-inbox-title">Forwarded messages &amp; voicemail</h2>
     <p class="phone-control-help phone-inbox-note">Sync copies from your work Gmail. Enable message, missed-call, and voicemail email forwarding in Google Voice Settings first.</p>
+    <div class="phone-login-row" id="phoneLoginRow">
+      <input class="glass-input" id="phonePasswordInput" type="password" placeholder="Website password for inbox" autocomplete="current-password" aria-label="Website password for phone inbox" maxlength="256" />
+      <button class="glass-btn" id="phoneLoginBtn" type="button">Sign in</button>
+    </div>
     <button class="glass-btn" id="phoneSyncInboxBtn" type="button">Sync work inbox</button>
     <div class="phone-inbox-list" id="phoneInboxList"></div>
-    <div class="phone-controls" aria-label="Google Voice dialer">
+    <div class="phone-controls" id="phoneControls" aria-label="In-page audio controls" style="display:none;">
       <div id="phoneLocalControls" style="display:none;">
       <div class="phone-cta-row">
         <button class="glass-btn" id="phoneMuteCallBtn" type="button" disabled aria-pressed="false">Mute</button>
@@ -963,8 +963,6 @@
       const privateControls = [
         sendBtn, document.getElementById("callAiBtn"), document.getElementById("rtcToggleBtn"),
         document.getElementById("textModeBtn"), document.getElementById("rtcJoinBtn"),
-        document.getElementById("phoneCallBtn"), document.getElementById("phoneSmsBtn"),
-        document.getElementById("phonePrimaryCallBtn"), document.getElementById("phoneGvMessagesBtn"),
         document.getElementById("phoneSyncInboxBtn"), document.getElementById("phoneCheckStatusBtn"),
         ...quickPrompts.querySelectorAll("button")
       ].filter(Boolean);
@@ -1561,12 +1559,12 @@
 
       // Google Voice owns phone calls and new SMS in its browser window.
       document.getElementById("phoneCallBtn").addEventListener("click", () => {
-        if (!workAuth.requireSession() || !webPhone) return;
+        if (!webPhone) return;
         webPhone.toggleDrawer(true);
         webPhone.openGoogleVoice();
       });
       document.getElementById("phoneSmsBtn").addEventListener("click", () => {
-        if (!workAuth.requireSession() || !webPhone) return;
+        if (!webPhone) return;
         webPhone.toggleDrawer(true);
         webPhone.openGoogleVoice('', true);
       });

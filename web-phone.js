@@ -112,6 +112,7 @@
       keypad: doc.getElementById('phoneKeypad'),
       primaryCallBtn: doc.getElementById('phonePrimaryCallBtn'),
       localControls: doc.getElementById('phoneLocalControls'),
+      controls: doc.getElementById('phoneControls'),
       hangupBtn: doc.getElementById('phoneHangupBtn'),
       muteCallBtn: doc.getElementById('phoneMuteCallBtn'),
       volumeInput: doc.getElementById('phoneVolumeInput'),
@@ -186,8 +187,6 @@
     function renderActionLinks(rawNumber) {
       if (!els.actionLinks) return;
       els.actionLinks.innerHTML = '';
-      if (!workAuth.hasSession()) return;
-
       const e164 = normalizeE164(rawNumber !== undefined ? rawNumber : (els.dialInput ? els.dialInput.value : ''));
       const gvUrl = buildGoogleVoiceCallUrl(e164);
 
@@ -209,7 +208,7 @@
       const isRec = Boolean(recorder && recorder.state === 'recording');
       const authed = workAuth.hasSession();
       renderLineStatus();
-      [els.openGvMessagesBtn, els.openGvVoicemailBtn, els.openGvSettingsBtn].forEach(b => { if (b) b.disabled = !authed; });
+      [els.openGvMessagesBtn, els.openGvVoicemailBtn, els.openGvSettingsBtn].forEach(b => { if (b) b.disabled = false; });
       if (els.checkStatusBtn) {
         els.checkStatusBtn.disabled = !authed || statusLoading;
         els.checkStatusBtn.textContent = statusLoading ? 'Checking…' : 'Refresh status';
@@ -219,6 +218,7 @@
         els.syncInboxBtn.textContent = inboxLoading ? 'Syncing…' : 'Sync work inbox';
       }
       if (els.localControls) els.localControls.style.display = mode === 'gvoice' ? 'none' : '';
+      if (els.controls) els.controls.style.display = mode === 'gvoice' ? 'none' : '';
       const localAudio = mode === 'ailine' || (mode === 'webrtc' && inCall);
       const setupRequired = mode === 'webrtc' && lastVoiceStatus && !lastVoiceStatus.twilio_webrtc?.browser_webrtc_ready;
       if (els.hangupBtn) {
@@ -246,7 +246,7 @@
         if (b) b.disabled = inCall || isRec || callStarting || voiceTurnPending;
       });
       if (els.primaryCallBtn) {
-        els.primaryCallBtn.disabled = !authed || setupRequired || callStarting || (mode === 'webrtc' && (inCall || pendingIncoming)) || voiceTurnPending;
+        els.primaryCallBtn.disabled = (mode !== 'gvoice' && !authed) || setupRequired || callStarting || (mode === 'webrtc' && (inCall || pendingIncoming)) || voiceTurnPending;
         if (mode === 'gvoice') {
           els.primaryCallBtn.textContent = 'Open Google Voice ↗';
         } else if (mode === 'ailine') {
@@ -303,7 +303,6 @@
     }
 
     function openGoogleVoice(rawNumber, messages) {
-      if (!workAuth.requireSession()) return false;
       const raw = String(rawNumber || '').trim();
       if (raw && !normalizeE164(raw)) {
         setStatus('Enter a valid phone number before opening the dialer.');
@@ -313,7 +312,6 @@
     }
 
     function openGoogleVoicePage(page) {
-      if (!workAuth.requireSession()) return false;
       const url = buildGoogleVoiceUrl(page);
       const opened = openCompanionPopup(url);
       setStatus(opened ? 'Google Voice ' + page + ' opened. Sign in as ' + WORK_ACCOUNT + ' in that window.' : 'Popup blocked — use the direct Google Voice link below.');
@@ -526,6 +524,10 @@
     }
 
     async function handlePrimaryCall() {
+      if (mode === 'gvoice') {
+        openGoogleVoice(els.dialInput ? els.dialInput.value : '');
+        return;
+      }
       if (callStarting || activeCall || voiceTurnPending) return;
       if (!workAuth.requireSession()) {
         if (els.passwordInput && typeof els.passwordInput.focus === 'function') els.passwordInput.focus();
@@ -540,11 +542,6 @@
       const e164 = normalizeE164(raw);
       if (raw && !e164) {
         setStatus('Enter a valid phone number before calling.');
-        return;
-      }
-
-      if (mode === 'gvoice') {
-        openGoogleVoice(raw);
         return;
       }
 
@@ -762,12 +759,12 @@
     }
 
     function setAuthenticated(authed, optsArg) {
-      const gated = [els.primaryCallBtn, els.openGvMessagesBtn, els.openGvVoicemailBtn, els.openGvSettingsBtn, els.syncInboxBtn, els.checkStatusBtn];
+      const gated = [els.syncInboxBtn, els.checkStatusBtn];
       gated.forEach((b) => { if (b) b.disabled = !authed; });
       if (els.loginRow) els.loginRow.style.display = authed ? 'none' : 'flex';
       if (!authed) {
         teardown();
-        setStatus('Enter your website password above to unlock your work phone & SMS.');
+        setStatus('Open Google Voice with your Google sign-in. Website sign-in unlocks status and inbox sync.');
       } else {
         renderActionLinks();
         setStatus(mode === 'ailine'
@@ -801,7 +798,6 @@
       });
     }
     if (els.modeGvoiceBtn) els.modeGvoiceBtn.addEventListener('click', () => {
-      if (!workAuth.requireSession()) return;
       const opened = openCompanionPopup(buildGoogleVoiceCallUrl(els.dialInput ? els.dialInput.value : ''));
       setStatus(opened ? 'Opened Google Voice separately. Place Google Voice calls in that window.' : 'Popup blocked — use the Open Google Voice link.');
     });
