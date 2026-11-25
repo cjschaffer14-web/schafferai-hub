@@ -427,7 +427,9 @@
         const tokData = await workAuth.request({ action: 'voice_token' });
         if (!current()) return null;
         if (!tokData || !tokData.ok || !tokData.token || !normalizeE164(tokData.from_number)) {
-          throw new Error((tokData && tokData.error) || 'An active calling line and browser credentials must be configured before calling.');
+          throw new Error(tokData && tokData.code === 'TWILIO_WEBRTC_UNCONFIGURED'
+            ? 'The browser calling service needs an active provider line and server credentials.'
+            : (tokData && tokData.error) || 'An active calling line and browser credentials must be configured before calling.');
         }
         const DeviceCtor = await loadTwilioSdk();
         if (!current()) return null;

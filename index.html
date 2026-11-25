@@ -758,6 +758,13 @@
     </div>
 
 
+    <div class="phone-incoming" id="phoneIncomingBanner" role="alert" aria-live="assertive">
+      <span id="phoneIncomingLabel">Incoming call…</span>
+      <div style="display:flex;gap:6px;">
+        <button class="glass-btn" id="phoneAnswerBtn" type="button" style="background:rgba(52,211,153,0.34);">Answer</button>
+        <button class="glass-btn" id="phoneDeclineBtn" type="button" style="background:rgba(251,113,133,0.3);">Decline</button>
+      </div>
+    </div>
     <div class="phone-account-card">
       <strong id="phoneLineNumber">Work phone</strong>
       <p>c@schafferai.com</p>
@@ -786,20 +793,14 @@
     <button class="glass-btn" id="phoneCheckStatusBtn" type="button" title="Read-only voice health check">Refresh status</button>
     <p class="phone-control-help">Make and answer calls here using your browser microphone and speakers. Keep this page open with calling enabled for incoming calls. Your browser calling line is shown above once configured.</p>
 
-    <div class="phone-incoming" id="phoneIncomingBanner" role="alert" aria-live="assertive">
-      <span id="phoneIncomingLabel">Incoming call…</span>
-      <div style="display:flex;gap:6px;">
-        <button class="glass-btn" id="phoneAnswerBtn" type="button" style="background:rgba(52,211,153,0.34);">Answer</button>
-        <button class="glass-btn" id="phoneDeclineBtn" type="button" style="background:rgba(251,113,133,0.3);">Decline</button>
-      </div>
-    </div>
+
 
     <div class="phone-status-line" id="phoneStatusLine" role="status" aria-live="polite">Sign in to enable private browser calling.</div>
     <div class="phone-action-links" id="phoneActionLinks"></div>
     <h2 class="phone-inbox-title">Forwarded messages &amp; voicemail</h2>
     <p class="phone-control-help phone-inbox-note">Sync copies from your work Gmail. Enable message, missed-call, and voicemail email forwarding in Google Voice Settings first.</p>
     <div class="phone-login-row" id="phoneLoginRow">
-      <input class="glass-input" id="phonePasswordInput" type="password" placeholder="Website password" autocomplete="current-password" aria-label="Website password for phone inbox" maxlength="256" />
+      <input class="glass-input" id="phonePasswordInput" type="password" placeholder="Website password" autocomplete="current-password" aria-label="Website password for browser phone" maxlength="256" />
       <button class="glass-btn" id="phoneLoginBtn" type="button">Sign in</button>
     </div>
     <button class="glass-btn" id="phoneSyncInboxBtn" type="button">Sync work inbox</button>
@@ -913,7 +914,7 @@
   </main>
 
   <script src="./work-auth.js"></script>
-  <script src="./web-phone.js?v=20261125-inline-calls"></script>
+  <script src="./web-phone.js?v=20261125-inline-calls2"></script>
   <script>
     (() => {
       // Work-account Apps Script Web App endpoint (c@schafferai.com)
