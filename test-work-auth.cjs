@@ -97,13 +97,13 @@ test('Google phone loads native SIP and contains no redirect or alternate-provid
  const src=fs.readFileSync(path.join(__dirname,'web-phone.js'),'utf8');const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
  assert(!/twilio|voice_token|win\.open\(|location\.assign|navigateGoogleVoice/i.test(src));
  assert(html.includes('google-sip-client.js'));assert(html.includes('phoneConnectBtn'));
- const h=googleOnly();assert.equal(h.els.phonePrimaryCallBtn.disabled,true);assert.equal(h.els.phoneConnectBtn.disabled,true);
+ const h=googleOnly();assert.equal(h.els.phonePrimaryCallBtn.disabled,false);assert.equal(h.els.phoneConnectBtn.disabled,false);
 });
 
-test('signed-out phone cannot connect, dial, or navigate',async()=>{
+test('signed-out phone connects and dials inside the website without private account access',async()=>{
  const h=googleOnly();h.els.phoneDialInput.value='2672647302';
  await h.els.phonePrimaryCallBtn.click();await h.els.phoneConnectBtn.click();
- assert.deepEqual(h.navigated,[]);assert.deepEqual(h.calls,[]);assert.equal(h.sessionRequests(),0);
+ assert.deepEqual(h.navigated,[]);assert.deepEqual(h.calls,['+12672647302']);assert.equal(h.sessionRequests(),1);assert.deepEqual(h.requests,[]);
 });
 
 test('typing does not dial; explicit Call uses the native Google device once',async()=>{
@@ -117,8 +117,8 @@ test('invalid destination cannot create a Google phone session',async()=>{
  assert.equal(h.sessionRequests(),0);assert.deepEqual(h.calls,[]);
 });
 
-test('incoming Google call opens the site controls and waits for explicit Answer',async()=>{
- const h=googleOnly({signedIn:true});await h.els.phoneConnectBtn.click();const incoming=h.incoming();
+test('incoming Google call works signed out and waits for explicit Answer',async()=>{
+ const h=googleOnly();await h.els.phoneConnectBtn.click();const incoming=h.incoming();
  assert(h.els.webPhoneDrawer.classList.contains('open'));assert(h.els.phoneIncomingBanner.classList.contains('visible'));assert.equal(incoming.accepted,false);
  await h.els.phoneAnswerBtn.click();assert.equal(incoming.accepted,true);assert.equal(h.els.phoneIncomingBanner.classList.contains('visible'),false);
  await h.els.phoneHangupBtn.click();assert(h.els.phoneStatusLine.textContent.includes('ended'));
@@ -127,7 +127,7 @@ test('incoming Google call opens the site controls and waits for explicit Answer
 test('Google line status uses the authenticated work account rather than another provider line',async()=>{
  const h=googleOnly({signedIn:true});await h.els.phoneCheckStatusBtn.click();
  assert.equal(h.els.phoneLineNumber.textContent,'+13026359389');assert.deepEqual(h.requests,['voice_status']);
- h.logout();assert.equal(h.els.phoneLineNumber.textContent,'Work phone');
+ h.logout();assert.equal(h.els.phoneLineNumber.textContent,'+13026359389');
 });
 
 test('late Google status and inbox results cannot restore private information after logout',async()=>{
@@ -137,22 +137,40 @@ test('late Google status and inbox results cannot restore private information af
  pending.voice_status({ok:true,google_voice:{phone_number:'+13026359389'}});
  pending.voice_inbox({ok:true,items:[{subject:'Private',text:'Private body'}]});
  await Promise.all([status,inbox]);assert.equal(h.els.phoneInboxList.children.length,0);
- assert.equal(h.els.phoneLineNumber.textContent,'Work phone');assert.equal(h.els.phoneStatusLine.textContent,locked);
+ assert.equal(h.els.phoneLineNumber.textContent,'+13026359389');assert.equal(h.els.phoneStatusLine.textContent,locked);
 });
 
-test('private Google connector uses only loopback, requires owner auth and never persists SIP credentials',async()=>{
- const saved=storage();const calls=[];const fixture={ok:true,uri:'sip:test@web.w.pbx.voice.sip.google.com',authorizationUsername:'fixture-sip-user',authorizationPassword:'fixture-sip-secret',expiresAt:Date.now()+3600000,websocketUrl:'ws://127.0.0.1:8878/sip?ticket=fixture'};
- const client=create({endpoint:'https://example.test/work',storage:saved,fetchImpl:async(url,options)=>{calls.push({url,options});return url.includes('127.0.0.1')?response(fixture):response({ok:true,authenticated:true,token,expires_at:new Date(Date.now()+3600000).toISOString()});}});
- await assert.rejects(client.googlePhoneSession(),{code:'AUTH_REQUIRED'});assert.equal(calls.length,0);
- await client.login('fixture');const config=await client.googlePhoneSession();assert.equal(config.authorizationPassword,'fixture-sip-secret');
- assert.equal(calls[1].url,'http://127.0.0.1:8878/session');assert.equal(calls[1].options.headers.Authorization,'Bearer '+token);assert.equal(calls[1].options.credentials,'omit');
- assert(!saved.values().join('').includes('fixture-sip-secret'));assert(!saved.values().join('').includes('fixture-sip-user'));
+function phoneFixture(websocketUrl = 'wss://schafferai-phone-gateway.cjschaffer14.chatgpt.site/sip?ticket=' + 'a'.repeat(43)) {
+ return {ok:true,uri:'sip:website@web.w.pbx.voice.sip.google.com',authorizationUsername:'website',authorizationPassword:'placeholder',expiresAt:Date.now()+3600000,websocketUrl};
+}
+
+test('public Google phone uses hosted HTTPS without work-account credentials or storage',async()=>{
+ const saved=storage();const calls=[];
+ const client=create({endpoint:'https://example.test/work',storage:saved,fetchImpl:async(url,options)=>{calls.push({url,options});return response(phoneFixture());}});
+ const config=await client.googlePhoneSession();assert.equal(config.authorizationPassword,'placeholder');
+ assert.equal(calls.length,1);assert.equal(calls[0].url,'https://schafferai-phone-gateway.cjschaffer14.chatgpt.site/session');assert.equal(calls[0].options.headers,undefined);assert.equal(calls[0].options.credentials,'omit');assert.equal(calls[0].options.redirect,'error');
+ assert.deepEqual(saved.values(),[]);assert.equal(client.hasSession(),false);
 });
 
-test('logout while the private phone session is loading discards later credentials',async()=>{
+test('phone session refuses insecure, foreign, malformed, or extra-parameter signaling URLs',async()=>{
+ const base='wss://schafferai-phone-gateway.cjschaffer14.chatgpt.site/sip?ticket='+'a'.repeat(43);
+ for (const url of ['ws://127.0.0.1:8878/sip?ticket=x',base.replace('.site/','.site.evil.test/'),base+'&extra=x',base+'&ticket=other',base+'#fragment',base.replace('wss:','https:'),base.replace('/sip?','/other?'),base.replace('a'.repeat(43),'short')]) {
+  const client=create({storage:storage(),fetchImpl:async()=>response(phoneFixture(url))});
+  await assert.rejects(client.googlePhoneSession(),/invalid/);
+ }
+});
+
+test('private work logout does not cancel a pending public phone connection',async()=>{
  let finish;const saved=storage({[SESSION_KEY]:JSON.stringify({token,expiresAt:Date.now()+3600000})});
- const client=create({endpoint:'https://example.test/work',storage:saved,fetchImpl:()=>new Promise(resolve=>finish=()=>resolve(response({ok:true,authorizationPassword:'secret'})))});
- const pending=client.googlePhoneSession();client.clear();finish();await assert.rejects(pending,{code:'SESSION_CHANGED'});
+ const client=create({storage:saved,fetchImpl:()=>new Promise(resolve=>finish=()=>resolve(response(phoneFixture())))});
+ const pending=client.googlePhoneSession();client.clear();finish();assert.equal((await pending).authorizationUsername,'website');assert.deepEqual(saved.values(),[]);
+});
+
+test('work-account logout preserves an active website phone call and its End call control',async()=>{
+ const h=googleOnly({signedIn:true});await h.els.phoneConnectBtn.click();const incoming=h.incoming();await h.els.phoneAnswerBtn.click();
+ h.logout();assert.equal(h.els.phoneHangupBtn.disabled,false);assert.equal(h.els.phoneLineState.textContent,'Connected');
+ assert.equal(h.els.phoneSyncInboxBtn.disabled,true);assert.equal(h.els.phoneCheckStatusBtn.disabled,true);
+ await h.els.phoneHangupBtn.click();assert(h.els.phoneStatusLine.textContent.includes('ended'));
 });
 
 test('phone Settings is collapsed by default and opens without dialing',async()=>{

@@ -7,7 +7,9 @@ These are explicit user requirements from November 25, 2026.
 - Keep secondary connection, status, microphone diagnostics, volume, messages and voicemail controls behind Settings.
 - Keep calling inside the website. No Google Voice redirects or separate calling window, and no Twilio.
 - Preserve active calls while editing or publishing. Never reload or restart their connection during a call.
-- Protect Google phone credentials in the private local connector and authenticated browser memory. Never commit them, put them in public HTML, or log them.
+- Calling is public with no login, as explicitly requested. Private work AI, inbox, and message tools retain their existing sign-in. Work-account logout must not interrupt a phone call.
+- The phone must work from other computers through the hosted HTTPS/WSS gateway, without a localhost connector.
+- Keep real Google phone credentials exclusively in hosted server secrets. Browser SIP credentials are placeholders. Never commit real credentials, put them in public HTML, return them to browsers, or log them.
 - Distinguish SIP registration, outgoing-call verification, and incoming-call verification. Do not claim both call directions passed unless both were observed in real calls.
 
 ## Failure to prevent

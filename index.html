@@ -806,7 +806,7 @@
     </div>
     <div class="phone-line-compact">
       <strong id="phoneLineNumber">Work phone</strong>
-      <span id="phoneLineState">Sign in</span>
+      <span id="phoneLineState">Not connected</span>
     </div>
     <form class="phone-dial-form" autocomplete="off" onsubmit="return false">
       <label class="phone-field-label" for="phoneDialInput">Number to call</label>
@@ -845,19 +845,15 @@
         </div>
       </div>
     </div>
-    <div class="phone-status-line" id="phoneStatusLine" role="status" aria-live="polite">Sign in under Settings to connect your phone.</div>
+    <div class="phone-status-line" id="phoneStatusLine" role="status" aria-live="polite">Enter a number and press Call.</div>
     <div class="phone-settings-pane" id="phoneSettingsPane" hidden>
       <div class="phone-settings-heading">Connection</div>
-      <p class="phone-control-help">c@schafferai.com · Private Google connection on this Mac.</p>
-      <div class="phone-login-row" id="phoneLoginRow">
-        <input class="glass-input" id="phonePasswordInput" type="password" placeholder="Website password" autocomplete="current-password" aria-label="Website password for phone" maxlength="256" />
-        <button class="glass-btn" id="phoneLoginBtn" type="button">Sign in</button>
-      </div>
+      <p class="phone-control-help">Google Voice · Calls stay inside this website on any computer.</p>
       <div class="phone-google-actions">
         <button class="glass-btn" id="phoneConnectBtn" type="button">Connect Google Voice</button>
         <button class="glass-btn" id="phoneCheckStatusBtn" type="button">Refresh status</button>
       </div>
-      <p class="phone-control-help" id="phoneSessionExpires">Keep this website and the private connector running to receive calls.</p>
+      <p class="phone-control-help" id="phoneSessionExpires">Keep this website open to receive calls.</p>
       <div class="phone-settings-heading">Audio</div>
       <div class="phone-volume-row">
         <label id="phoneVolumeLabel" for="phoneVolumeInput">Volume</label>
@@ -869,7 +865,7 @@
       <p class="phone-control-help" id="phoneControlHelp">Calls and audio stay inside this website.</p>
       <div class="phone-action-links" id="phoneActionLinks"></div>
       <h2 class="phone-inbox-title">Messages &amp; voicemail</h2>
-      <p class="phone-control-help phone-inbox-note">Sync forwarded copies from your work Gmail.</p>
+      <p class="phone-control-help phone-inbox-note">Use the work-account sign-in to sync private messages forwarded to your Gmail. Calling does not need sign-in.</p>
       <button class="glass-btn" id="phoneSyncInboxBtn" type="button">Sync work inbox</button>
       <div class="phone-inbox-list" id="phoneInboxList"></div>
     </div>
@@ -1067,7 +1063,6 @@
           updateAuthUi(snapshot.authenticated);
           if (!snapshot.authenticated) {
             endAiVoiceCall();
-            if (webPhone) webPhone.teardown();
             if (pc) { pc.close(); pc = null; }
             if (localStream) { localStream.getTracks().forEach((track) => track.stop()); localStream = null; }
             rtcActive = false; pendingIce = [];
