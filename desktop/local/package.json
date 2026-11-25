@@ -1,0 +1,12 @@
+{
+  "name": "schafferai-desktop-local-relay",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": { "ws": "8.21.0" },
+  "engines": { "node": ">=20" }
+}

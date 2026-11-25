@@ -1,0 +1,1 @@
+ALTER TABLE `desktop_viewers` ADD `batch_id` text DEFAULT '' NOT NULL;
