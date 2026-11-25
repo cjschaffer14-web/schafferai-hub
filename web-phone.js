@@ -196,8 +196,8 @@
       const inCall = Boolean(activeCall);
       const isRec = Boolean(recorder && recorder.state === 'recording');
       const authed = workAuth.hasSession();
-      if (els.dialInput) els.dialInput.readOnly = inCall;
-      if (els.backspaceBtn) els.backspaceBtn.disabled = inCall;
+      if (els.dialInput) els.dialInput.readOnly = inCall || !!pendingIncoming;
+      if (els.backspaceBtn) els.backspaceBtn.disabled = inCall || !!pendingIncoming;
       renderLineStatus();
       [els.openGvMessagesBtn, els.openGvVoicemailBtn, els.openGvSettingsBtn].forEach(b => { if (b) b.disabled = false; });
       if (els.checkStatusBtn) {
@@ -392,6 +392,7 @@
 
     function attachCallHandlers(call, label) {
       activeCall = call;
+      if (els.dialInput) els.dialInput.value = normalizeE164(label) || '';
       updateCallButtons();
       stopCallTimer();
       const connected = () => {
@@ -457,6 +458,7 @@
         instance.on('incoming', call => {
           if (!live() || activeCall || pendingIncoming || recorder || voiceTurnPending) { call.reject(); return; }
           pendingIncoming = call;
+          if (els.dialInput) els.dialInput.value = normalizeE164(call.parameters.From) || '';
           setMode('gvoice'); toggleDrawer(true);
           if (els.incomingBanner) els.incomingBanner.classList.add('visible');
           if (els.incomingLabel) els.incomingLabel.textContent = 'Incoming Google Voice call from ' + (call.parameters.From || 'Unknown');
@@ -736,8 +738,8 @@
         const digit = keyBtn && keyBtn.dataset ? keyBtn.dataset.digit : (e.target && e.target.dataset && e.target.dataset.digit);
         if (!digit) return;
         playDtmf(win, digit);
-        if (els.dialInput && !activeCall) {
-          els.dialInput.value = (els.dialInput.value || '').slice(0, 31) + digit;
+        if (els.dialInput && !activeCall && !pendingIncoming) {
+          if ((els.dialInput.value || '').length < 32) els.dialInput.value = (els.dialInput.value || '') + digit;
           renderActionLinks();
         }
         if (activeCall && typeof activeCall.sendDigits === 'function') {

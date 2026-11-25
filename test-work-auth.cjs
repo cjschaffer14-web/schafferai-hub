@@ -167,6 +167,7 @@ test('in-call keypad preserves the destination while sending menu digits',async(
  const h=googleOnly({signedIn:true});await h.els.phoneConnectBtn.click();
  const incoming=h.incoming();incoming.sendDigits=digits=>incoming.sentDigits=digits;
  h.els.phoneDialInput.value='+15555550199';await h.els.phoneAnswerBtn.click();
+ assert.equal(h.els.phoneDialInput.value,'+15555550101');
  await h.els.phoneKeypad.emit('click',{target:{dataset:{digit:'1'}}});
- assert.equal(h.els.phoneDialInput.value,'+15555550199');assert.equal(incoming.sentDigits,'1');await h.els.phoneHangupBtn.click();
+ assert.equal(h.els.phoneDialInput.value,'+15555550101');assert.equal(incoming.sentDigits,'1');await h.els.phoneHangupBtn.click();
 });
