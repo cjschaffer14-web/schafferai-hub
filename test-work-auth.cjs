@@ -154,3 +154,19 @@ test('logout while the private phone session is loading discards later credentia
  const client=create({endpoint:'https://example.test/work',storage:saved,fetchImpl:()=>new Promise(resolve=>finish=()=>resolve(response({ok:true,authorizationPassword:'secret'})))});
  const pending=client.googlePhoneSession();client.clear();finish();await assert.rejects(pending,{code:'SESSION_CHANGED'});
 });
+
+test('phone Settings is collapsed by default and opens without dialing',async()=>{
+ const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+ assert(/id="phoneSettingsPane" hidden/.test(html));
+ const h=googleOnly({signedIn:true});h.els.phoneSettingsPane.hidden=true;
+ await h.els.phoneSettingsBtn.click();assert.equal(h.els.phoneSettingsPane.hidden,false);assert.equal(h.els.phoneSettingsBtn.attributes['aria-expanded'],'true');
+ await h.els.phoneSettingsBtn.click();assert.equal(h.els.phoneSettingsPane.hidden,true);assert.deepEqual(h.calls,[]);assert.equal(h.sessionRequests(),0);
+});
+
+test('in-call keypad preserves the destination while sending menu digits',async()=>{
+ const h=googleOnly({signedIn:true});await h.els.phoneConnectBtn.click();
+ const incoming=h.incoming();incoming.sendDigits=digits=>incoming.sentDigits=digits;
+ h.els.phoneDialInput.value='+15555550199';await h.els.phoneAnswerBtn.click();
+ await h.els.phoneKeypad.emit('click',{target:{dataset:{digit:'1'}}});
+ assert.equal(h.els.phoneDialInput.value,'+15555550199');assert.equal(incoming.sentDigits,'1');await h.els.phoneHangupBtn.click();
+});

@@ -720,6 +720,26 @@
       .chat-glass { height: calc(100dvh - 86px); border-radius: 20px; }
       .hide-sm { display: none; }
     }
+
+    .phone-toolbar-actions { display:flex; align-items:center; gap:6px; }
+    .phone-settings-toggle { padding:7px 10px; font-size:12px; }
+    .phone-line-compact { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:2px 1px 4px; }
+    .phone-line-compact strong { font-size:13px; font-weight:500; }
+    .phone-line-compact span { font-size:11px; color:var(--muted); }
+    .phone-field-label { font-size:11px; color:var(--muted); }
+    .phone-dial-form { display:grid; gap:10px; }
+    .phone-dial-input { min-height:56px; font-size:24px; font-weight:500; letter-spacing:0.025em; padding:12px; }
+    .phone-call-cta { min-height:48px; font-size:16px; }
+    .phone-inline-controls { display:grid; grid-template-columns:1fr 1fr; gap:8px; width:100%; }
+    .phone-inline-controls .glass-btn { padding:11px; }
+    .phone-keypad-disclosure { margin-top:10px; }
+    .phone-keypad-disclosure summary { cursor:pointer; color:var(--muted); font-size:12px; padding:6px 2px; }
+    .phone-keypad-disclosure .phone-keypad { margin-top:6px; }
+    .phone-settings-pane[hidden] { display:none !important; }
+    .phone-settings-pane { display:grid; gap:10px; padding-top:12px; border-top:1px solid var(--border); }
+    .phone-settings-heading { margin-top:3px; font-size:12px; font-weight:600; }
+    .phone-settings-pane .phone-control-help { margin:0; }
+    .phone-status-line { font-size:12px; }
   </style>
 </head>
 <body>
@@ -754,60 +774,67 @@
   <!-- Floating Glass Web Phone Drawer -->
   <aside class="phone-drawer" id="webPhoneDrawer" aria-label="SchafferAI Work Phone">
     <div class="phone-drawer-top">
-      <div class="popover-title">📱 Google Voice</div>
-      <button class="icon-btn" id="phoneCloseBtn" type="button" title="Close phone">✕</button>
+      <div class="popover-title">Google Voice</div>
+      <div class="phone-toolbar-actions">
+        <button class="glass-btn phone-settings-toggle" id="phoneSettingsBtn" type="button" aria-label="Phone settings" aria-controls="phoneSettingsPane" aria-expanded="false">⚙ Settings</button>
+        <button class="icon-btn" id="phoneCloseBtn" type="button" title="Close phone" aria-label="Close phone">✕</button>
+      </div>
     </div>
-
-
-    <div class="phone-account-card">
+    <div class="phone-line-compact">
       <strong id="phoneLineNumber">Work phone</strong>
-      <p>c@schafferai.com</p>
-      <p id="phoneLineState">Sign in to check your work line.</p>
+      <span id="phoneLineState">Sign in</span>
     </div>
     <form class="phone-dial-form" autocomplete="off" onsubmit="return false">
-      <label class="phone-control-help" for="phoneDialInput">Number to call</label>
-      <input class="glass-input phone-dial-input" id="phoneDialInput" name="destinationPhoneNumber" type="tel" placeholder="Enter a phone number" aria-label="Phone number to dial" autocomplete="off" maxlength="32" />
-      <button class="phone-call-cta" id="phonePrimaryCallBtn" type="button">Call with Google Voice</button>
+      <label class="phone-field-label" for="phoneDialInput">Number to call</label>
+      <input class="glass-input phone-dial-input" id="phoneDialInput" name="destinationPhoneNumber" type="tel" inputmode="tel" placeholder="Enter phone number" aria-label="Phone number to dial" autocomplete="off" maxlength="32" />
+      <button class="phone-call-cta" id="phonePrimaryCallBtn" type="button">Call</button>
     </form>
-    <div class="phone-google-actions">
-      <button class="glass-btn" id="phoneConnectBtn" type="button">Connect Google Voice</button>
-      <button class="glass-btn" id="phoneCheckStatusBtn" type="button">Refresh status</button>
-    </div>
-    <p class="phone-control-help">Make and receive calls on your Google Voice line here. Keep this website and your private phone connector running to receive calls.</p>
-
     <div class="phone-incoming" id="phoneIncomingBanner">
       <span id="phoneIncomingLabel">Incoming call…</span>
-      <div style="display:flex;gap:6px;">
+      <div class="phone-inline-controls">
         <button class="glass-btn" id="phoneAnswerBtn" type="button" style="background:rgba(52,211,153,0.34);">Answer</button>
         <button class="glass-btn" id="phoneDeclineBtn" type="button" style="background:rgba(251,113,133,0.3);">Decline</button>
       </div>
     </div>
-
-    <div class="phone-status-line" id="phoneStatusLine" role="status" aria-live="polite">Sign in to connect your Google Voice phone inside this website.</div>
-    <div class="phone-action-links" id="phoneActionLinks"></div>
-    <h2 class="phone-inbox-title">Forwarded messages &amp; voicemail</h2>
-    <p class="phone-control-help phone-inbox-note">Sync copies from your work Gmail. Enable message, missed-call, and voicemail email forwarding in Google Voice Settings first.</p>
-    <div class="phone-login-row" id="phoneLoginRow">
-      <input class="glass-input" id="phonePasswordInput" type="password" placeholder="Website password" autocomplete="current-password" aria-label="Website password for phone" maxlength="256" />
-      <button class="glass-btn" id="phoneLoginBtn" type="button">Sign in</button>
-    </div>
-    <button class="glass-btn" id="phoneSyncInboxBtn" type="button">Sync work inbox</button>
-    <div class="phone-inbox-list" id="phoneInboxList"></div>
-    <div class="phone-controls" id="phoneControls" aria-label="In-page audio controls" style="display:none;">
-      <div id="phoneLocalControls" style="display:none;">
-      <div class="phone-cta-row">
-        <button class="glass-btn" id="phoneMuteCallBtn" type="button" disabled aria-pressed="false">Mute</button>
-        <button class="glass-btn" id="phoneHangupBtn" type="button" disabled style="background:rgba(251,113,133,0.32);border-color:rgba(251,113,133,0.55);">End call</button>
+    <div class="phone-controls" id="phoneControls" aria-label="In-call controls" style="display:none;">
+      <div id="phoneLocalControls">
+        <div class="phone-inline-controls">
+          <button class="glass-btn" id="phoneMuteCallBtn" type="button" disabled aria-pressed="false">Mute</button>
+          <button class="glass-btn" id="phoneHangupBtn" type="button" disabled style="background:rgba(251,113,133,0.32);border-color:rgba(251,113,133,0.55);">End call</button>
+        </div>
+        <details class="phone-keypad-disclosure" id="phoneKeypadDetails">
+          <summary>Keypad</summary>
+          <div class="phone-keypad" id="phoneKeypad" aria-label="Call keypad"><button class="keypad-btn" type="button" data-digit="1" aria-label="Dial 1">1</button><button class="keypad-btn" type="button" data-digit="2" aria-label="Dial 2">2</button><button class="keypad-btn" type="button" data-digit="3" aria-label="Dial 3">3</button><button class="keypad-btn" type="button" data-digit="4" aria-label="Dial 4">4</button><button class="keypad-btn" type="button" data-digit="5" aria-label="Dial 5">5</button><button class="keypad-btn" type="button" data-digit="6" aria-label="Dial 6">6</button><button class="keypad-btn" type="button" data-digit="7" aria-label="Dial 7">7</button><button class="keypad-btn" type="button" data-digit="8" aria-label="Dial 8">8</button><button class="keypad-btn" type="button" data-digit="9" aria-label="Dial 9">9</button><button class="keypad-btn" type="button" data-digit="*" aria-label="Dial *">*</button><button class="keypad-btn" type="button" data-digit="0" aria-label="Dial 0">0</button><button class="keypad-btn" type="button" data-digit="#" aria-label="Dial #">#</button></div>
+        </details>
       </div>
+    </div>
+    <div class="phone-status-line" id="phoneStatusLine" role="status" aria-live="polite">Sign in under Settings to connect your phone.</div>
+    <div class="phone-settings-pane" id="phoneSettingsPane" hidden>
+      <div class="phone-settings-heading">Connection</div>
+      <p class="phone-control-help">c@schafferai.com · Private Google connection on this Mac.</p>
+      <div class="phone-login-row" id="phoneLoginRow">
+        <input class="glass-input" id="phonePasswordInput" type="password" placeholder="Website password" autocomplete="current-password" aria-label="Website password for phone" maxlength="256" />
+        <button class="glass-btn" id="phoneLoginBtn" type="button">Sign in</button>
+      </div>
+      <div class="phone-google-actions">
+        <button class="glass-btn" id="phoneConnectBtn" type="button">Connect Google Voice</button>
+        <button class="glass-btn" id="phoneCheckStatusBtn" type="button">Refresh status</button>
+      </div>
+      <p class="phone-control-help" id="phoneSessionExpires">Keep this website and the private connector running to receive calls.</p>
+      <div class="phone-settings-heading">Audio</div>
       <div class="phone-volume-row">
         <label id="phoneVolumeLabel" for="phoneVolumeInput">Volume</label>
         <input id="phoneVolumeInput" type="range" min="0" max="100" step="5" value="100" disabled aria-describedby="phoneControlHelp" />
         <output id="phoneVolumeValue" for="phoneVolumeInput">100%</output>
       </div>
+      <button class="glass-btn" id="phoneMicTestBtn" type="button">Test microphone</button>
       <button class="glass-btn" id="phoneTestToneBtn" type="button" style="display:none;">Send test tone</button>
-      <button class="glass-btn" id="phoneMicTestBtn" type="button">🎙 Test microphone</button>
-      </div>
-      <p class="phone-control-help" id="phoneControlHelp">Calls and audio controls stay inside this website.</p>
+      <p class="phone-control-help" id="phoneControlHelp">Calls and audio stay inside this website.</p>
+      <div class="phone-action-links" id="phoneActionLinks"></div>
+      <h2 class="phone-inbox-title">Messages &amp; voicemail</h2>
+      <p class="phone-control-help phone-inbox-note">Sync forwarded copies from your work Gmail.</p>
+      <button class="glass-btn" id="phoneSyncInboxBtn" type="button">Sync work inbox</button>
+      <div class="phone-inbox-list" id="phoneInboxList"></div>
     </div>
   </aside>
 
@@ -902,9 +929,9 @@
     </section>
   </main>
 
-  <script src="./work-auth.js?v=20261125-google-sip"></script>
-  <script src="./google-sip-client.js?v=20261125-google-sip"></script>
-  <script src="./web-phone.js?v=20261125-google-sip"></script>
+  <script src="./work-auth.js?v=20261125-google-sip-simple"></script>
+  <script src="./google-sip-client.js?v=20261125-google-sip-simple"></script>
+  <script src="./web-phone.js?v=20261125-google-sip-simple"></script>
   <script>
     (() => {
       // Work-account Apps Script Web App endpoint (c@schafferai.com)
@@ -1563,7 +1590,7 @@
       }
       rtcJoinBtn.addEventListener("click", startRtcRoom);
 
-      // Google Voice owns phone calls and new SMS in its browser window.
+      // Open the in-page Google Voice phone panel.
       document.getElementById("phoneCallBtn").addEventListener("click", () => {
         if (!webPhone) return;
         webPhone.toggleDrawer(true);
