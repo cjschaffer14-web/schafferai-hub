@@ -1,5 +1,11 @@
 # Website work-account authorization
 
+## Separate public desktop portal
+
+On November 25, 2026 the owner explicitly requested a live Mac desktop portal with no visitor authentication or MFA. `/desktop/` is intentionally public, as documented in `desktop/README.md`; its private producer key identifies the Mac, not a visitor. This exception applies to the desktop portal only. It does not change the server-verified session contract for the existing Google work-account tools below.
+
+## Work-account tools
+
 The public site and wallpaper remain available without authentication. Private Work AI chat, voice generation, text, RTC signaling, call/SMS and event polling require a server-verified session. The page never treats a successful public health response as an owner login.
 
 The phone panel uses Google Voice only. Calls, messages, voicemail and settings navigate to Google's site in the same browser tab, selecting the work account using `authuser`. No phone action opens a popup or new window, and no Twilio SDK is loaded. Google handles its own sign-in, microphone and telephone audio. The site does not claim to embed that audio or simulate incoming calls.

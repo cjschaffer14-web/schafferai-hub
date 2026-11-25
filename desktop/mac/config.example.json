@@ -1,0 +1,4 @@
+{
+  "relayUrl": "https://YOUR-DESKTOP-RELAY.workers.dev",
+  "producerKey": "REPLACE_WITH_LOCAL_PRODUCER_KEY_AT_LEAST_32_CHARACTERS"
+}
