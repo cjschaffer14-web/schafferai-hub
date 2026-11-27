@@ -115,10 +115,14 @@ export class DesktopAudio {
       if(epoch!==this._session||token!==this._soundToken||!this.sound||generation!==this._outputGeneration)return;
       if(value.epoch!==this._producerEpoch||value.generation!==generation)throw new Error('The Mac audio session changed. Turn Sound on again.');
       if(value.sampleRate!==48000||value.channels!==2||value.encoding!=='s16le'||!Array.isArray(value.chunks)||value.chunks.length>6)throw new Error('Unsupported Mac audio');
+      const received=this._now(),elapsed=received-started;
+      // Chunk age already includes relay processing. Only add the remaining
+      // request/response time; older relays and invalid timing stay conservative.
+      const transitUpperBound=Number.isFinite(value.processingMs)&&value.processingMs>=0&&value.processingMs<=elapsed?elapsed-value.processingMs:elapsed;
       // Keep at most the newest 600 ms rather than playing a network backlog.
       for(const chunk of value.chunks.slice(-3)) {
         if(!Number.isSafeInteger(chunk.seq)||chunk.seq<=this._lastOutput)continue;
-        if(!Number.isFinite(chunk.ageMs)||chunk.ageMs<0||chunk.ageMs+this._now()-started>MAX_AGE){this._lastOutput=chunk.seq;continue;}
+        if(!Number.isFinite(chunk.ageMs)||chunk.ageMs<0||chunk.ageMs+transitUpperBound+Math.max(0,this._now()-received)>MAX_AGE){this._lastOutput=chunk.seq;continue;}
         const samples=decodePCM(chunk.pcm,SOUND_FORMAT.bytes); this._schedule(samples,chunk.seq); this._lastOutput=chunk.seq;
       }
     } catch(error) { if(epoch===this._session&&token===this._soundToken&&this.sound)this._fail(error); }

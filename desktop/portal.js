@@ -1,5 +1,5 @@
 import { HTTPDesktopTransport } from './http-transport.js';
-import { DesktopAudio } from './audio.js';
+import { DesktopAudio } from './audio.js?v=20261127-sound';
 
 const $ = id => document.getElementById(id);
 const screen = $('screen'), desktop = $('desktop'), ctx = screen.getContext('2d', {alpha: false});

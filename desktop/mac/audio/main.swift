@@ -6,7 +6,6 @@ import CoreAudio
 import CoreGraphics
 import CoreMedia
 import Foundation
-import ScreenCaptureKit
 
 private enum AudioError: LocalizedError {
     case message(String)
@@ -47,6 +46,7 @@ private final class Relay {
         settings.httpShouldSetCookies = false; settings.urlCache = nil
         settings.requestCachePolicy = .reloadIgnoringLocalCacheData
         settings.timeoutIntervalForRequest = 1.5; settings.timeoutIntervalForResource = 2
+        settings.httpMaximumConnectionsPerHost = 6 // Three sound uploads plus state, status and microphone requests.
         session = URLSession(configuration: settings, delegate: redirectDelegate, delegateQueue: nil)
     }
     func request(_ path: String, query: [String: String] = [:], body: [String: Any]? = nil) async throws -> [String: Any] {
@@ -59,7 +59,7 @@ private final class Relay {
         request.setValue("Bearer " + key, forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("no-store", forHTTPHeaderField: "Cache-Control")
-        request.setValue("SchafferDesktopAudio/1.0", forHTTPHeaderField: "User-Agent")
+        request.setValue("SchafferDesktopAudio/1.1", forHTTPHeaderField: "User-Agent")
         if let body {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -120,78 +120,188 @@ private func pcm16(_ sample: Float) -> Int16 {
     return Int16(max(-32_768, min(32_767, Int((max(-1, min(1, sample)) * 32_768).rounded()))))
 }
 
-private final class SystemSoundCapture: NSObject, SCStreamOutput, SCStreamDelegate {
-    private var stream: SCStream?
+private func ownAudioProcess() -> AudioObjectID? {
+    var address = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyTranslatePIDToProcessObject,
+        mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+    var pid = getpid(), value = AudioObjectID(kAudioObjectUnknown)
+    var size = UInt32(MemoryLayout<AudioObjectID>.size)
+    let result = AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address,
+        UInt32(MemoryLayout<pid_t>.size), &pid, &size, &value)
+    return result == noErr && value != kAudioObjectUnknown ? value : nil
+}
+
+// A private output-process tap needs only the dedicated system-audio permission.
+// It never opens a microphone input, changes a default device, or mutes speakers.
+private final class SystemSoundCapture {
+    private static let enabledKey = "systemAudioEngineWasEnabled"
+    private var tap = AudioObjectID(kAudioObjectUnknown)
+    private var aggregate = AudioObjectID(kAudioObjectUnknown)
+    private var ioProc: AudioDeviceIOProcID?
     private let queue = DispatchQueue(label: "com.schafferai.desktop-audio.samples")
     private let chunker = PCMChunker()
     private var accepting = false
     private var token = UUID()
+    private var inputFormat: AVAudioFormat?
+    private var converter: AVAudioConverter?
+    private let outputFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32,
+        sampleRate: 48_000, channels: 2, interleaved: false)!
+    private(set) var enabled = UserDefaults.standard.bool(forKey: enabledKey)
     var onChunk: ((Data, UUID, Date) -> Void)?
     var onFailure: ((String) -> Void)?
 
-    @MainActor func start(token: UUID) async throws {
-        guard stream == nil else { return }
-        guard CGPreflightScreenCaptureAccess() else { throw AudioError.message("Enable System Audio Recording for Schaffer Desktop Audio in macOS Settings.") }
-        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-        guard let display = content.displays.first(where: { $0.displayID == CGMainDisplayID() }) ?? content.displays.first else {
-            throw AudioError.message("No desktop display is available for system audio.")
+    // This explicit menu action briefly starts tap IO to let macOS present its
+    // normal audio consent dialog. Every sample is discarded; nothing is sent.
+    @MainActor func requestPermission() async throws {
+        await stop()
+        enabled = false
+        do {
+            try begin(token: UUID(), deliver: false)
+            let requestedTap = tap, requestedAggregate = aggregate
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard tap == requestedTap, aggregate == requestedAggregate, ioProc != nil else {
+                throw AudioError.message("The system audio setup check was interrupted. Use Enable System Sound to retry.")
+            }
+            await stop()
+            enabled = true
+            UserDefaults.standard.set(true, forKey: Self.enabledKey)
+        } catch {
+            await stop()
+            UserDefaults.standard.set(false, forKey: Self.enabledKey)
+            throw error
         }
-        let config = SCStreamConfiguration()
-        config.width = 2; config.height = 2
-        config.minimumFrameInterval = CMTime(value: 1, timescale: 1)
-        config.queueDepth = 3; config.showsCursor = false
-        config.capturesAudio = true; config.sampleRate = 48_000; config.channelCount = 2
-        config.excludesCurrentProcessAudio = true
-        let capture = SCStream(filter: SCContentFilter(display: display, excludingApplications: [], exceptingWindows: []), configuration: config, delegate: self)
-        try capture.addStreamOutput(self, type: .audio, sampleHandlerQueue: queue)
-        queue.sync { self.chunker.reset(); self.token = token; self.accepting = true }
-        stream = capture
-        do { try await capture.startCapture() }
-        catch { stream = nil; queue.sync { self.accepting = false; self.chunker.reset() }; throw error }
+    }
+    @MainActor func start(token: UUID) async throws {
+        guard aggregate == kAudioObjectUnknown else { return }
+        guard enabled else { throw AudioError.message("Enable system sound from the Schaffer Desktop Audio menu.") }
+        do { try begin(token: token, deliver: true) }
+        catch {
+            await stop(); enabled = false
+            UserDefaults.standard.set(false, forKey: Self.enabledKey)
+            throw error
+        }
+    }
+    @MainActor private func begin(token: UUID, deliver: Bool) throws {
+        guard let selfProcess = ownAudioProcess() else {
+            throw AudioError.message("This audio helper could not identify its own audio process; capture was not started.")
+        }
+        let description = CATapDescription(stereoGlobalTapButExcludeProcesses: [selfProcess])
+        description.name = "Schaffer Desktop System Sound"
+        description.isPrivate = true
+        description.muteBehavior = .unmuted
+        if #available(macOS 26.0, *), let bundleID = Bundle.main.bundleIdentifier {
+            description.bundleIDs = [bundleID]
+            description.isProcessRestoreEnabled = true
+        }
+        try check(AudioHardwareCreateProcessTap(description, &tap), "create system audio tap")
+        var address = AudioObjectPropertyAddress(mSelector: kAudioTapPropertyFormat,
+            mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        var asbd = AudioStreamBasicDescription()
+        var size = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
+        try check(AudioObjectGetPropertyData(tap, &address, 0, nil, &size, &asbd), "read system audio format")
+        guard asbd.mFormatID == kAudioFormatLinearPCM, asbd.mChannelsPerFrame == 2,
+              (8_000...192_000).contains(asbd.mSampleRate),
+              let format = AVAudioFormat(streamDescription: &asbd),
+              let nextConverter = AVAudioConverter(from: format, to: outputFormat),
+              let tapUID = stringProperty(tap, kAudioTapPropertyUID) else {
+            throw AudioError.message("The system audio tap returned an unsupported stereo format.")
+        }
+        nextConverter.primeMethod = .none
+        let composition: [String: Any] = [
+            kAudioAggregateDeviceNameKey: "Schaffer Desktop Audio Capture",
+            kAudioAggregateDeviceUIDKey: UUID().uuidString,
+            kAudioAggregateDeviceIsPrivateKey: true,
+            kAudioAggregateDeviceIsStackedKey: false,
+            kAudioAggregateDeviceTapAutoStartKey: true,
+            kAudioAggregateDeviceTapListKey: [[kAudioSubTapUIDKey: tapUID,
+                kAudioSubTapDriftCompensationKey: true]]
+        ]
+        try check(AudioHardwareCreateAggregateDevice(composition as CFDictionary, &aggregate), "create private audio input")
+        queue.sync {
+            self.chunker.reset(); self.token = token; self.inputFormat = format
+            self.converter = nextConverter; self.accepting = deliver
+        }
+        try check(AudioDeviceCreateIOProcIDWithBlock(&ioProc, aggregate, queue) { [weak self] _, input, _, output, _ in
+            // Tap-only aggregates have no hardware output. Clear any supplied
+            // output defensively; captured samples are never monitored locally.
+            for buffer in UnsafeMutableAudioBufferListPointer(output) {
+                if let data = buffer.mData { memset(data, 0, Int(buffer.mDataByteSize)) }
+            }
+            self?.consume(input)
+        }, "prepare system audio input")
+        try check(AudioDeviceStart(aggregate, ioProc), "start system audio input")
+    }
+    private func check(_ status: OSStatus, _ operation: String) throws {
+        guard status == noErr else {
+            throw AudioError.message("Could not \(operation) (OSStatus \(status)). Allow System Audio Recording for Schaffer Desktop Audio in macOS Settings.")
+        }
     }
     @MainActor func stop() async {
         queue.sync { self.accepting = false; self.chunker.reset() }
-        let previous = stream; stream = nil
-        try? await previous?.stopCapture()
+        if aggregate != kAudioObjectUnknown {
+            if let ioProc {
+                AudioDeviceStop(aggregate, ioProc)
+                AudioDeviceDestroyIOProcID(aggregate, ioProc)
+            }
+            ioProc = nil
+            AudioHardwareDestroyAggregateDevice(aggregate)
+            aggregate = kAudioObjectUnknown
+        }
+        if tap != kAudioObjectUnknown { AudioHardwareDestroyProcessTap(tap); tap = kAudioObjectUnknown }
+        queue.sync { self.inputFormat = nil; self.converter = nil }
     }
-    func stream(_ stream: SCStream, didStopWithError error: Error) {
-        queue.async { self.accepting = false; self.chunker.reset() }
-        onFailure?("System audio capture stopped. Check macOS System Audio Recording permission.")
-    }
-    func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
-        guard type == .audio, accepting, CMSampleBufferDataIsReady(sampleBuffer),
-              let description = CMSampleBufferGetFormatDescription(sampleBuffer),
-              let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(description)?.pointee,
-              asbd.mFormatID == kAudioFormatLinearPCM, asbd.mSampleRate == 48_000, asbd.mChannelsPerFrame == 2 else { return }
-        var required = 0
-        var block: CMBlockBuffer?
-        guard CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(sampleBuffer, bufferListSizeNeededOut: &required,
-            bufferListOut: nil, bufferListSize: 0, blockBufferAllocator: nil, blockBufferMemoryAllocator: nil,
-            flags: UInt32(kCMSampleBufferFlag_AudioBufferList_Assure16ByteAlignment), blockBufferOut: &block) == noErr else { return }
-        let memory = UnsafeMutableRawPointer.allocate(byteCount: max(required, MemoryLayout<AudioBufferList>.size), alignment: 16)
-        defer { memory.deallocate() }
-        let list = memory.bindMemory(to: AudioBufferList.self, capacity: 1)
-        guard CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(sampleBuffer, bufferListSizeNeededOut: nil,
-            bufferListOut: list, bufferListSize: required, blockBufferAllocator: nil, blockBufferMemoryAllocator: nil,
-            flags: UInt32(kCMSampleBufferFlag_AudioBufferList_Assure16ByteAlignment), blockBufferOut: &block) == noErr else { return }
-        let buffers = UnsafeMutableAudioBufferListPointer(list)
-        let frames = CMSampleBufferGetNumSamples(sampleBuffer)
-        let planar = asbd.mFormatFlags & kAudioFormatFlagIsNonInterleaved != 0
-        let isFloat = asbd.mFormatFlags & kAudioFormatFlagIsFloat != 0
-        guard frames > 0, frames <= 48_000, (planar ? buffers.count >= 2 : buffers.count >= 1) else { return }
-        var pcm = Data(capacity: frames * 4)
-        for frame in 0..<frames {
+    static func offlineConversionTest() throws {
+        let capture = SystemSoundCapture()
+        let input = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 44_100, channels: 2, interleaved: false)!
+        guard let converter = AVAudioConverter(from: input, to: capture.outputFormat),
+              let buffer = AVAudioPCMBuffer(pcmFormat: input, frameCapacity: 4_410),
+              let channels = buffer.floatChannelData else { throw AudioError.message("Offline converter setup failed.") }
+        converter.primeMethod = .none; buffer.frameLength = 4_410
+        for frame in 0..<4_410 { channels[0][frame] = 0.25; channels[1][frame] = -0.25 }
+        capture.inputFormat = input; capture.converter = converter; capture.accepting = true
+        var packets = [Data]()
+        capture.onChunk = { data, _, _ in packets.append(data) }
+        for _ in 0..<3 { capture.consume(buffer.audioBufferList) }
+        capture.accepting = false
+        guard packets.count == 1, packets[0].count == 38_400 else { throw AudioError.message("Offline stereo resampling packetization failed.") }
+        for frame in [1_000, 5_000, 9_000] {
             for channel in 0..<2 {
-                let buffer = buffers[planar ? channel : 0]
-                let index = planar ? frame : frame * 2 + channel
-                var value: Int16
-                if isFloat && asbd.mBitsPerChannel == 32, let data = buffer.mData, (index + 1) * 4 <= Int(buffer.mDataByteSize) {
-                    value = pcm16(data.assumingMemoryBound(to: Float.self)[index])
-                } else if !isFloat && asbd.mBitsPerChannel == 16, let data = buffer.mData, (index + 1) * 2 <= Int(buffer.mDataByteSize) {
-                    value = data.assumingMemoryBound(to: Int16.self)[index]
-                } else { return }
-                var little = value.littleEndian
-                withUnsafeBytes(of: &little) { pcm.append(contentsOf: $0) }
+                let offset = frame * 4 + channel * 2
+                let sample = Int16(bitPattern: UInt16(packets[0][offset]) | UInt16(packets[0][offset + 1]) << 8)
+                let expected = channel == 0 ? 8_192 : -8_192
+                guard abs(Int(sample) - expected) < 64 else { throw AudioError.message("Offline stereo channel conversion failed.") }
+            }
+        }
+    }
+    private func consume(_ input: UnsafePointer<AudioBufferList>) {
+        guard accepting, let format = inputFormat, let converter else { return }
+        let source = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: input))
+        guard let first = source.first, format.streamDescription.pointee.mBytesPerFrame > 0 else { return }
+        let frameCount = Int(first.mDataByteSize) / Int(format.streamDescription.pointee.mBytesPerFrame)
+        guard frameCount > 0, frameCount <= 96_000,
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frameCount)) else { return }
+        buffer.frameLength = AVAudioFrameCount(frameCount)
+        let destination = UnsafeMutableAudioBufferListPointer(buffer.mutableAudioBufferList)
+        guard destination.count == source.count else { return }
+        for index in 0..<source.count {
+            guard let from = source[index].mData, let to = destination[index].mData,
+                  source[index].mDataByteSize <= destination[index].mDataByteSize else { return }
+            memcpy(to, from, Int(source[index].mDataByteSize))
+        }
+        let capacity = AVAudioFrameCount(ceil(Double(frameCount) * 48_000 / format.sampleRate) + 64)
+        guard let converted = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: capacity) else { return }
+        var supplied = false, error: NSError?
+        let result = converter.convert(to: converted, error: &error) { _, status in
+            if supplied { status.pointee = .noDataNow; return nil }
+            supplied = true; status.pointee = .haveData; return buffer
+        }
+        guard result != .error, error == nil, let channels = converted.floatChannelData else {
+            accepting = false; onFailure?("System audio conversion stopped; use Retry Audio in the helper menu."); return
+        }
+        var pcm = Data(capacity: Int(converted.frameLength) * 4)
+        for frame in 0..<Int(converted.frameLength) {
+            for channel in 0..<2 {
+                var value = pcm16(channels[channel][frame]).littleEndian
+                withUnsafeBytes(of: &value) { pcm.append(contentsOf: $0) }
             }
         }
         for chunk in chunker.append(pcm) { onChunk?(chunk, token, Date()) }
@@ -252,11 +362,15 @@ private final class SystemSoundCapture: NSObject, SCStreamOutput, SCStreamDelega
     }
 }
 
-@MainActor private final class AudioAgent: NSObject, NSApplicationDelegate {
+@MainActor private final class AudioAgent: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var relay: Relay?
     private let capture = SystemSoundCapture()
     private let microphone = VirtualMicrophone()
     private var statusItem: NSStatusItem?
+    private var setupWindow: NSWindow?
+    private var setupMessage: NSTextField?
+    private var setupButton: NSButton?
+    private var permissionRequestRunning = false
     private var loop: Task<Void, Never>?
     private var epoch = ""
     private var outputGeneration = ""
@@ -269,7 +383,9 @@ private final class SystemSoundCapture: NSObject, SCStreamOutput, SCStreamDelega
     private var captureStarting = false
     private var suspended = false
     private var sleepingState = false
-    private var uploadBusy = false
+    // Never reset this count on stop or generation changes. Each old request
+    // retains its reservation until its own defer releases it.
+    private var uploadInFlight = 0
     private var uploadToken = UUID()
     private var latestStateAt = Date.distantPast
     private var lastStatus = Date.distantPast
@@ -283,7 +399,8 @@ private final class SystemSoundCapture: NSObject, SCStreamOutput, SCStreamDelega
         statusItem?.button?.image = NSImage(systemSymbolName: "speaker.wave.2", accessibilityDescription: "Schaffer Desktop Audio")
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "Schaffer Desktop Audio", action: nil, keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Request System Audio Permission…", action: #selector(requestPermission), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Audio Setup…", action: #selector(showSetup), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Enable System Sound…", action: #selector(requestPermission), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "Open Audio Permissions…", action: #selector(openPermissions), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "Retry Audio", action: #selector(retryAudio), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "Pause Audio", action: #selector(togglePause), keyEquivalent: ""))
@@ -309,6 +426,7 @@ private final class SystemSoundCapture: NSObject, SCStreamOutput, SCStreamDelega
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(sleeping), name: NSWorkspace.willSleepNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(waking), name: NSWorkspace.didWakeNotification, object: nil)
         DistributedNotificationCenter.default().addObserver(self, selector: #selector(screenLocked), name: NSNotification.Name("com.apple.screenIsLocked"), object: nil)
+        if !capture.enabled { showSetup() }
         loop = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.poll()
@@ -316,12 +434,60 @@ private final class SystemSoundCapture: NSObject, SCStreamOutput, SCStreamDelega
             }
         }
     }
-    @objc private func retryAudio() {
-        Task {
-            await stopAll(); captureFailure = false; sinkFailure = false; failedSinkDevice = nil; lastStatus = .distantPast
+    @objc private func showSetup() {
+        NSApplication.shared.setActivationPolicy(.regular)
+        if setupWindow == nil {
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 490, height: 235),
+                styleMask: [.titled, .closable], backing: .buffered, defer: false)
+            window.title = "Schaffer Desktop Audio"
+            window.isReleasedWhenClosed = false
+            window.delegate = self
+            window.center()
+            let title = NSTextField(labelWithString: "Enable your Mac’s sound in the portal")
+            title.font = .boldSystemFont(ofSize: 18)
+            title.frame = NSRect(x: 24, y: 178, width: 442, height: 28)
+            let detail = NSTextField(wrappingLabelWithString: "Enable system sound, then allow the normal macOS audio request. Sound is sent only when a connected visitor turns on Sound in the portal. Your Mac’s microphone and speaker settings stay unchanged.")
+            detail.frame = NSRect(x: 24, y: 82, width: 442, height: 88)
+            let button = NSButton(title: "Enable System Sound", target: self, action: #selector(requestPermission))
+            button.bezelStyle = .rounded
+            button.frame = NSRect(x: 24, y: 25, width: 180, height: 34)
+            window.contentView?.addSubview(title); window.contentView?.addSubview(detail); window.contentView?.addSubview(button)
+            setupWindow = window; setupMessage = detail; setupButton = button
+        }
+        setupWindow?.makeKeyAndOrderFront(nil)
+        NSApplication.shared.activate(ignoringOtherApps: true)
+    }
+    func windowWillClose(_ notification: Notification) {
+        if notification.object as? NSWindow === setupWindow {
+            NSApplication.shared.setActivationPolicy(.accessory)
         }
     }
-    @objc private func requestPermission() { _ = CGRequestScreenCaptureAccess(); captureFailure = false; lastStatus = .distantPast }
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { showSetup() }
+        return true
+    }
+    @objc private func retryAudio() {
+        sinkFailure = false; failedSinkDevice = nil
+        requestPermission()
+    }
+    @objc private func requestPermission() {
+        guard !permissionRequestRunning else { return }
+        permissionRequestRunning = true; setupButton?.isEnabled = false
+        setupMessage?.stringValue = "macOS may show its system-audio permission request. This setup check discards audio and never uploads it."
+        Task {
+            await stopAll()
+            do {
+                try await capture.requestPermission(); captureFailure = false
+                message = "System audio engine is ready."
+                setupMessage?.stringValue = "System audio is enabled. Connect at schafferai.com/desktop/ and turn on Sound to hear this Mac."
+            } catch {
+                captureFailure = true; message = error.localizedDescription
+                setupMessage?.stringValue = message
+            }
+            permissionRequestRunning = false; setupButton?.isEnabled = true
+            lastStatus = .distantPast; await report(); updateMenu()
+        }
+    }
     @objc private func openPermissions() { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!) }
     @objc private func togglePause(_ sender: NSMenuItem) {
         suspended.toggle(); sender.title = suspended ? "Resume Audio" : "Pause Audio"
@@ -343,7 +509,7 @@ private final class SystemSoundCapture: NSObject, SCStreamOutput, SCStreamDelega
     }
     private func capability() -> (Bool, Bool) {
         let allowed = !suspended && !sleepingState && !locked()
-        return (allowed && CGPreflightScreenCaptureAccess() && !captureFailure, allowed && blackHoleDevice() != nil && !sinkFailure)
+        return (allowed && capture.enabled && !captureFailure, allowed && blackHoleDevice() != nil && !sinkFailure)
     }
     private func report(ready: Bool = true) async {
         guard let relay, !epoch.isEmpty else { return }
@@ -356,6 +522,10 @@ private final class SystemSoundCapture: NSObject, SCStreamOutput, SCStreamDelega
     }
     private func poll() async {
         guard let relay else { return }
+        if permissionRequestRunning {
+            if suspended || sleepingState || locked() { await stopAll() }
+            return
+        }
         do {
             let state = try await relay.request("/agent/audio-state")
             guard let nextEpoch = state["epoch"] as? String, !nextEpoch.isEmpty else {
@@ -395,7 +565,7 @@ private final class SystemSoundCapture: NSObject, SCStreamOutput, SCStreamDelega
                             soundEnabled = false; captureRunning = false; await capture.stop()
                         }
                     } catch {
-                        captureFailure = true; soundEnabled = false; message = "Enable System Audio Recording for Schaffer Desktop Audio in macOS Settings."
+                        captureFailure = true; soundEnabled = false; message = "Enable System Sound from the Schaffer Desktop Audio menu, then allow its system audio request."
                     }
                     captureStarting = false
                 } else if !wantsSound && (captureRunning || soundEnabled) {
@@ -410,10 +580,10 @@ private final class SystemSoundCapture: NSObject, SCStreamOutput, SCStreamDelega
                     }
                     if micEnabled { try await receiveMicrophone() }
                 } else if micEnabled { micEnabled = false; microphone.stop() }
-                if !caps.0 { message = "Enable System Audio Recording for Schaffer Desktop Audio in macOS Settings." }
+                if !caps.0 { message = "Enable System Sound from the Schaffer Desktop Audio menu, then allow its system audio request." }
                 else if sinkFailure { message = "Remote microphone stopped. Use Retry Audio after checking BlackHole 2ch." }
                 else if !caps.1 { message = "Install BlackHole 2ch to use the remote microphone." }
-                else if captureFailure { message = "System audio needs permission or a helper relaunch." }
+                else if captureFailure { message = "System audio needs permission or Retry Audio from the helper menu." }
                 else { message = "Audio ready. Select BlackHole 2ch as the microphone in Mac apps." }
             }
             if Date().timeIntervalSince(lastStatus) >= 2 { await report() }
@@ -423,13 +593,13 @@ private final class SystemSoundCapture: NSObject, SCStreamOutput, SCStreamDelega
         }
     }
     private func upload(_ pcm: Data, token: UUID, capturedAt: Date) async {
-        guard let relay, soundEnabled, captureRunning, !uploadBusy, !locked(), !suspended, !sleepingState,
+        guard let relay, soundEnabled, captureRunning, uploadInFlight < 3, !locked(), !suspended, !sleepingState,
               token == uploadToken, Date().timeIntervalSince(capturedAt) < 0.4,
               Date().timeIntervalSince(latestStateAt) < 1.2, pcm.count == 38_400, !epoch.isEmpty, !outputGeneration.isEmpty else { return }
-        uploadBusy = true
+        uploadInFlight += 1
         let activeToken = uploadToken; let generation = outputGeneration; let sentEpoch = epoch
         outputSequence += 1; let sequence = outputSequence
-        defer { uploadBusy = false }
+        defer { uploadInFlight -= 1 }
         do {
             _ = try await relay.request("/agent/audio", body: ["epoch": sentEpoch, "generation": generation, "seq": sequence,
                 "sampleRate": 48_000, "channels": 2, "encoding": "s16le", "pcm": pcm.base64EncodedString()])
@@ -468,6 +638,7 @@ private final class SystemSoundCapture: NSObject, SCStreamOutput, SCStreamDelega
 }
 
 private func selfTest() throws {
+    try SystemSoundCapture.offlineConversionTest()
     guard pcm16(1) == 32_767, pcm16(-1) == -32_768, pcm16(.nan) == 0, pcm16(0) == 0 else { throw AudioError.message("PCM conversion failed.") }
     let chunker = PCMChunker()
     guard chunker.append(Data(repeating: 0, count: 20_000)).isEmpty,
@@ -478,13 +649,13 @@ private func selfTest() throws {
     guard try configuration.baseURL().scheme == "https" else { throw AudioError.message("HTTPS configuration failed.") }
     do { _ = try Configuration(relayUrl: "https://user@example.com", producerKey: String(repeating: "a", count: 32)).baseURL(); throw AudioError.message("Credential URL accepted.") }
     catch AudioError.message(let message) where message == "The private HTTPS desktop configuration is invalid." {}
-    print("PASS: PCM clipping, non-finite samples, chunk boundaries, buffer reset and secure configuration. No audio device was opened.")
+    print("PASS: 44.1→48 kHz stereo conversion, PCM clipping, chunk boundaries, reset and secure configuration. No audio device was opened.")
 }
 
 if CommandLine.arguments.contains("--self-test") {
     do { try selfTest() } catch { fputs("Audio self-test failed.\n", stderr); exit(1) }
 } else if CommandLine.arguments.contains("--capabilities") {
-    let result: [String: Any] = ["screenRecording": CGPreflightScreenCaptureAccess(), "virtualInputName": blackHoleDevice() == nil ? "" : "BlackHole 2ch", "locked": locked()]
+    let result: [String: Any] = ["systemAudioEnabled": UserDefaults.standard.bool(forKey: "systemAudioEngineWasEnabled"), "audioProcessIdentityAvailable": ownAudioProcess() != nil, "virtualInputName": blackHoleDevice() == nil ? "" : "BlackHole 2ch", "locked": locked()]
     let bytes = try! JSONSerialization.data(withJSONObject: result, options: [.sortedKeys])
     print(String(data: bytes, encoding: .utf8)!)
 } else {

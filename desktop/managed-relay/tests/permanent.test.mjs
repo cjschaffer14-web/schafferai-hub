@@ -30,13 +30,17 @@ for line in sys.stdin:
 `;
 class Database {
   constructor() {
-    this.pending = []; this.child = spawn("python3", ["-u", "-c", PYTHON], { stdio: ["pipe", "pipe", "inherit"] });
+    this.pending = []; this.calls = []; this.child = spawn("python3", ["-u", "-c", PYTHON], { stdio: ["pipe", "pipe", "inherit"] });
     createInterface({ input: this.child.stdout }).on("line", line => {
       const value = JSON.parse(line), task = this.pending.shift();
       value.error ? task.reject(new Error(value.error)) : task.resolve(value.value);
     });
   }
-  execute(q) { return new Promise((resolve, reject) => { this.pending.push({ resolve, reject }); this.child.stdin.write(JSON.stringify(q) + "\n"); }); }
+  async execute(q) {
+    if (this.beforeExecute) await this.beforeExecute(q);
+    this.calls.push(q);
+    return new Promise((resolve, reject) => { this.pending.push({ resolve, reject }); this.child.stdin.write(JSON.stringify(q) + "\n"); });
+  }
   prepare(sql) {
     const db = this;
     return { sql, args: [], bind(...args) { this.args = args; return this; },
@@ -53,7 +57,10 @@ class Bucket {
     if (this.beforePut) { const hook = this.beforePut; this.beforePut = null; await hook(); }
     this.objects.set(key, { bytes: new Uint8Array(bytes), ...options });
   }
-  async get(key) { const object = this.objects.get(key); return object ? { body: object.bytes, customMetadata: object.customMetadata } : null; }
+  async get(key) {
+    if (this.beforeGet) { const hook = this.beforeGet; this.beforeGet = null; await hook(); }
+    const object = this.objects.get(key); return object ? { body: object.bytes, customMetadata: object.customMetadata } : null;
+  }
   async delete(key) { this.objects.delete(key); }
 }
 const KEY = "test-only-http-producer-key-more-than-32-characters";
@@ -225,7 +232,9 @@ test("system sound preserves PCM, sequences, fresh batches and generation fences
   assert.equal(f.BUCKET.objects.size, 8); assert.equal(new Set(f.BUCKET.objects.keys()).size, 8);
   f.advance(1201);
   batch = await f.call(`/audio?id=${f.id}&generation=${on.outputGeneration}&after=0`).then(r => r.json());
-  assert.equal(batch.chunks.length, 0); assert.equal(f.BUCKET.objects.size, 0);
+  assert.equal(batch.chunks.length, 0);
+  await f.call("/health"); // Normal maintenance removes objects; audio reads only enforce freshness.
+  assert.equal(f.BUCKET.objects.size, 0);
   assert.equal((await f.control(2, false, false)).status, 200);
   assert.equal((await f.upload("output", on.outputGeneration, 9)).status, 409);
 });
@@ -265,4 +274,98 @@ test("viewer close and producer replacement delete audio and reject old epochs",
   assert.equal((await f.status()).status, 409);
   const state = await f.call("/agent/audio-state", "GET", undefined, true).then(r => r.json());
   assert.equal(state.epoch, newEpoch); assert.equal(state.audio.available, false); assert.equal(state.micActive, false);
+});
+
+test("a heartbeat written after request start does not stop active audio", async t => {
+  const f = await audioFixture(t), on = await f.control(1, true, true).then(r => r.json());
+  let intercepted = false;
+  f.DB.beforeExecute = async query => {
+    if (!query.sql?.startsWith("SELECT * FROM desktop_audio_state")) return;
+    f.DB.beforeExecute = null; intercepted = true;
+    f.advance(250);
+    await f.DB.prepare("UPDATE desktop_agent SET last_seen = ?").bind(Date.now()).run();
+    await f.DB.prepare("UPDATE desktop_audio_state SET last_seen = ?").bind(Date.now()).run();
+  };
+  const health = await f.call("/health").then(r => r.json());
+  assert.equal(intercepted, true); assert.equal(health.ready, true); assert.equal(health.audio.captureReady, true);
+  const viewer = await f.DB.prepare("SELECT sound, mic FROM desktop_viewers WHERE id = ?").bind(f.id).first();
+  assert.deepEqual(viewer, { sound: 1, mic: 1 });
+  const state = await f.call("/agent/audio-state", "GET", undefined, true).then(r => r.json());
+  assert.equal(state.outputGeneration, on.outputGeneration); assert.equal(state.inputGeneration, on.inputGeneration);
+});
+
+test("an old unready snapshot cannot clear a newer ready helper subscription", async t => {
+  const f = await audioFixture(t), on = await f.control(1, true, true).then(r => r.json());
+  const readyStatus = JSON.stringify({ captureReady: true, microphoneReady: true, virtualInputName: "BlackHole 2ch", message: "Ready" });
+  await f.DB.prepare("UPDATE desktop_audio_state SET status_json = ?").bind('{"captureReady":false,"microphoneReady":false}').run();
+  let intercepted = false;
+  f.DB.beforeExecute = async query => {
+    if (!query.sql?.startsWith("UPDATE desktop_viewers SET sound = CASE")) return;
+    f.DB.beforeExecute = null; intercepted = true; f.advance(50);
+    await f.DB.prepare("UPDATE desktop_audio_state SET status_json = ?, last_seen = ?").bind(readyStatus, Date.now()).run();
+  };
+  await f.call("/health"); assert.equal(intercepted, true);
+  const viewer = await f.DB.prepare("SELECT sound, mic FROM desktop_viewers WHERE id = ?").bind(f.id).first();
+  assert.deepEqual(viewer, { sound: 1, mic: 1 });
+  const state = await f.call("/agent/audio-state", "GET", undefined, true).then(r => r.json());
+  assert.equal(state.outputGeneration, on.outputGeneration); assert.equal(state.inputGeneration, on.inputGeneration);
+});
+
+test("audio hot routes use bounded D1 round trips and preserve server processing age", async t => {
+  const f = await audioFixture(t), on = await f.control(1, true, true).then(r => r.json());
+  for (const direction of ["output", "input"]) {
+    const generation = on[direction + "Generation"], beforeUpload = f.DB.calls.length;
+    assert.equal((await f.upload(direction, generation, 1)).status, 200);
+    assert.ok(f.DB.calls.length - beforeUpload <= 4, "upload must not run full maintenance");
+    const beforeRead = f.DB.calls.length;
+    f.BUCKET.beforeGet = async () => { f.advance(150); };
+    const path = direction === "output" ? `/audio?id=${f.id}` : `/agent/microphone?epoch=${f.epoch}`;
+    const response = await f.call(`${path}&generation=${generation}&after=0`, "GET", undefined, direction === "input");
+    assert.equal(response.status, 200); const batch = await response.json();
+    assert.ok(f.DB.calls.length - beforeRead <= 4, "read must not run full maintenance");
+    assert.equal(batch.processingMs, 150); assert.equal(batch.chunks[0].ageMs, 150);
+    assert.equal(batch.chunks[0].pcm, f.pcm(direction));
+  }
+});
+
+test("a sound viewer muted during an R2 read cannot receive another viewer's audio", async t => {
+  const f = await audioFixture(t), on = await f.control(1, true, false).then(r => r.json());
+  const second = await f.open(); await f.control(1, true, false, second);
+  await f.upload("output", on.outputGeneration, 1);
+  f.BUCKET.beforeGet = async () => { assert.equal((await f.control(2, false, false)).status, 200); };
+  assert.equal((await f.call(`/audio?id=${f.id}&generation=${on.outputGeneration}`)).status, 409);
+  const other = await f.call(`/audio?id=${second}&generation=${on.outputGeneration}`).then(r => r.json());
+  assert.equal(other.chunks.length, 1, "remaining active viewer still receives the current generation");
+});
+
+test("audio state polling is one read round trip and never advertises expired capture", async t => {
+  const f = await audioFixture(t), on = await f.control(1, true, true).then(r => r.json());
+  async function state() {
+    const before = f.DB.calls.length;
+    const response = await f.call("/agent/audio-state", "GET", undefined, true);
+    assert.equal(response.status, 200);
+    assert.equal(f.DB.calls.length - before, 1, "frequent helper polls must use one batched read");
+    return response.json();
+  }
+  let value = await state();
+  assert.equal(value.soundViewers, 1); assert.equal(value.micActive, true);
+  assert.equal(value.audio.captureReady, true); assert.equal(value.audio.micInUse, true);
+  assert.equal(value.outputGeneration, on.outputGeneration); assert.equal(value.inputGeneration, on.inputGeneration);
+  f.advance(8001); value = await state();
+  assert.equal(value.videoReady, true); assert.equal(value.soundViewers, 0); assert.equal(value.micActive, false);
+  assert.equal(value.audio.captureReady, false); assert.equal(value.audio.microphoneReady, false);
+  assert.equal(value.audio.micInUse, false);
+  let row = await f.DB.prepare("SELECT output_generation, input_generation FROM desktop_audio_state").first();
+  assert.deepEqual(row, { output_generation: on.outputGeneration, input_generation: on.inputGeneration }, "read polling never mutates generation state");
+  f.advance(7000);
+  await f.DB.prepare("UPDATE desktop_audio_state SET last_seen = ?").bind(Date.now()).run();
+  value = await state();
+  assert.equal(value.audio.captureReady, true); assert.equal(value.audio.microphoneReady, true);
+  assert.equal(value.soundViewers, 0); assert.equal(value.micActive, false, "expired leases cannot activate capture even before maintenance");
+  const newEpoch = crypto.randomUUID();
+  await f.DB.prepare("UPDATE desktop_agent SET epoch = ?").bind(newEpoch).run();
+  value = await state();
+  assert.equal(value.epoch, newEpoch); assert.equal(value.audio.available, false);
+  assert.equal(value.soundViewers, 0); assert.equal(value.micActive, false);
+  assert.equal(value.outputGeneration, null); assert.equal(value.inputGeneration, null, "an old producer epoch cannot supply capture generations");
 });

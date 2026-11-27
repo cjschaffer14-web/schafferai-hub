@@ -3,9 +3,9 @@ set -eu
 source_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 app_path=${1:-"$source_dir/build/SchafferDesktopAudio.app"}
 mkdir -p "$app_path/Contents/MacOS" "$source_dir/build/swift-cache"
-xcrun swiftc -swift-version 5 -O -target arm64-apple-macosx14.0 \
+xcrun swiftc -swift-version 5 -O -target arm64-apple-macosx14.2 \
   -module-cache-path "$source_dir/build/swift-cache" \
-  -framework AppKit -framework ApplicationServices -framework ScreenCaptureKit \
+  -framework AppKit -framework ApplicationServices \
   -framework CoreMedia -framework CoreAudio -framework AudioToolbox -framework AVFoundation \
   "$source_dir/main.swift" -o "$app_path/Contents/MacOS/SchafferDesktopAudio"
 cat > "$app_path/Contents/Info.plist" <<'PLIST'
@@ -17,11 +17,10 @@ cat > "$app_path/Contents/Info.plist" <<'PLIST'
 <key>CFBundleName</key><string>Schaffer Desktop Audio</string>
 <key>CFBundleDisplayName</key><string>Schaffer Desktop Audio</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>1.0</string>
-<key>CFBundleVersion</key><string>1</string>
-<key>LSMinimumSystemVersion</key><string>14.0</string>
+<key>CFBundleShortVersionString</key><string>1.1</string>
+<key>CFBundleVersion</key><string>4</string>
+<key>LSMinimumSystemVersion</key><string>14.2</string>
 <key>LSUIElement</key><true/>
-<key>NSScreenCaptureUsageDescription</key><string>Send this Mac's system audio to a connected Schaffer AI desktop portal when Sound is enabled.</string>
 <key>NSAudioCaptureUsageDescription</key><string>Send system sound to the connected desktop portal only while Sound is enabled.</string>
 </dict></plist>
 PLIST

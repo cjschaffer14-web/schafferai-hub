@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const source = fs.readFileSync(path.join(__dirname, '..', 'portal.js'), 'utf8').replace("import { HTTPDesktopTransport } from './http-transport.js';", '').replace("import { DesktopAudio } from './audio.js';", '');
+const source = fs.readFileSync(path.join(__dirname, '..', 'portal.js'), 'utf8').replace("import { HTTPDesktopTransport } from './http-transport.js';", '').replace(/import \{ DesktopAudio \} from '\.\/audio\.js(?:\?[^']*)?';/, '');
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const settle = () => new Promise(resolve => setImmediate(resolve));
 function deferred() {

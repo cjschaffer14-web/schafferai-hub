@@ -29,7 +29,7 @@ async function harness(options={}){
     if(url.includes('/viewer/audio'))return json({epoch:'epoch',...call.body,outputGeneration:'output',inputGeneration:'input',audio:healthy.audio});
     return json({epoch:'epoch',generation:'output',sampleRate:48000,channels:2,encoding:'s16le',chunks:[]});
   };
-  const audio=new DesktopAudio({soundButton,micButton,message,AudioContext:Context,AudioWorkletNode:Worklet,mediaDevices:{getUserMedia:()=>{micCalls++;return options.media?options.media():Promise.reject(Object.assign(new Error('denied'),{name:'NotAllowedError'}));}},fetch:fetcher,onFailure:message=>failures.push(message),setTimeout:(fn,delay)=>{timers.set(++timer,{fn,delay});return timer;},clearTimeout:id=>timers.delete(id)});
+  const audio=new DesktopAudio({soundButton,micButton,message,AudioContext:Context,AudioWorkletNode:Worklet,mediaDevices:{getUserMedia:()=>{micCalls++;return options.media?options.media():Promise.reject(Object.assign(new Error('denied'),{name:'NotAllowedError'}));}},fetch:fetcher,onFailure:message=>failures.push(message),now:options.now||Date.now,setTimeout:(fn,delay)=>{timers.set(++timer,{fn,delay});return timer;},clearTimeout:id=>timers.delete(id)});
   audio.setSession('https://relay.example','viewer',healthy);
   return{audio,calls,contexts,scheduled,failures,timers,worklets,soundButton,micButton,message,get micCalls(){return micCalls;}};
 }
@@ -112,4 +112,35 @@ test('expired sound is discarded and malformed sound closes the audio session',a
   const h=await harness({fetch:call=>call.url.includes('/viewer/audio')?Promise.resolve(json({epoch:'epoch',...call.body,outputGeneration:'output',inputGeneration:null})):Promise.resolve(json({epoch:'epoch',generation:'output',sampleRate:48000,channels:2,encoding:'s16le',chunks:[{seq:fresh?2:1,ageMs:fresh?0:1201,pcm:fresh?'bad':Buffer.alloc(38400).toString('base64')}]}))});
   await h.audio.toggleSound();await settle();assert.equal(h.scheduled.length,0);assert.equal(h.failures.length,0);
   fresh=true;const poll=[...h.timers.values()].find(timer=>timer.delay===100);poll.fn();await settle();assert.equal(h.failures.length,1);assert.equal(h.audio.sound,false);h.audio.clearSession();
+});
+
+async function delayedSound(timing,ageMs=500){
+  let now=1000;
+  const h=await harness({now:()=>now,fetch:call=>{
+    if(call.url.includes('/viewer/audio'))return Promise.resolve(json({epoch:'epoch',...call.body,outputGeneration:'output',inputGeneration:null}));
+    now+=750;
+    return Promise.resolve(json({epoch:'epoch',generation:'output',sampleRate:48000,channels:2,encoding:'s16le',...timing,chunks:[{seq:1,ageMs,pcm:Buffer.alloc(38400).toString('base64')}]}));
+  }});
+  await h.audio.toggleSound();await settle();return h;
+}
+
+test('relay processing time is counted once when a slow response still carries fresh sound',async()=>{
+  const h=await delayedSound({processingMs:700});
+  // 500 ms of age at the relay plus at most 50 ms in transit is still fresh.
+  assert.equal(h.scheduled.length,1);assert.equal(h.audio.sound,true);assert.deepEqual(h.failures,[]);h.audio.clearSession();
+});
+
+test('missing or invalid relay timing conservatively includes the entire request duration',async()=>{
+  for(const timing of [{},{processingMs:-1},{processingMs:NaN},{processingMs:Infinity},{processingMs:751},{processingMs:'700'},{processingMs:null}]){
+    const h=await delayedSound(timing);
+    // Without trustworthy processing time, age 500 + elapsed 750 exceeds 1200 ms.
+    assert.equal(h.scheduled.length,0,JSON.stringify(timing));assert.deepEqual(h.failures,[]);h.audio.clearSession();
+  }
+});
+
+test('valid relay timing preserves the 1200 ms sound freshness boundary',async()=>{
+  const stale=await delayedSound({processingMs:700},1151);
+  assert.equal(stale.scheduled.length,0);assert.deepEqual(stale.failures,[]);stale.audio.clearSession();
+  const boundary=await delayedSound({processingMs:700},1150);
+  assert.equal(boundary.scheduled.length,1);assert.deepEqual(boundary.failures,[]);boundary.audio.clearSession();
 });
