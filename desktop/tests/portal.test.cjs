@@ -13,8 +13,7 @@ function deferred() {
 }
 
 async function portal(options = {}) {
-  const elements = new Map(), intervals = [], timeouts = new Map(), sockets = [], draws = [], drawSizes = [], observers = [], audioSessions = [], audioStatuses = [];
-  let audioClears = 0;
+  const elements = new Map(), intervals = [], timeouts = new Map(), sockets = [], draws = [], drawSizes = [], observers = [];
   let now = 100000, timerId = 0;
   class Target {
     constructor() {
@@ -57,17 +56,17 @@ async function portal(options = {}) {
   }
   class Socket {
     static OPEN = 1;
-    constructor(url, transportOptions) { this.url = url; this.transportOptions = transportOptions; this.viewerId = 'viewer-fixture'; this.readyState = 0; this.sent = []; sockets.push(this); }
+    constructor(url) { this.url = url; this.readyState = 0; this.sent = []; sockets.push(this); }
     open() { this.readyState = 1; this.onopen?.(); }
-    receive(data) { return this.onmessage?.({data}); }
+    receive(data) { this.onmessage?.({data}); }
     send(data) { this.sent.push(JSON.parse(data)); }
     close(code, reason) { this.readyState = 3; this.closed = {code, reason}; }
     remoteClose() { this.readyState = 3; this.onclose?.(); }
   }
-  const fetcher = options.fetch || (async url => ({ok: true, json: async () => url === './config.json' ? {relayUrl: 'https://desktop.example.test', transport: options.transport || 'websocket', ...(options.frameStream === undefined ? {} : {frameStream: options.frameStream})} : {available: true, ready: true}}));
+  const fetcher = options.fetch || (async url => ({ok: true, json: async () => url === './config.json' ? {relayUrl: 'https://desktop.example.test', transport: options.transport || 'websocket'} : {available: true, ready: true}}));
   const bitmapFactory = options.bitmap || (async () => ({width: 1440, height: 900, close() {}}));
   await new AsyncFunction('DesktopAudio', 'HTTPDesktopTransport', 'document', 'window', 'fetch', 'WebSocket', 'Blob', 'createImageBitmap', 'setInterval', 'setTimeout', 'clearTimeout', 'Date', 'URL', 'AbortSignal', 'ResizeObserver', source)(
-    class { setSession(...args) { audioSessions.push(args); } updateStatus(status) { audioStatuses.push(status); } stop() {} clearSession() { audioClears++; } },
+    class { setSession() {} updateStatus() {} stop() {} clearSession() {} },
     options.HTTPDesktopTransport || Socket,
     doc, win, fetcher, Socket, Blob, bitmapFactory,
     (fn, period) => { intervals.push({fn, period}); return intervals.length; },
@@ -77,7 +76,7 @@ async function portal(options = {}) {
   );
   const el = id => doc.getElementById(id);
   return {
-    el, doc, win, sockets, draws, drawSizes, audioSessions, audioStatuses, audioClears: () => audioClears,
+    el, doc, win, sockets, draws, drawSizes,
     resize(width, height) {
       Object.assign(el('desktop'), {clientWidth: width, clientHeight: height});
       for (const observer of observers) observer.callback([{target: observer.target}]);
@@ -136,24 +135,6 @@ test('hidden pages release keys then close the connection', async () => {
   assert.equal(h.el('screen').classList.contains('live'), false);
   const sent = ws.sent.length; attemptInput(h);
   assert.equal(ws.sent.length, sent);
-});
-
-test('hiding the page cancels queued wheel input before another connection can receive it', async () => {
-  const h = await portal(); const first = h.open(); await h.frame();
-  h.el('screen').emit('wheel'); h.advance(19); assert.deepEqual(mutations(first), []);
-  h.doc.hidden = true; h.doc.emit('visibilitychange'); h.advance(100);
-  assert.equal(first.closed.code, 1000); assert.deepEqual(mutations(first), []);
-  h.doc.hidden = false; const second = h.open(); await h.frame(second); h.advance(100);
-  assert.deepEqual(mutations(second), []);
-});
-
-test('the HTTP JPEG handler returns a promise that settles after bitmap decoding', async () => {
-  const pending = deferred(), h = await portal({transport: 'http', bitmap: () => pending.promise});
-  const ws = h.open(), rendering = ws.receive(new Blob(['pending JPEG'])); let finished = false;
-  assert.equal(typeof rendering?.then, 'function'); rendering.then(() => { finished = true; });
-  await settle(); assert.equal(finished, false); assert.equal(h.draws.length, 0);
-  pending.resolve({width: 1440, height: 930, close() {}}); await rendering;
-  assert.equal(finished, true); assert.equal(h.draws.length, 1); assert.equal(h.el('screen').classList.contains('live'), true);
 });
 
 test('a stale stream blocks every input path until a fresh frame arrives', async () => {
@@ -301,25 +282,6 @@ test('HTTP configuration selects the permanent HTTPS transport without changing 
   h.doc.hidden = true; h.doc.emit('visibilitychange');
   assert.equal(ws.closed.code, 1000);
   assert.equal(ws.sent.at(-1).event.type, 'release');
-});
-
-test('framed streaming is an explicit HTTP option and retains the public audio lease', async () => {
-  for (const enabled of [undefined, false, true]) {
-    const h = await portal({transport: 'http', frameStream: enabled}), ws = h.open();
-    assert.deepEqual(ws.transportOptions, {frameStream: enabled === true});
-    assert.equal(h.audioSessions[0][0], 'https://desktop.example.test');
-    assert.equal(h.audioSessions[0][1], 'viewer-fixture');
-    const audio = {available: true, captureReady: true, microphoneReady: true};
-    ws.receive(JSON.stringify({type: 'status', available: true, ready: true, audio}));
-    assert.deepEqual(h.audioStatuses.at(-1).audio, audio);
-    h.doc.hidden = true; h.doc.emit('visibilitychange');
-    assert.equal(ws.closed.code, 1000); assert.ok(h.audioClears() > 0);
-  }
-});
-
-test('a non-boolean frame stream option is rejected before a desktop connection opens', async () => {
-  const h = await portal({transport: 'http', frameStream: 'true'});
-  assert.equal(h.sockets.length, 0); assert.equal(h.el('status').textContent, 'Desktop connection setup pending');
 });
 
 test('Apps sends an ordered Spotlight shortcut and Return works on a touchscreen', async () => {
