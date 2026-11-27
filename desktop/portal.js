@@ -1,11 +1,11 @@
-import { HTTPDesktopTransport } from './http-transport.js?v=20261127-stream';
-import { DesktopAudio } from './audio.js?v=20261127-stream';
+import { HTTPDesktopTransport } from './http-transport.js?v=20261127-restored1545';
+import { DesktopAudio } from './audio.js?v=20261127-restored1545';
 
 const $ = id => document.getElementById(id);
 const screen = $('screen'), desktop = $('desktop'), ctx = screen.getContext('2d', {alpha: false});
 let relay, socket, healthTimer, live = false, connecting = false, generation = 0, agentReady = false;
 let currentFrame = null, decoding = false, frameAt = 0, pointer = null, moveAt = 0;
-let wheelTimer = null, wheelX = 0, wheelY = 0, transport = 'websocket', frameStream = false;
+let wheelTimer = null, wheelX = 0, wheelY = 0, transport = 'websocket';
 const audio = new DesktopAudio({soundButton:$('sound'),micButton:$('microphone'),message:$('audio-status'),onFailure:message=>disconnect(message)});
 
 function fitCanvas() {
@@ -90,12 +90,12 @@ async function drawFrames() {
 function connect() {
   if (!relay || socket) return;
   connecting = true; agentReady = false; controls(false); status('Connecting to your Mac…');
-  const ws = transport === 'http' ? new HTTPDesktopTransport(relay,{frameStream}) : new WebSocket(`${relay.replace(/^http/,'ws')}/viewer`); socket = ws;
+  const ws = transport === 'http' ? new HTTPDesktopTransport(relay) : new WebSocket(`${relay.replace(/^http/,'ws')}/viewer`); socket = ws;
   ws.binaryType = 'blob';
   ws.onopen = () => { if (socket !== ws) return; connecting = false; controls(true); if(transport === 'http') audio.setSession(relay,ws.viewerId,{available:false,ready:false}); status('Connected · waiting for desktop…'); };
   ws.onmessage = event => {
     if (socket !== ws) return;
-    if (event.data instanceof Blob) { if(agentReady) { currentFrame = event.data; return drawFrames(); } return; }
+    if (event.data instanceof Blob) { if(agentReady) { currentFrame = event.data; drawFrames(); } return; }
     let data; try { data = JSON.parse(event.data); } catch { return; }
     if (data.type === 'status' || data.type === 'hello') audio.updateStatus(data);
     if (data.type === 'status' && (data.available === false || data.ready === false)) {
@@ -147,7 +147,7 @@ screen.addEventListener('wheel',event => {
   if(wheelTimer === null) wheelTimer = setTimeout(()=>{
     wheelTimer = null; const deltaX=wheelX,deltaY=wheelY; wheelX=0;wheelY=0;
     send({type:'scroll',deltaX,deltaY});
-  },20);
+  },40);
 },{passive:false});
 function key(event,action) {
   if (!live) return; event.preventDefault();
@@ -203,8 +203,6 @@ try {
   const url = new URL(config.relayUrl);
   if(url.protocol!=='https:' && !(url.protocol==='http:' && ['localhost','127.0.0.1'].includes(url.hostname))) throw new Error();
   if(config.transport !== undefined && !['http','websocket'].includes(config.transport)) throw new Error();
-  if(config.frameStream !== undefined && typeof config.frameStream !== 'boolean') throw new Error();
-  frameStream = config.frameStream === true;
   transport = config.transport || 'websocket';
   relay = url.origin; await checkHealth(); healthTimer = setInterval(checkHealth,15000);
 } catch { status('Desktop connection setup pending'); empty('Desktop connection setup pending','The Mac desktop service has not been connected yet.'); }

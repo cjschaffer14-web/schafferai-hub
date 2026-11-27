@@ -80,16 +80,10 @@ export function health(agent, viewers, now, audio) {
     screenRecording: available && s.screenRecording === true, accessibility: available && s.accessibility === true,
     message: !agent ? "Mac is offline" : !available ? "Mac heartbeat expired" : s.message || (ready ? "Mac is available" : "Mac desktop is not ready") };
 }
-async function clearFrame(env, agent, maintenance = false) {
-  if (!agent) return false;
-  const now = Date.now();
-  const gate = maintenance ? " AND frame_key = ? AND frame_revision = ? AND (last_seen < ? OR json_extract(status_json, '$.ready') IS NOT 1 OR frame_at < ? OR NOT EXISTS (SELECT 1 FROM desktop_viewers WHERE epoch = desktop_agent.epoch AND expires_at >= ?))" : "";
-  const result = await env.DB.batch([
-    stmt(env, "SELECT frame_key FROM desktop_agent WHERE id = ? AND epoch = ?", FIXED, agent.epoch),
-    stmt(env, "UPDATE desktop_agent SET frame_at = 0, frame_id = '', frame_key = '', frame_revision = frame_revision + 1 WHERE id = ? AND epoch = ?" + gate, FIXED, agent.epoch, ...(maintenance ? [agent.frame_key, agent.frame_revision, now - LIMITS.freshnessMs, now - LIMITS.frameTtlMs, now] : [])),
-  ]);
-  if (changed(result[1]) && result[0].results?.[0]?.frame_key) await env.BUCKET.delete(result[0].results[0].frame_key);
-  return changed(result[1]);
+async function clearFrame(env, agent) {
+  if (!agent) return;
+  await run(env, "UPDATE desktop_agent SET frame_at = 0, frame_id = '', frame_key = '', frame_revision = frame_revision + 1 WHERE id = ? AND epoch = ?", FIXED, agent.epoch);
+  if (agent.frame_key) await env.BUCKET.delete(agent.frame_key);
 }
 const release = (env, epoch, now) => run(env, "INSERT INTO desktop_events (epoch, viewer_id, event_json, expires_at) VALUES (?, NULL, ?, ?)", epoch, '{"type":"release"}', now + LIMITS.inputTtlMs);
 const AUDIO_TTL = 1200, HELPER_TTL = 8000;
@@ -252,173 +246,13 @@ async function handleAudio(req, env, url, path, startedAt) {
   return readAudioChunks(req, env, context, output ? "output" : "input", url.searchParams.get("generation"), Number(url.searchParams.get("after") || 0), startedAt, id);
 }
 
-const desktopReadySQL = alias => `${alias}.last_seen >= ? AND json_extract(${alias}.status_json, '$.ready') = 1 AND json_extract(${alias}.status_json, '$.screenRecording') = 1 AND json_extract(${alias}.status_json, '$.accessibility') = 1 AND COALESCE(json_extract(${alias}.status_json, '$.state'), 'ready') = 'ready'`;
-async function readDesktopContext(env) {
-  const result = await env.DB.batch([
-    stmt(env, "SELECT * FROM desktop_agent WHERE id = ?", FIXED),
-    stmt(env, "SELECT * FROM desktop_viewers WHERE epoch = (SELECT epoch FROM desktop_agent WHERE id = ?)", FIXED),
-  ]);
-  return { agent: result[0].results?.[0] || null, viewers: result[1].results || [] };
-}
-const liveDesktopViewers = context => context.viewers.filter(viewer => viewer.epoch === context.agent?.epoch && viewer.expires_at >= Date.now());
-function desktopReady(context) {
-  const value = health(context.agent, liveDesktopViewers(context).length, Date.now());
-  return value.ready && value.state === "ready" && value.screenRecording && value.accessibility;
-}
-function desktopViewer(context, id) {
-  if (!UUID.test(id || "")) fail(400, "Valid viewer id required");
-  const value = liveDesktopViewers(context).find(viewer => viewer.id === id);
-  if (!value) fail(410, "Viewer lease expired"); return value;
-}
-async function desktopInput(req, env, receivedAt) {
-  const value = await body(req);
-  if (!keys(value, ["id", "event", "events"]) || (value.event === undefined) === (value.events === undefined)) fail(400, "Provide one event or one events batch");
-  const raw = value.event === undefined ? value.events : [value.event];
-  if (!Array.isArray(raw) || raw.length < 1 || raw.length > 64) fail(400, "Input batch must contain 1 to 64 events");
-  const events = raw.map(normalizeInput); if (events.some(event => !event)) fail(400, "Invalid desktop input");
-  const context = await readDesktopContext(env), viewer = desktopViewer(context, value.id), now = Date.now();
-  const requiresReady = Number(events.some(event => event.type !== "release"));
-  if (requiresReady && (!desktopReady(context) || now - receivedAt > LIMITS.inputTtlMs)) fail(409, "Mac desktop is not ready or input expired");
-  const slot = Math.floor(now / 1000), batchId = crypto.randomUUID();
-  const expiry = (requiresReady ? receivedAt : now) + LIMITS.inputTtlMs;
-  const result = await env.DB.batch([
-    stmt(env, `UPDATE desktop_viewers SET inputs_count = CASE WHEN inputs_slot = ? THEN inputs_count + ? ELSE ? END, inputs_slot = ?, batch_id = ? WHERE id = ? AND epoch = ? AND expires_at >= ? AND (inputs_slot != ? OR inputs_count + ? <= 120) AND EXISTS (SELECT 1 FROM desktop_agent d WHERE d.id = ? AND d.epoch = ? AND (? = 0 OR (${desktopReadySQL("d")})))`, slot, events.length, events.length, slot, batchId, viewer.id, context.agent.epoch, now, slot, events.length, FIXED, context.agent.epoch, requiresReady, now - LIMITS.freshnessMs),
-    ...events.map(event => stmt(env, "INSERT INTO desktop_events (epoch, viewer_id, event_json, expires_at) SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM desktop_viewers WHERE id = ? AND epoch = ? AND batch_id = ?)", context.agent.epoch, viewer.id, JSON.stringify(event), expiry, viewer.id, context.agent.epoch, batchId)),
-  ]);
-  if (!changed(result[0])) fail(429, "Input rate exceeded or desktop no longer ready");
-  return json(req, { accepted: true, count: events.length });
-}
-function pollQuery(env, epoch, after, now) {
-  // One SQLite snapshot per wait iteration keeps a two-second hold within the
-  // D1 query budget. Ordered events remain bounded before JSON aggregation.
-  return stmt(env, `SELECT d.*,
-    (SELECT json_group_array(json_object('id', v.id, 'epoch', v.epoch, 'expires_at', v.expires_at)) FROM desktop_viewers v WHERE v.epoch = d.epoch) AS viewers_json,
-    (SELECT json_group_array(json_object('id', e.id, 'viewer_id', e.viewer_id, 'event_json', e.event_json, 'expires_at', e.expires_at)) FROM (SELECT id, viewer_id, event_json, expires_at FROM desktop_events WHERE epoch = ? AND id > ? AND expires_at >= ? AND (viewer_id IS NULL OR EXISTS (SELECT 1 FROM desktop_viewers v WHERE v.id = desktop_events.viewer_id AND v.epoch = ? AND v.expires_at >= ?)) ORDER BY id LIMIT 64) e) AS events_json
-    FROM desktop_agent d WHERE d.id = ?`, epoch, after, now, epoch, now, FIXED);
-}
-function expiryQueries(env, epoch, now, after) {
-  return [
-    stmt(env, `DELETE FROM desktop_events WHERE epoch = ? AND (${after === undefined ? "" : "id <= ? OR "}expires_at < ? OR (viewer_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM desktop_viewers v WHERE v.id = desktop_events.viewer_id AND v.epoch = ? AND v.expires_at >= ?))) AND EXISTS (SELECT 1 FROM desktop_agent WHERE id = ? AND epoch = ?)`, epoch, ...(after === undefined ? [] : [after]), now, epoch, now, FIXED, epoch),
-    stmt(env, "DELETE FROM desktop_viewers WHERE epoch = ? AND expires_at < ? AND EXISTS (SELECT 1 FROM desktop_agent WHERE id = ? AND epoch = ?)", epoch, now, FIXED, epoch),
-    stmt(env, "INSERT INTO desktop_events (epoch, viewer_id, event_json, expires_at) SELECT ?, NULL, ?, ? WHERE changes() > 0 AND EXISTS (SELECT 1 FROM desktop_agent WHERE id = ? AND epoch = ?)", epoch, '{"type":"release"}', now + LIMITS.inputTtlMs, FIXED, epoch),
-  ];
-}
-async function pollSnapshot(env, epoch, after, maintain) {
-  const now = Date.now(), queries = [];
-  if (maintain) {
-    // A transaction claims expired viewers and inserts one release for that
-    // claim. A second concurrent poll cannot claim the same expiry again.
-    queries.push(
-      stmt(env, `DELETE FROM desktop_events WHERE epoch = ? AND json_extract(event_json, '$.type') != 'release' AND EXISTS (SELECT 1 FROM desktop_agent d WHERE d.id = ? AND d.epoch = ? AND NOT (${desktopReadySQL("d")}))`, epoch, FIXED, epoch, now - LIMITS.freshnessMs),
-      stmt(env, "INSERT INTO desktop_events (epoch, viewer_id, event_json, expires_at) SELECT ?, NULL, ?, ? WHERE changes() > 0 AND EXISTS (SELECT 1 FROM desktop_agent WHERE id = ? AND epoch = ?)", epoch, '{"type":"release"}', now + LIMITS.inputTtlMs, FIXED, epoch),
-      ...expiryQueries(env, epoch, now, after),
-    );
-  }
-  const result = await env.DB.batch([...queries, pollQuery(env, epoch, after, now)]);
-  const agent = result.at(-1).results?.[0] || null;
-  const context = { agent, viewers: JSON.parse(agent?.viewers_json || "[]") };
-  requireEpoch(epoch, context.agent);
-  const ready = desktopReady(context), ids = new Set(liveDesktopViewers(context).map(viewer => viewer.id)), events = []; let size = 0;
-  for (const row of JSON.parse(agent.events_json || "[]")) {
-    if (row.expires_at < Date.now() || row.viewer_id && !ids.has(row.viewer_id)) continue;
-    const event = JSON.parse(row.event_json); if (!ready && event.type !== "release") continue;
-    const envelope = { id: row.id, event, expiresAt: row.expires_at }, length = encoder.encode(JSON.stringify(envelope)).length;
-    if (size + length > 60000) break; size += length; events.push(envelope);
-  }
-  return { context, ready, events };
-}
-const pollStateKey = value => JSON.stringify([value.context.agent.epoch, value.ready, health(value.context.agent, 0, Date.now()).state, ...liveDesktopViewers(value.context).map(viewer => viewer.id).sort()]);
-async function desktopPoll(req, env, url) {
-  const epoch = url.searchParams.get("epoch"), after = Number(url.searchParams.get("after") || 0);
-  if (!UUID.test(epoch || "") || !Number.isSafeInteger(after) || after < 0) fail(400, "Valid epoch and acknowledgement required");
-  // Every mutation gates the epoch atomically; validate the returned snapshot
-  // before exposing events or acknowledging a replacement producer's queue.
-  let value = await pollSnapshot(env, epoch, after, true);
-  const reply = () => json(req, { epoch, viewers: liveDesktopViewers(value.context).length, events: value.events });
-  const count = liveDesktopViewers(value.context).length;
-  if (value.events.length || !value.ready || count > 0 && (!value.context.agent.frame_id || Date.now() - value.context.agent.frame_at > LIMITS.frameTtlMs)) return reply();
-  const initial = pollStateKey(value), active = count > 0;
-  const budget = 2000, interval = active ? 50 : 100, maxChecks = active ? 37 : 20;
-  const deadline = performance.now() + budget;
-  for (let checks = 0; checks < maxChecks && !req.signal.aborted; checks++) {
-    const remaining = deadline - performance.now(); if (remaining <= 0) break;
-    await new Promise(resolve => setTimeout(resolve, Math.min(interval, remaining)));
-    value = await pollSnapshot(env, epoch, after, false);
-    if (value.context.viewers.some(viewer => viewer.expires_at < Date.now()) || !value.ready) value = await pollSnapshot(env, epoch, after, true);
-    if (value.events.length || !value.ready || pollStateKey(value) !== initial) return reply();
-  }
-  return reply();
-}
-async function desktopFrame(req, env, url, ctx, receivedAt) {
-  const context = await readDesktopContext(env), { agent } = context;
-  if (url.pathname === "/frame") {
-    desktopViewer(context, url.searchParams.get("id"));
-    if (!desktopReady(context) || !agent.frame_id || Date.now() - agent.frame_at > LIMITS.frameTtlMs) return empty(req, 204);
-    if (url.searchParams.get("after") === agent.frame_id) return empty(req, 304);
-    const frame = await env.BUCKET.get(agent.frame_key);
-    if (!frame || frame.customMetadata?.frameId !== agent.frame_id) return empty(req, 204);
-    const latest = await readDesktopContext(env);
-    desktopViewer(latest, url.searchParams.get("id"));
-    if (!desktopReady(latest) || latest.agent?.epoch !== agent.epoch || latest.agent.frame_revision !== agent.frame_revision || Date.now() - agent.frame_at > LIMITS.frameTtlMs) return empty(req, 204);
-    return new Response(frame.body, { headers: { ...headers(req, "image/jpeg"), "X-Frame-ID": agent.frame_id, "X-Frame-Age-Ms": String(Math.max(0, Date.now() - agent.frame_at)) } });
-  }
-  requireEpoch(url.searchParams.get("epoch"), agent);
-  if (req.method === "DELETE") {
-    if (!await clearFrame(env, agent)) fail(409, "Producer epoch changed");
-    return json(req, { cleared: true });
-  }
-  const id = url.searchParams.get("id"); if (!UUID.test(id || "")) fail(400, "Valid frame id required");
-  if (!desktopReady(context) || !liveDesktopViewers(context).length) return empty(req, 204);
-  const frame = await bytes(req, LIMITS.maxFrameBytes);
-  if (frame.length < 4 || frame[0] !== 255 || frame[1] !== 216 || frame.at(-2) !== 255 || frame.at(-1) !== 217) fail(400, "JPEG required");
-  let now = Date.now(); if (now - receivedAt > LIMITS.frameTtlMs) return empty(req, 204);
-  const slot = Math.floor(now / 1000);
-  const gate = `id = ? AND epoch = ? AND frame_revision = ? AND ${desktopReadySQL("desktop_agent")} AND EXISTS (SELECT 1 FROM desktop_viewers v WHERE v.epoch = desktop_agent.epoch AND v.expires_at >= ?)`;
-  const args = at => [FIXED, agent.epoch, agent.frame_revision, at - LIMITS.freshnessMs, at];
-  const reservation = await env.DB.batch([
-    stmt(env, `UPDATE desktop_agent SET frames_count = CASE WHEN frames_slot = ? THEN frames_count + 1 ELSE 1 END, frames_slot = ?, frame_reserved_sequence = frame_reserved_sequence + 1 WHERE (frames_slot != ? OR frames_count < 8) AND ${gate}`, slot, slot, slot, ...args(now)),
-    stmt(env, "SELECT frame_reserved_sequence FROM desktop_agent WHERE id = ? AND epoch = ?", FIXED, agent.epoch),
-  ]);
-  if (!changed(reservation[0])) return empty(req, 204);
-  const sequence = reservation[1].results?.[0]?.frame_reserved_sequence;
-  if (!Number.isSafeInteger(sequence) || sequence < 1) fail(503, "Invalid frame reservation");
-  const key = `desktop/${agent.epoch}/${id}-${crypto.randomUUID()}.jpg`;
-  const publish = async () => {
-    let published = false;
-    try {
-      await env.BUCKET.put(key, frame, { httpMetadata: { contentType: "image/jpeg", cacheControl: "no-store" }, customMetadata: { frameId: id } });
-      now = Date.now();
-      if (now - receivedAt > LIMITS.frameTtlMs) { await env.BUCKET.delete(key); return empty(req, 204); }
-      const result = await env.DB.batch([
-        stmt(env, "SELECT frame_key FROM desktop_agent WHERE id = ? AND epoch = ?", FIXED, agent.epoch),
-        stmt(env, `UPDATE desktop_agent SET frame_at = ?, frame_id = ?, frame_key = ?, frame_published_sequence = ? WHERE ${gate} AND frame_published_sequence < ? AND frame_at <= ?`, receivedAt, id, key, sequence, ...args(now), sequence, receivedAt),
-      ]);
-      published = changed(result[1]);
-      if (!published) { await env.BUCKET.delete(key); return empty(req, 204); }
-      const previous = result[0].results?.[0]?.frame_key;
-      if (previous && previous !== key) await env.BUCKET.delete(previous);
-      return json(req, { id });
-    } catch (error) {
-      // Clean only this upload. A failure deleting the previous object must
-      // never delete the replacement whose publication already succeeded.
-      if (!published) await env.BUCKET.delete(key).catch(() => {});
-      throw error;
-    }
-  };
-  const task = publish();
-  if (typeof ctx?.waitUntil === "function") {
-    ctx.waitUntil(task.catch(() => { console.error("Desktop frame background publication failed"); }));
-    return json(req, { id, accepted: true }, 202);
-  }
-  return task;
-}
-
 async function cleanup(env, now) {
   const agent = await readAgent(env);
-  now = Date.now();
-  if (agent) await env.DB.batch(expiryQueries(env, agent.epoch, now));
+  const expired = await all(env, "SELECT id FROM desktop_viewers WHERE expires_at < ?", now);
+  await env.DB.batch([stmt(env, "DELETE FROM desktop_events WHERE expires_at < ? OR (viewer_id IS NOT NULL AND viewer_id NOT IN (SELECT id FROM desktop_viewers WHERE expires_at >= ?))", now, now), stmt(env, "DELETE FROM desktop_viewers WHERE expires_at < ?", now)]);
+  if (agent && expired.length) await release(env, agent.epoch, now);
   const count = await countViewers(env, agent?.epoch, now);
-  if (agent?.frame_key && (!health(agent, count, now).ready || count === 0 || now - agent.frame_at > LIMITS.frameTtlMs)) await clearFrame(env, agent, true);
+  if (agent?.frame_key && (!health(agent, count, now).ready || count === 0 || now - agent.frame_at > LIMITS.frameTtlMs)) await clearFrame(env, agent);
   const current = await readAgent(env);
   return { agent: current, count, audio: await syncAudio(env, current, now) };
 }
@@ -428,25 +262,21 @@ async function requireViewer(env, id, agent, now) {
   const viewer = await first(env, "SELECT * FROM desktop_viewers WHERE id = ? AND epoch = ? AND expires_at >= ?", id, agent?.epoch || "", now);
   if (!viewer) fail(410, "Viewer lease expired"); return viewer;
 }
-const ROUTES = new Map([["/health", "GET"], ["/agent/connect", "POST"], ["/agent/status", "POST"], ["/agent/poll", "GET"], ["/agent/frame", "PUT,DELETE"], ["/agent/disconnect", "POST"], ["/viewer/open", "POST"], ["/viewer/pulse", "POST"], ["/viewer/close", "POST"], ["/input", "POST"], ["/frame", "GET"], ["/frames", "GET"], ["/viewer/audio", "POST"], ["/audio", "GET"], ["/microphone", "POST"], ["/agent/audio-state", "GET"], ["/agent/audio/status", "POST"], ["/agent/audio", "POST"], ["/agent/microphone", "GET"]]);
-export default { async fetch(req, env, ctx) { try { return await handle(req, env, ctx); } catch (e) { return json(req, { error: e.status ? e.message : "Relay unavailable" }, e.status || 503); } } };
-async function handle(req, env, ctx) {
+const ROUTES = new Map([["/health", "GET"], ["/agent/connect", "POST"], ["/agent/status", "POST"], ["/agent/poll", "GET"], ["/agent/frame", "PUT,DELETE"], ["/agent/disconnect", "POST"], ["/viewer/open", "POST"], ["/viewer/pulse", "POST"], ["/viewer/close", "POST"], ["/input", "POST"], ["/frame", "GET"], ["/viewer/audio", "POST"], ["/audio", "GET"], ["/microphone", "POST"], ["/agent/audio-state", "GET"], ["/agent/audio/status", "POST"], ["/agent/audio", "POST"], ["/agent/microphone", "GET"]]);
+export default { async fetch(req, env) { try { return await handle(req, env); } catch (e) { return json(req, { error: e.status ? e.message : "Relay unavailable" }, e.status || 503); } } };
+async function handle(req, env) {
   const url = new URL(req.url), path = url.pathname, now = Date.now();
   if (!ROUTES.has(path)) fail(404, "Not found");
   if (path.startsWith("/agent/")) { if (!await authorized(req, env)) fail(401, "Producer not authorized"); }
   else {
     const origin = req.headers.get("Origin"); if (origin && !allowedOrigin(origin)) fail(403, "Origin not allowed");
-    if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: { ...headers(req), "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Max-Age": "600" } });
+    if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: { ...headers(req), "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type" } });
   }
   if (!ROUTES.get(path).split(",").includes(req.method)) fail(405, "Method not allowed");
-  const query = path === "/agent/poll" ? ["epoch", "after"] : path === "/agent/frame" ? ["epoch", "id"] : ["/frame", "/frames"].includes(path) ? ["id", "after"] : path === "/audio" ? ["id", "generation", "after"] : path === "/agent/microphone" ? ["epoch", "generation", "after"] : [];
+  const query = path === "/agent/poll" ? ["epoch", "after"] : path === "/agent/frame" ? ["epoch", "id"] : path === "/frame" ? ["id", "after"] : path === "/audio" ? ["id", "generation", "after"] : path === "/agent/microphone" ? ["epoch", "generation", "after"] : [];
   if ([...url.searchParams.keys()].some(k => !query.includes(k))) fail(400, "Unknown query parameter");
   if (["/audio", "/agent/audio", "/microphone", "/agent/microphone"].includes(path)) return handleAudio(req, env, url, path, now);
   if (path === "/agent/audio-state") return readAudioState(req, env);
-  if (path === "/input") return desktopInput(req, env, now);
-  if (path === "/agent/poll") return desktopPoll(req, env, url);
-  if (path === "/frame" || path === "/agent/frame") return desktopFrame(req, env, url, ctx, now);
-  if (path === "/frames") return streamFrames(req, env, url);
   const { agent, count, audio } = await cleanup(env, now);
   if (path === "/health") return json(req, { ...health(agent, count, now, audio), audio: audioHealth(agent, audio, now) });
   if (path === "/agent/audio/status") {
@@ -473,7 +303,7 @@ async function handle(req, env, ctx) {
 
   if (path === "/agent/connect") {
     const v = await body(req); if (!keys(v, ["epoch"]) || !UUID.test(v.epoch || "")) fail(400, "Valid epoch required");
-    await env.DB.batch([stmt(env, "DELETE FROM desktop_events"), stmt(env, "DELETE FROM desktop_viewers"), stmt(env, "INSERT INTO desktop_agent (id, epoch, status_json, last_seen, frame_at, frame_id, frame_key, frames_slot, frames_count) VALUES (?, ?, ?, ?, 0, '', '', 0, 0) ON CONFLICT(id) DO UPDATE SET epoch = excluded.epoch, status_json = excluded.status_json, last_seen = excluded.last_seen, frame_at = 0, frame_id = '', frame_key = '', frames_slot = 0, frames_count = 0, frame_reserved_sequence = 0, frame_published_sequence = 0", FIXED, v.epoch, '{"ready":false}', now)]);
+    await env.DB.batch([stmt(env, "DELETE FROM desktop_events"), stmt(env, "DELETE FROM desktop_viewers"), stmt(env, "INSERT INTO desktop_agent (id, epoch, status_json, last_seen, frame_at, frame_id, frame_key, frames_slot, frames_count) VALUES (?, ?, ?, ?, 0, '', '', 0, 0) ON CONFLICT(id) DO UPDATE SET epoch = excluded.epoch, status_json = excluded.status_json, last_seen = excluded.last_seen, frame_at = 0, frame_id = '', frame_key = '', frames_slot = 0, frames_count = 0", FIXED, v.epoch, '{"ready":false}', now)]);
     if (agent?.frame_key) await env.BUCKET.delete(agent.frame_key); await clearAllAudio(env); await run(env, "DELETE FROM desktop_audio_state"); return json(req, { epoch: v.epoch, viewers: 0 });
   }
   if (path === "/agent/status") {
@@ -487,89 +317,69 @@ async function handle(req, env, ctx) {
     await env.DB.batch([stmt(env, "DELETE FROM desktop_events WHERE epoch = ?", agent.epoch), stmt(env, "DELETE FROM desktop_viewers WHERE epoch = ?", agent.epoch), stmt(env, "UPDATE desktop_agent SET last_seen = 0, status_json = ? WHERE id = ? AND epoch = ?", '{"ready":false}', FIXED, agent.epoch)]);
     await clearFrame(env, agent); await clearAllAudio(env); await run(env, "DELETE FROM desktop_audio_state"); return json(req, { disconnected: true });
   }
+  if (path === "/agent/poll") {
+    requireEpoch(url.searchParams.get("epoch"), agent); const after = Number(url.searchParams.get("after") || 0);
+    if (!Number.isSafeInteger(after) || after < 0) fail(400, "Valid acknowledgement required");
+    await run(env, "DELETE FROM desktop_events WHERE epoch = ? AND id <= ?", agent.epoch, after);
+    const rows = await all(env, "SELECT id, event_json, expires_at FROM desktop_events WHERE epoch = ? AND expires_at >= ? AND (viewer_id IS NULL OR viewer_id IN (SELECT id FROM desktop_viewers WHERE epoch = ? AND expires_at >= ?)) ORDER BY id LIMIT 64", agent.epoch, now, agent.epoch, now);
+    const events = []; let size = 0;
+    for (const r of rows) { const event = { id: r.id, event: JSON.parse(r.event_json), expiresAt: r.expires_at }; const length = encoder.encode(JSON.stringify(event)).length; if (size + length > 60000) break; size += length; events.push(event); }
+    return json(req, { epoch: agent.epoch, viewers: count, events });
+  }
+  if (path === "/agent/frame") {
+    requireEpoch(url.searchParams.get("epoch"), agent);
+    if (req.method === "DELETE") { await clearFrame(env, agent); return json(req, { cleared: true }); }
+    const id = url.searchParams.get("id"); if (!UUID.test(id || "")) fail(400, "Valid frame id required");
+    if (!health(agent, count, now, audio).ready || count === 0) return empty(req, 204);
+    const frame = await bytes(req, LIMITS.maxFrameBytes);
+    if (frame.length < 4 || frame[0] !== 255 || frame[1] !== 216 || frame.at(-2) !== 255 || frame.at(-1) !== 217) fail(400, "JPEG required");
+    const slot = Math.floor(now / 1000);
+    const quota = await run(env, "UPDATE desktop_agent SET frames_count = CASE WHEN frames_slot = ? THEN frames_count + 1 ELSE 1 END, frames_slot = ? WHERE id = ? AND epoch = ? AND (frames_slot != ? OR frames_count < 8)", slot, slot, FIXED, agent.epoch, slot);
+    if (!changed(quota)) return empty(req, 204);
+    const key = `desktop/${agent.epoch}/${id}-${crypto.randomUUID()}.jpg`;
+    await env.BUCKET.put(key, frame, { httpMetadata: { contentType: "image/jpeg", cacheControl: "no-store" }, customMetadata: { frameId: id } });
+    const latest = await readAgent(env), viewers = await countViewers(env, agent.epoch, Date.now());
+    if (latest?.epoch !== agent.epoch || latest.frame_revision !== agent.frame_revision || !health(latest, viewers, Date.now()).ready || viewers === 0) { await env.BUCKET.delete(key); return empty(req, 204); }
+    const published = await run(env, "UPDATE desktop_agent SET frame_at = ?, frame_id = ?, frame_key = ? WHERE id = ? AND epoch = ? AND frame_revision = ? AND last_seen >= ? AND json_extract(status_json, '$.ready') = 1 AND EXISTS (SELECT 1 FROM desktop_viewers WHERE epoch = ? AND expires_at >= ?)", Date.now(), id, key, FIXED, agent.epoch, agent.frame_revision, Date.now() - LIMITS.freshnessMs, agent.epoch, Date.now());
+    if (!changed(published)) { await env.BUCKET.delete(key); return empty(req, 204); }
+    if (agent.frame_key && agent.frame_key !== key) await env.BUCKET.delete(agent.frame_key); return json(req, { id });
+  }
   if (path === "/viewer/open") {
     await body(req); if (!health(agent, count, now, audio).ready) return json(req, { error: "Mac desktop is not ready", status: health(agent, count, now, audio) }, 503);
     const id = crypto.randomUUID();
     const created = await run(env, "INSERT INTO desktop_viewers (id, epoch, expires_at) SELECT ?, ?, ? WHERE (SELECT COUNT(*) FROM desktop_viewers WHERE epoch = ? AND expires_at >= ?) < 2 AND EXISTS (SELECT 1 FROM desktop_agent WHERE id = ? AND epoch = ? AND last_seen >= ? AND json_extract(status_json, '$.ready') = 1)", id, agent.epoch, now + LIMITS.leaseMs, agent.epoch, now, FIXED, agent.epoch, now - LIMITS.freshnessMs);
     if (!changed(created)) fail(429, "Desktop viewer limit reached"); return json(req, { id, status: health(agent, count + 1, now, audio) });
   }
-  if (["/viewer/pulse", "/viewer/close"].includes(path)) {
+  if (["/viewer/pulse", "/viewer/close", "/input"].includes(path)) {
     const v = await body(req), viewer = await requireViewer(env, v.id, agent, now);
     if (path === "/viewer/pulse") { await run(env, "UPDATE desktop_viewers SET expires_at = ? WHERE id = ? AND epoch = ?", now + LIMITS.leaseMs, viewer.id, agent.epoch); return json(req, health(agent, count, now, audio)); }
     if (path === "/viewer/close") {
       await env.DB.batch([stmt(env, "DELETE FROM desktop_events WHERE viewer_id = ?", viewer.id), stmt(env, "DELETE FROM desktop_viewers WHERE id = ?", viewer.id)]);
       await release(env, agent.epoch, now); if (count <= 1) await clearFrame(env, agent); await syncAudio(env, await readAgent(env), now); return json(req, { closed: true });
     }
+    if (!keys(v, ["id", "event", "events"]) || (v.event === undefined) === (v.events === undefined)) fail(400, "Provide one event or one events batch");
+    const raw = v.event === undefined ? v.events : [v.event];
+    if (!Array.isArray(raw) || raw.length < 1 || raw.length > 64) fail(400, "Input batch must contain 1 to 64 events");
+    const events = raw.map(normalizeInput); if (events.some(event => !event)) fail(400, "Invalid desktop input");
+    const requireReady = events.some(event => event.type !== "release") ? 1 : 0;
+    if (requireReady && !health(agent, count, now, audio).ready) fail(409, "Mac desktop is not ready");
+    const slot = Math.floor(now / 1000);
+    const batchId = crypto.randomUUID();
+    // The quota reservation and all event inserts form one D1 transaction. A
+    // per-batch nonce makes a failed reservation insert zero events atomically.
+    const result = await env.DB.batch([
+      stmt(env, "UPDATE desktop_viewers SET inputs_count = CASE WHEN inputs_slot = ? THEN inputs_count + ? ELSE ? END, inputs_slot = ?, batch_id = ? WHERE id = ? AND epoch = ? AND expires_at >= ? AND (inputs_slot != ? OR inputs_count + ? <= 120) AND EXISTS (SELECT 1 FROM desktop_agent WHERE id = ? AND epoch = ? AND (? = 0 OR (last_seen >= ? AND json_extract(status_json, '$.ready') = 1)))", slot, events.length, events.length, slot, batchId, viewer.id, agent.epoch, now, slot, events.length, FIXED, agent.epoch, requireReady, now - LIMITS.freshnessMs),
+      ...events.map(event => stmt(env, "INSERT INTO desktop_events (epoch, viewer_id, event_json, expires_at) SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM desktop_viewers WHERE id = ? AND epoch = ? AND batch_id = ?)", agent.epoch, viewer.id, JSON.stringify(event), now + LIMITS.inputTtlMs, viewer.id, agent.epoch, batchId)),
+    ]);
+    if (!changed(result[0])) fail(429, "Input rate exceeded or desktop no longer ready");
+    return json(req, { accepted: true, count: events.length });
+  }
+  if (path === "/frame") {
+    await requireViewer(env, url.searchParams.get("id"), agent, now);
+    if (!health(agent, count, now, audio).ready || !agent.frame_id || now - agent.frame_at > LIMITS.frameTtlMs) return empty(req, 204);
+    if (url.searchParams.get("after") === agent.frame_id) return empty(req, 304);
+    const frame = await env.BUCKET.get(agent.frame_key); if (!frame || frame.customMetadata?.frameId !== agent.frame_id) return empty(req, 204);
+    return new Response(frame.body, { headers: { ...headers(req, "image/jpeg"), "X-Frame-ID": agent.frame_id, "X-Frame-Age-Ms": String(Math.max(0, Date.now() - agent.frame_at)) } });
   }
   fail(404, "Not found");
-}
-
-// A short, pull-driven response delivers successive fresh frames without a new
-// browser request per JPEG. It has bounded SQL work, memory and lifetime.
-async function streamFrames(req, env, url) {
-  const viewerId = url.searchParams.get("id"), startedAt = Date.now();
-  if (!UUID.test(viewerId || "")) fail(400, "Valid viewer id required");
-  let after = url.searchParams.get("after") || "";
-  if (after.length > 160 || /[\u0000-\u001f]/.test(after)) fail(400, "Valid frame identity required");
-  let reads = 0, r2Reads = 0, delivered = 0, stopped = false;
-  const deadline = performance.now() + 1800;
-  const snapshot = async () => {
-    if (++reads > 32) fail(503, "Frame stream query limit reached");
-    return first(env, "SELECT d.*, v.id AS stream_viewer_id, v.expires_at AS stream_viewer_expiry, (SELECT COUNT(*) FROM desktop_viewers c WHERE c.epoch = d.epoch AND c.expires_at >= ?) AS stream_viewer_count FROM desktop_agent d LEFT JOIN desktop_viewers v ON v.id = ? AND v.epoch = d.epoch WHERE d.id = ?", Date.now(), viewerId, FIXED);
-  };
-  const viewerAlive = row => row?.stream_viewer_id === viewerId && row.stream_viewer_expiry >= Date.now();
-  const state = row => {
-    const value = health(row, Number(row?.stream_viewer_count || 0), Date.now());
-    return { ...value, ready: value.ready && value.state === "ready" && value.screenRecording && value.accessibility };
-  };
-  let initial = await snapshot();
-  if (!viewerAlive(initial)) fail(410, "Viewer lease expired");
-  const epoch = initial.epoch;
-  const packet = (value, jpeg = new Uint8Array()) => {
-    const header = encoder.encode(JSON.stringify(value));
-    const result = new Uint8Array(4 + header.length + jpeg.length);
-    new DataView(result.buffer).setUint32(0, header.length);
-    result.set(header, 4); result.set(jpeg, 4 + header.length); return result;
-  };
-  const finish = controller => {
-    if (stopped) return;
-    stopped = true; controller.enqueue(new Uint8Array(4)); controller.close();
-  };
-  const source = new ReadableStream({
-    async pull(controller) {
-      try {
-        while (!stopped && !req.signal.aborted && performance.now() < deadline && reads < 31 && r2Reads < 12 && delivered < 12) {
-          const current = initial || await snapshot(); initial = null;
-          if (!viewerAlive(current) || current.epoch !== epoch) throw new Error("Desktop viewer changed");
-          const status = state(current);
-          if (!status.ready) { controller.enqueue(packet({ ...status, byteLength: 0 })); finish(controller); return; }
-          if (!current.frame_id || current.frame_id === after || Date.now() - current.frame_at > LIMITS.frameTtlMs) {
-            await new Promise(resolve => setTimeout(resolve, Math.max(0, Math.min(25, deadline - performance.now())))); continue;
-          }
-          after = current.frame_id;
-          r2Reads++;
-          const frame = await env.BUCKET.get(current.frame_key);
-          if (!frame || frame.customMetadata?.frameId !== current.frame_id) continue;
-          const jpeg = await bytes(new Response(frame.body), LIMITS.maxFrameBytes);
-          if (jpeg.length < 4 || jpeg[0] !== 255 || jpeg[1] !== 216 || jpeg.at(-2) !== 255 || jpeg.at(-1) !== 217) throw new Error("Invalid desktop frame");
-          const latest = await snapshot();
-          if (!viewerAlive(latest) || latest.epoch !== epoch) throw new Error("Desktop viewer changed");
-          const latestStatus = state(latest);
-          if (!latestStatus.ready) {
-            controller.enqueue(packet({ ...latestStatus, byteLength: 0 }));
-            finish(controller); return;
-          }
-          if (latest.frame_revision !== current.frame_revision) continue;
-          if (Date.now() - current.frame_at > LIMITS.frameTtlMs || performance.now() >= deadline || req.signal.aborted || stopped) break;
-          controller.enqueue(packet({ type: "frame", id: current.frame_id, ageMs: Math.max(0, Date.now() - current.frame_at), offsetMs: Math.max(0, Date.now() - startedAt), byteLength: jpeg.length }, jpeg));
-          delivered++; return;
-        }
-        finish(controller);
-      } catch (error) {
-        if (!stopped) { stopped = true; controller.error(new Error("Desktop frame stream stopped")); }
-      }
-    },
-    cancel() { stopped = true; },
-  }, { highWaterMark: 0 });
-  return new Response(source, { headers: { ...headers(req, "application/x-schaffer-frames"), "X-Accel-Buffering": "no" } });
 }

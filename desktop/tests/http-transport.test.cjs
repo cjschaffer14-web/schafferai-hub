@@ -22,7 +22,7 @@ async function harness(options = {}) {
   let now = 100000, timerID = 0, frameID = 0;
   const fetcher = async (url, init) => {
     const parsed = new URL(url), body = init.body ? JSON.parse(init.body) : null;
-    const call = {url, path: parsed.pathname, query: parsed.searchParams, body, init, at: now}; calls.push(call);
+    const call = {url, path: parsed.pathname, query: parsed.searchParams, body, init}; calls.push(call);
     if (options.fetch) {
       const value = options.fetch(call);
       if (value !== undefined) return value;
@@ -41,13 +41,10 @@ async function harness(options = {}) {
     setTimeout(fn, delay) { const id = ++timerID; timers.set(id, {fn, due: now + delay}); return id; },
     clearTimeout(id) { timers.delete(id); },
   });
-  for (const type of ['open', 'message', 'error', 'close']) transport[`on${type}`] = event => {
-    events.push({type, ...event});
-    if (type === 'message') return options.onmessage?.(event);
-  };
+  for (const type of ['open', 'message', 'error', 'close']) transport[`on${type}`] = event => events.push({type, ...event});
   await settle();
   return {
-    transport, calls, events, now: () => now,
+    transport, calls, events,
     frames: () => events.filter(event => event.type === 'message' && event.data instanceof Blob),
     statuses: () => events.filter(event => event.type === 'message' && typeof event.data === 'string').map(event => JSON.parse(event.data)),
     inputs: () => calls.filter(call => call.path === '/input' && call.body.events),
@@ -89,42 +86,6 @@ test('frame polling is sequential and includes only the last frame identity', as
   h.transport.close();
 });
 
-test('frame cadence includes request time rather than adding another full interval afterward', async () => {
-  const first = deferred(); let requests = 0;
-  const h = await harness({fetch: call => call.path === '/frame' && ++requests === 1 ? first.promise : undefined});
-  const started = h.calls.find(call => call.path === '/frame').at;
-  await h.tick(80); first.resolve(jpeg('delayed-first')); await settle();
-  await h.tick(44); assert.equal(requests, 1);
-  await h.tick(1); assert.equal(requests, 2);
-  assert.equal(h.calls.filter(call => call.path === '/frame')[1].at - started, 125);
-  h.transport.close();
-});
-
-test('input briefly accelerates frame polling and idle cadence returns after the boost', async () => {
-  const h = await harness(), started = h.calls.find(call => call.path === '/frame').at;
-  await h.tick(40);
-  h.send({type: 'key', action: 'down', key: 'a', code: 'KeyA'}); await settle();
-  assert.equal(h.inputs()[0].at, started + 40);
-  await h.tick(19); assert.equal(h.calls.filter(call => call.path === '/frame').length, 1);
-  await h.tick(1); assert.equal(h.calls.filter(call => call.path === '/frame')[1].at - started, 60);
-  await h.tick(1000);
-  const requests = h.calls.filter(call => call.path === '/frame').length, previous = h.calls.filter(call => call.path === '/frame').at(-1).at;
-  await h.tick(124); assert.equal(h.calls.filter(call => call.path === '/frame').length, requests);
-  await h.tick(1); assert.equal(h.calls.filter(call => call.path === '/frame').at(-1).at - previous, 125);
-  h.transport.close();
-});
-
-test('frame polling waits for the current JPEG decode even when input requests a boost', async () => {
-  const decoding = deferred(); let decoded = false;
-  const h = await harness({onmessage: event => event.data instanceof Blob && !decoded ? decoding.promise : undefined});
-  await h.tick(500);
-  h.send({type: 'pointer', action: 'down', x: .5, y: .5, button: 0}); await settle();
-  assert.equal(h.calls.filter(call => call.path === '/frame').length, 1);
-  decoded = true; decoding.resolve(); await settle(); await h.tick(0);
-  assert.equal(h.calls.filter(call => call.path === '/frame').length, 2);
-  h.transport.close();
-});
-
 test('viewer pulse renews the same public lease and propagates unavailable status', async () => {
   const h = await harness({fetch: call => call.path === '/viewer/pulse' ? json({available: true, ready: false, message: 'Mac is locked'}) : undefined});
   await h.tick(5000);
@@ -157,51 +118,6 @@ test('input batches retain key/button order while only adjacent moves and scroll
     {type: 'scroll', deltaX: 6, deltaY: 8}, keyUp, {...down, action: 'up'},
   ]);
   h.transport.close();
-});
-
-test('a synchronous shortcut chord flushes in one microtask with no batching timer delay', async () => {
-  const h = await harness(), at = h.now();
-  const chord = [
-    {type: 'key', action: 'down', key: 'Meta', code: 'MetaLeft', modifiers: ['Meta']},
-    {type: 'key', action: 'down', key: ' ', code: 'Space', modifiers: ['Meta']},
-    {type: 'key', action: 'up', key: ' ', code: 'Space', modifiers: ['Meta']},
-    {type: 'key', action: 'up', key: 'Meta', code: 'MetaLeft', modifiers: []},
-  ];
-  for (const event of chord) h.send(event);
-  assert.equal(h.inputs().length, 0); await settle();
-  assert.equal(h.inputs().length, 1); assert.equal(h.inputs()[0].at, at);
-  assert.deepEqual(h.inputs()[0].body.events, chord); h.transport.close();
-});
-
-test('moves coalesce for eight milliseconds and a button boundary flushes earlier', async () => {
-  const h = await harness(), at = h.now();
-  h.send({type: 'pointer', action: 'move', x: .1, y: .1});
-  h.send({type: 'pointer', action: 'move', x: .2, y: .2});
-  await h.tick(7); assert.equal(h.inputs().length, 0);
-  await h.tick(1); assert.equal(h.inputs().length, 1); assert.equal(h.inputs()[0].at - at, 8);
-  assert.deepEqual(h.inputs()[0].body.events, [{type: 'pointer', action: 'move', x: .2, y: .2}]);
-  h.send({type: 'pointer', action: 'move', x: .3, y: .3});
-  const down = {type: 'pointer', action: 'down', x: .3, y: .3, button: 0}; h.send(down);
-  await settle(); assert.equal(h.inputs().length, 2); assert.equal(h.inputs()[1].at - at, 8);
-  assert.deepEqual(h.inputs()[1].body.events, [{type: 'pointer', action: 'move', x: .3, y: .3}, down]);
-  await h.tick(8); assert.equal(h.inputs().length, 2); h.transport.close();
-});
-
-test('release discards queued motion and flushes without waiting for the move timer', async () => {
-  const h = await harness(), at = h.now();
-  h.send({type: 'pointer', action: 'move', x: .7, y: .6}); h.send({type: 'release'}); await settle();
-  assert.equal(h.inputs().length, 1); assert.equal(h.inputs()[0].at, at);
-  assert.deepEqual(h.inputs()[0].body.events, [{type: 'release'}]); h.transport.close();
-});
-
-test('disconnect cancels a pending critical microtask, coalescing timer and frame boost', async () => {
-  const h = await harness();
-  h.send({type: 'pointer', action: 'move', x: .4, y: .5});
-  h.send({type: 'key', action: 'down', key: 'a', code: 'KeyA'});
-  h.transport.close(); await settle(); await h.tick(5000);
-  assert.equal(h.inputs().length, 0);
-  assert.equal(h.calls.filter(call => call.path === '/frame').length, 1);
-  assert.equal(h.events.filter(event => event.type === 'close').length, 1);
 });
 
 test('an ambiguous input failure closes the lease without retrying or replaying input', async () => {
@@ -239,22 +155,6 @@ test('one in-flight batch prevents later input from overtaking it', async () => 
   assert.equal(h.inputs()[0].body.events[0].action, 'down');
   assert.equal(h.inputs()[1].body.events[0].action, 'up');
   h.transport.close();
-});
-
-test('a queued shortcut stays atomic behind one in-flight input request', async () => {
-  const pending = deferred(); let batches = 0;
-  const h = await harness({fetch: call => call.path === '/input' && call.body.events && ++batches === 1 ? pending.promise : undefined});
-  h.send({type: 'pointer', action: 'down', x: .2, y: .3, button: 0}); await settle();
-  const chord = [
-    {type: 'key', action: 'down', key: 'Meta', code: 'MetaLeft'},
-    {type: 'key', action: 'down', key: ' ', code: 'Space'},
-    {type: 'key', action: 'up', key: ' ', code: 'Space'},
-    {type: 'key', action: 'up', key: 'Meta', code: 'MetaLeft'},
-  ];
-  for (const event of chord) h.send(event); await settle();
-  assert.equal(h.inputs().length, 1);
-  pending.resolve(json({ok: true})); await settle();
-  assert.equal(h.inputs().length, 2); assert.deepEqual(h.inputs()[1].body.events, chord); h.transport.close();
 });
 
 test('Unicode-heavy batches stay below the encoded HTTP body cap without losing order', async () => {

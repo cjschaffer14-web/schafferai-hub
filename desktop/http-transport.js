@@ -3,11 +3,6 @@
 const MAX_FRAME_BYTES = 2 * 1024 * 1024;
 const FRAME_FRESH_MS = 3000;
 const INPUT_LIMIT = 128;
-const FRAME_INTERVAL_MS = 125, INTERACTION_FRAME_MS = 60, INTERACTION_BOOST_MS = 1000;
-const INPUT_COALESCE_MS = 8;
-const MAX_STREAM_FRAMES = 12, MAX_STREAM_HEADER_BYTES = 1024;
-const MAX_STREAM_BYTES = MAX_STREAM_FRAMES * (MAX_FRAME_BYTES + MAX_STREAM_HEADER_BYTES + 4) + MAX_STREAM_HEADER_BYTES + 8;
-const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 export class HTTPDesktopTransport {
@@ -28,22 +23,19 @@ export class HTTPDesktopTransport {
     this._fetch = options.fetch || globalThis.fetch.bind(globalThis);
     this._setTimeout = options.setTimeout || globalThis.setTimeout.bind(globalThis);
     this._clearTimeout = options.clearTimeout || globalThis.clearTimeout.bind(globalThis);
-    this._queueMicrotask = options.queueMicrotask || globalThis.queueMicrotask.bind(globalThis);
     this._now = options.now || Date.now;
-    this._frameStream = options.frameStream === true;
     this._epoch = 0; this._readinessEpoch = 0; this._id = null;
     this._requests = new Set(); this._frameTimer = null; this._pulseTimer = null;
-    this._frameBusy = false; this._lastFrameStartedAt = 0; this._interactionUntil = 0;
     this._status = {type: 'status', available: false, ready: false};
     this._lastFrameID = ''; this._lastFrameAt = 0; this._frameUsable = false;
-    this._inputQueue = []; this._inputBusy = false; this._inputTimer = null; this._inputMicrotask = null;
+    this._inputQueue = []; this._inputBusy = false; this._inputTimer = null;
     queueMicrotask(() => this._open());
   }
 
   get viewerId() { return this.readyState === HTTPDesktopTransport.OPEN ? this._id : null; }
 
   _isOpen(epoch = this._epoch) { return this.readyState === HTTPDesktopTransport.OPEN && epoch === this._epoch; }
-  _emit(name, event) { return this[name]?.(event); }
+  _emit(name, event) { this[name]?.(event); }
   _emitStatus(status = this._status) {
     if (this.readyState === HTTPDesktopTransport.OPEN) this._emit('onmessage', {data: JSON.stringify({...status, type: 'status'})});
   }
@@ -57,7 +49,6 @@ export class HTTPDesktopTransport {
       this._frameUsable = false;
       this._lastFrameAt = 0;
       this._inputQueue = [];
-      this._cancelInputFlush();
     }
     this._emitStatus();
   }
@@ -69,7 +60,6 @@ export class HTTPDesktopTransport {
     if (!this._frameUsable) return;
     this._frameUsable = false;
     this._inputQueue = [];
-    this._cancelInputFlush();
     this._emitStatus({...this._status, ready: false, message: 'Waiting for a fresh desktop frame…'});
   }
 
@@ -81,7 +71,7 @@ export class HTTPDesktopTransport {
       const response = await this._fetch(`${this.url}${path}`, {
         ...init, cache: 'no-store', credentials: 'omit', redirect: 'error', signal: controller.signal,
       });
-      return await consume(response, controller.signal);
+      return await consume(response);
     } finally {
       this._clearTimeout(timer); this._requests.delete(controller);
     }
@@ -128,14 +118,8 @@ export class HTTPDesktopTransport {
     finally { if (this._isOpen(epoch)) this._pulseTimer = this._setTimeout(() => this._pulse(), 5000); }
   }
   async _pollFrame() {
-    if (this._frameStream) return this._pollFrameStream();
-    return this._pollJPEG();
-  }
-  async _pollJPEG() {
     const epoch = this._epoch, readinessEpoch = this._readinessEpoch;
-    if (!this._isOpen(epoch) || this._frameBusy) return;
-    this._frameBusy = true; this._frameTimer = null;
-    this._lastFrameStartedAt = this._now();
+    if (!this._isOpen(epoch)) return;
     try {
       if (!this._status.available || !this._status.ready) return;
       const query = new URLSearchParams({id: this._id});
@@ -169,130 +153,9 @@ export class HTTPDesktopTransport {
       this._lastFrameAt = this._now();
       this._frameUsable = true;
       this._emitStatus(); // Readiness always precedes the JPEG it authorizes.
-      if (this._isOpen(epoch) && this._frameUsable) await this._emit('onmessage', {data: frame.blob});
+      if (this._isOpen(epoch) && this._frameUsable) this._emit('onmessage', {data: frame.blob});
     } catch (error) { if (this._isOpen(epoch)) this._fail(error.message || 'The desktop stream stopped'); }
-    finally { this._frameBusy = false; if (this._isOpen(epoch)) this._scheduleFrame(); }
-  }
-  async _pollFrameStream() {
-    const epoch = this._epoch, readinessEpoch = this._readinessEpoch;
-    if (!this._isOpen(epoch) || this._frameBusy) return;
-    this._frameBusy = true; this._frameTimer = null;
-    const startedAt = this._lastFrameStartedAt = this._now();
-    try {
-      if (!this._status.available || !this._status.ready) return;
-      const query = new URLSearchParams({id: this._id});
-      if (this._lastFrameID) query.set('after', this._lastFrameID);
-      await this._request(`/frames?${query}`, {method: 'GET', headers: {Accept: 'application/x-schaffer-frames'}}, async (response, signal) => {
-        // Only an endpoint that is absent can select the existing JPEG fallback.
-        // Never reinterpret an HTML/sign-in/error body as a frame stream.
-        if (response.status === 404 || response.status === 405) { this._frameStream = false; return; }
-        if (!response.ok) throw new Error(`Desktop frame stream failed (${response.status})`);
-        if (response.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase() !== 'application/x-schaffer-frames') throw new Error('The desktop relay returned an invalid frame stream');
-        const length = Number(response.headers.get('Content-Length'));
-        if (Number.isFinite(length) && length > MAX_STREAM_BYTES) throw new Error('The desktop frame stream is too large');
-        if (!response.body?.getReader) throw new Error('The desktop frame stream has no readable body');
-        const reader = response.body.getReader();
-        let chunk = new Uint8Array(), offset = 0, received = 0, frames = 0, lastOffset = 0, statusSeen = false;
-        const decoder = new TextDecoder('utf-8', {fatal: true});
-        const cancel = () => { Promise.resolve(reader.cancel()).catch(() => {}); };
-        signal.addEventListener('abort', cancel, {once: true});
-        const read = async count => {
-          const output = new Uint8Array(count); let copied = 0;
-          while (copied < count) {
-            if (signal.aborted || this._now() - startedAt > FRAME_FRESH_MS) throw new Error('The desktop frame stream timed out');
-            if (offset === chunk.length) {
-              const next = await reader.read();
-              if (signal.aborted) throw new Error('The desktop frame stream was aborted');
-              if (next.done) throw new Error('The desktop frame stream ended unexpectedly');
-              if (!(next.value instanceof Uint8Array)) throw new Error('Invalid desktop frame stream bytes');
-              chunk = next.value; offset = 0; received += chunk.byteLength;
-              if (received > MAX_STREAM_BYTES) throw new Error('The desktop frame stream is too large');
-              if (!chunk.length) continue;
-            }
-            const amount = Math.min(count - copied, chunk.length - offset);
-            output.set(chunk.subarray(offset, offset + amount), copied); offset += amount; copied += amount;
-          }
-          return output;
-        };
-        const current = () => this._isOpen(epoch) && readinessEpoch === this._readinessEpoch && this._status.available && this._status.ready;
-        const render = async blob => {
-          let interrupted;
-          const aborted = new Promise((_, reject) => { interrupted = () => reject(new Error('The desktop frame stream was aborted')); });
-          signal.addEventListener('abort', interrupted, {once: true});
-          try {
-            if (signal.aborted) throw new Error('The desktop frame stream was aborted');
-            await Promise.race([Promise.resolve(this._emit('onmessage', {data: blob})), aborted]);
-          } finally { signal.removeEventListener('abort', interrupted); }
-        };
-        try {
-          while (this._isOpen(epoch)) {
-            const prefix = await read(4), headerLength = new DataView(prefix.buffer).getUint32(0, false);
-            if (headerLength === 0) {
-              if (offset !== chunk.length) throw new Error('Unexpected data after desktop frame stream end');
-              break;
-            }
-            if (statusSeen || headerLength > MAX_STREAM_HEADER_BYTES) throw new Error('Invalid desktop frame stream header');
-            let header; try { header = JSON.parse(decoder.decode(await read(headerLength))); } catch { throw new Error('Invalid desktop frame stream metadata'); }
-            if (!isObject(header)) throw new Error('Invalid desktop frame stream metadata');
-            if (header.type === 'status') {
-              if (header.byteLength !== 0) throw new Error('Invalid desktop stream status');
-              if (this._isOpen(epoch)) this._acceptStatus(header);
-              statusSeen = true; continue;
-            }
-            const elapsed = this._now() - startedAt;
-            if (header.type !== 'frame' || !UUID.test(header.id || '') || !Number.isSafeInteger(header.byteLength) || header.byteLength < 4 || header.byteLength > MAX_FRAME_BYTES || !Number.isFinite(header.ageMs) || header.ageMs < 0 || !Number.isFinite(header.offsetMs) || header.offsetMs < lastOffset || header.offsetMs > elapsed) throw new Error('Invalid desktop frame stream metadata');
-            if (++frames > MAX_STREAM_FRAMES) throw new Error('The desktop frame stream contains too many images');
-            lastOffset = header.offsetMs;
-            const bytes = await read(header.byteLength);
-            if (bytes[0] !== 255 || bytes[1] !== 216 || bytes.at(-2) !== 255 || bytes.at(-1) !== 217) throw new Error('The desktop stream image is not a JPEG');
-            if (!current() || header.id === this._lastFrameID) continue;
-            const age = () => header.ageMs + Math.max(0, this._now() - startedAt - header.offsetMs);
-            if (age() > FRAME_FRESH_MS) continue;
-            this._emitStatus();
-            await render(new Blob([bytes], {type: 'image/jpeg'}));
-            if (!current()) continue;
-            if (age() > FRAME_FRESH_MS) {
-              this._frameUsable = false; this._inputQueue = []; this._cancelInputFlush();
-              this._emitStatus({...this._status, ready: false, message: 'Waiting for a fresh desktop frame…'}); continue;
-            }
-            this._lastFrameID = header.id; this._lastFrameAt = this._now() - age(); this._frameUsable = true;
-          }
-        } finally { signal.removeEventListener('abort', cancel); cancel(); }
-      }, FRAME_FRESH_MS);
-      if (this._isOpen(epoch) && this._lastFrameAt && this._now() - this._lastFrameAt > FRAME_FRESH_MS) this._staleFrame();
-    } catch (error) { if (this._isOpen(epoch)) this._fail(error.message || 'The desktop frame stream stopped'); }
-    finally { this._frameBusy = false; if (this._isOpen(epoch)) this._scheduleFrame(); }
-  }
-  _scheduleFrame() {
-    if (!this._isOpen() || this._frameBusy) return;
-    this._clearTimeout(this._frameTimer);
-    const interval = this._now() < this._interactionUntil ? INTERACTION_FRAME_MS : FRAME_INTERVAL_MS;
-    const delay = this._frameStream && this._status.available && this._status.ready ? 0 : Math.max(0, this._lastFrameStartedAt + interval - this._now());
-    this._frameTimer = this._setTimeout(() => { this._frameTimer = null; this._pollFrame(); }, delay);
-  }
-  _boostFrames() {
-    this._interactionUntil = this._now() + INTERACTION_BOOST_MS;
-    this._scheduleFrame();
-  }
-  _cancelInputFlush() {
-    this._clearTimeout(this._inputTimer); this._inputTimer = null;
-    this._inputMicrotask = null;
-  }
-  _scheduleInputs(critical) {
-    if (this._inputBusy) return;
-    if (critical) {
-      this._clearTimeout(this._inputTimer); this._inputTimer = null;
-      if (this._inputMicrotask !== null) return;
-      const token = {epoch: this._epoch}; this._inputMicrotask = token;
-      // One microtask preserves a synchronous shortcut chord as one batch.
-      this._queueMicrotask(() => {
-        if (this._inputMicrotask !== token) return;
-        this._inputMicrotask = null;
-        if (this._isOpen(token.epoch)) this._drainInputs();
-      });
-    } else if (this._inputTimer === null && this._inputMicrotask === null) {
-      this._inputTimer = this._setTimeout(() => { this._inputTimer = null; this._drainInputs(); }, INPUT_COALESCE_MS);
-    }
+    finally { if (this._isOpen(epoch)) this._frameTimer = this._setTimeout(() => this._pollFrame(), 250); }
   }
 
   send(message) {
@@ -314,9 +177,9 @@ export class HTTPDesktopTransport {
       } else this._inputQueue.push(entry);
     }
     if (this._inputQueue.length > INPUT_LIMIT) { this._fail('Desktop input queue overflowed'); return false; }
-    this._boostFrames();
-    const coalescible = event.type === 'scroll' || event.type === 'pointer' && event.action === 'move';
-    this._scheduleInputs(!coalescible);
+    if (!this._inputBusy && this._inputTimer === null) {
+      this._inputTimer = this._setTimeout(() => { this._inputTimer = null; this._drainInputs(); }, 10);
+    }
     return true;
   }
   async _drainInputs() {
@@ -366,7 +229,7 @@ export class HTTPDesktopTransport {
     this.readyState = HTTPDesktopTransport.CLOSING;
     this._epoch++; this._readinessEpoch++;
     this._clearTimeout(this._frameTimer); this._clearTimeout(this._pulseTimer);
-    this._cancelInputFlush();
+    this._clearTimeout(this._inputTimer); this._inputTimer = null;
     for (const request of this._requests) request.abort();
     this._requests.clear(); this._inputQueue = []; this._frameUsable = false;
     this._closeLease(this._id);
