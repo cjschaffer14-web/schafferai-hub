@@ -69,6 +69,8 @@ export function normalizeStatus(s) {
 const readAgent = env => first(env, "SELECT * FROM desktop_agent WHERE id = ?", FIXED);
 const countViewers = async (env, epoch, now) => Number((await first(env, "SELECT COUNT(*) AS count FROM desktop_viewers WHERE epoch = ? AND expires_at >= ?", epoch || "", now))?.count || 0);
 export function health(agent, viewers, now, audio) {
+  // Rows may have been refreshed by another request after this request began.
+  now = Math.max(now || 0, Date.now());
   let s = {}; try { s = JSON.parse(agent?.status_json || "{}"); } catch { /* Remain offline. */ }
   const available = !!agent && agent.last_seen > 0 && now >= agent.last_seen && now - agent.last_seen <= LIMITS.freshnessMs;
   const ready = available && s.ready === true;
@@ -87,6 +89,7 @@ const release = (env, epoch, now) => run(env, "INSERT INTO desktop_events (epoch
 const AUDIO_TTL = 1200, HELPER_TTL = 8000;
 const readAudio = env => first(env, "SELECT * FROM desktop_audio_state WHERE id = ?", FIXED);
 function audioHealth(agent, state, now) {
+  now = Math.max(now || 0, Date.now());
   let value = {}; try { value = JSON.parse(state?.status_json || "{}"); } catch {}
   const video = health(agent, 0, now), live = video.ready && video.state === "ready" && state?.epoch === agent?.epoch && state.last_seen > 0 && now >= state.last_seen && now - state.last_seen <= HELPER_TTL;
   return { available: !!live, captureReady: !!live && value.captureReady === true,
@@ -112,19 +115,74 @@ async function syncAudio(env, agent, now) {
     await run(env, "UPDATE desktop_audio_state SET epoch = ?, status_json = '{}', last_seen = 0, output_active = 0, input_owner = '', output_generation = ?, input_generation = ?, output_sequence = 0, input_sequence = 0 WHERE id = ? AND EXISTS (SELECT 1 FROM desktop_agent WHERE id = ? AND epoch = ?)", agent.epoch, crypto.randomUUID(), crypto.randomUUID(), FIXED, FIXED, agent.epoch);
     state = await readAudio(env);
   }
-  const capability = audioHealth(agent, state, now);
-  if (!capability.captureReady || !capability.microphoneReady) await run(env, "UPDATE desktop_viewers SET sound = CASE WHEN ? = 0 THEN 0 ELSE sound END, mic = CASE WHEN ? = 0 THEN 0 ELSE mic END WHERE epoch = ?", Number(capability.captureReady), Number(capability.microphoneReady), agent.epoch);
+  now = Date.now();
+  // Evaluate current capabilities atomically. An older unready snapshot must not
+  // clear subscriptions after a concurrent heartbeat has restored readiness.
+  const capability = flag => `EXISTS (SELECT 1 FROM desktop_audio_state a JOIN desktop_agent d ON d.id = a.id AND d.epoch = a.epoch WHERE a.id = ? AND a.epoch = desktop_viewers.epoch AND a.last_seen >= ? AND d.last_seen >= ? AND json_extract(a.status_json, '$.${flag}') = 1 AND json_extract(d.status_json, '$.ready') = 1 AND COALESCE(json_extract(d.status_json, '$.state'), 'ready') = 'ready')`;
+  await run(env, `UPDATE desktop_viewers SET sound = CASE WHEN ${capability("captureReady")} THEN sound ELSE 0 END, mic = CASE WHEN ${capability("microphoneReady")} THEN mic ELSE 0 END WHERE epoch = ?`, FIXED, now - HELPER_TTL, now - LIMITS.freshnessMs, FIXED, now - HELPER_TTL, now - LIMITS.freshnessMs, agent.epoch);
   // Expressions execute atomically against current leases, rather than the caller's
   // earlier snapshot. A generation changes whenever a direction stops or starts.
   const active = "EXISTS (SELECT 1 FROM desktop_viewers WHERE epoch = desktop_audio_state.epoch AND expires_at >= ? AND sound = 1)";
   const owner = "COALESCE((SELECT id FROM desktop_viewers WHERE epoch = desktop_audio_state.epoch AND expires_at >= ? AND mic = 1 ORDER BY id LIMIT 1), '')";
   await run(env, `UPDATE desktop_audio_state SET output_generation = CASE WHEN output_active != ${active} THEN ? ELSE output_generation END, output_sequence = CASE WHEN output_active != ${active} THEN 0 ELSE output_sequence END, output_active = ${active}, input_generation = CASE WHEN input_owner != ${owner} THEN ? ELSE input_generation END, input_sequence = CASE WHEN input_owner != ${owner} THEN 0 ELSE input_sequence END, input_owner = ${owner} WHERE id = ? AND epoch = ?`, now, crypto.randomUUID(), now, now, now, crypto.randomUUID(), now, now, FIXED, agent.epoch);
-  state = await readAudio(env);
+  state = await readAudio(env); now = Date.now();
   await deleteAudioChunks(env, await all(env, "SELECT * FROM desktop_audio_chunks WHERE epoch != ? OR created_at < ? OR (direction = 'output' AND generation != ?) OR (direction = 'input' AND generation != ?)", agent.epoch, now - AUDIO_TTL, state.output_generation, state.input_generation));
   return state;
 }
 function streamResponse(agent, state, direction, chunks = []) {
   return { epoch: agent.epoch, generation: state[direction + "_generation"], sampleRate: direction === "output" ? 48000 : 16000, channels: direction === "output" ? 2 : 1, encoding: "s16le", chunks };
+}
+
+// One D1 round trip gives an internally consistent audio/producer/lease snapshot.
+// High-rate PCM routes never run lease or object maintenance on their critical path.
+async function readAudioContext(env) {
+  const result = await env.DB.batch([
+    stmt(env, "SELECT * FROM desktop_agent WHERE id = ?", FIXED),
+    stmt(env, "SELECT * FROM desktop_audio_state WHERE id = ?", FIXED),
+    stmt(env, "SELECT * FROM desktop_viewers WHERE epoch = (SELECT epoch FROM desktop_agent WHERE id = ?)", FIXED),
+  ]);
+  return { agent: result[0].results?.[0] || null, state: result[1].results?.[0] || null, viewers: result[2].results || [] };
+}
+async function readAudioState(req, env) {
+  const context = await readAudioContext(env), now = Date.now(), { agent } = context;
+  const state = context.state?.epoch === agent?.epoch ? context.state : null;
+  const viewers = context.viewers.filter(viewer => viewer.epoch === agent?.epoch && viewer.expires_at >= now);
+  const video = health(agent, viewers.length, now), audio = audioHealth(agent, state, now);
+  const micActive = !!(audio.microphoneReady && state?.input_owner && viewers.some(viewer => viewer.id === state.input_owner && viewer.mic));
+  return json(req, { epoch: agent?.epoch || null, videoHealthy: video.available, videoReady: video.ready,
+    unlocked: video.ready && video.state === "ready",
+    soundViewers: audio.captureReady && state?.output_active ? viewers.filter(viewer => viewer.sound).length : 0,
+    micActive, outputGeneration: state?.output_generation || null, inputGeneration: state?.input_generation || null,
+    outputSequence: state?.output_sequence || 0, inputSequence: state?.input_sequence || 0,
+    audio: { ...audio, micInUse: micActive } });
+}
+function audioViewer(context, id) {
+  if (!UUID.test(id || "")) fail(400, "Valid viewer id required");
+  const viewer = context.viewers.find(value => value.id === id && value.epoch === context.agent?.epoch && value.expires_at >= Date.now());
+  if (!viewer) fail(410, "Viewer lease expired");
+  return viewer;
+}
+function requireAudio(context, direction, generation, viewerId) {
+  const { agent, state, viewers } = context, now = Date.now();
+  const capability = audioHealth(agent, state, now);
+  if (!state || state.epoch !== agent?.epoch || generation && generation !== state[direction + "_generation"]) fail(409, "Audio generation changed");
+  if (direction === "output") {
+    if (!capability.captureReady || !state.output_active || !viewers.some(viewer => viewer.sound && viewer.epoch === agent.epoch && viewer.expires_at >= now)) fail(409, "Sound is stopped");
+    if (viewerId && !audioViewer(context, viewerId).sound) fail(409, "Sound is stopped");
+  } else {
+    const owner = viewers.find(viewer => viewer.id === state.input_owner && viewer.mic && viewer.epoch === agent.epoch && viewer.expires_at >= now);
+    if (!capability.microphoneReady || !owner || viewerId && owner.id !== viewerId) fail(409, "Microphone is stopped");
+  }
+}
+function audioGate(direction, epoch, generation, viewerId, now) {
+  const flag = direction === "output" ? "captureReady" : "microphoneReady";
+  const subscription = direction === "output"
+    ? "output_active = 1 AND EXISTS (SELECT 1 FROM desktop_viewers v WHERE v.epoch = desktop_audio_state.epoch AND v.expires_at >= ? AND v.sound = 1)"
+    : "input_owner = ? AND EXISTS (SELECT 1 FROM desktop_viewers v WHERE v.id = desktop_audio_state.input_owner AND v.epoch = desktop_audio_state.epoch AND v.expires_at >= ? AND v.mic = 1)";
+  return {
+    sql: `id = ? AND epoch = ? AND ${direction}_generation = ? AND last_seen >= ? AND json_extract(status_json, '$.${flag}') = 1 AND ${subscription} AND EXISTS (SELECT 1 FROM desktop_agent d WHERE d.id = desktop_audio_state.id AND d.epoch = desktop_audio_state.epoch AND d.last_seen >= ? AND json_extract(d.status_json, '$.ready') = 1 AND COALESCE(json_extract(d.status_json, '$.state'), 'ready') = 'ready')`,
+    args: [FIXED, epoch, generation, now - HELPER_TTL, ...(direction === "input" ? [viewerId] : []), now, now - LIMITS.freshnessMs],
+  };
 }
 function normalizePcm(value, direction) {
   const expected = direction === "output" ? 38400 : 6400;
@@ -133,43 +191,59 @@ function normalizePcm(value, direction) {
   if (decoded.length !== expected || btoa(decoded) !== value.pcm) fail(400, "Invalid PCM length");
   return Uint8Array.from(decoded, c => c.charCodeAt(0));
 }
-async function uploadAudio(req, env, agent, state, value, direction, now, viewer) {
+async function uploadAudio(req, env, context, value, direction, receivedAt, viewerId) {
+  const { agent, state } = context, now = Date.now();
   const pcm = normalizePcm(value, direction), generation = direction + "_generation", sequence = direction + "_sequence", slotField = direction + "_slot", countField = direction + "_count";
-  if (value.generation !== state?.[generation]) fail(409, "Audio generation changed");
-  const capability = audioHealth(agent, state, now);
-  if (!(direction === "output" ? capability.captureReady && state.output_active : capability.microphoneReady && state.input_owner === viewer?.id)) fail(409, "Audio is stopped");
+  requireAudio(context, direction, value.generation, viewerId);
   const slot = Math.floor(now / 1000);
-  const reserved = await run(env, `UPDATE desktop_audio_state SET ${sequence} = ?, ${countField} = CASE WHEN ${slotField} = ? THEN ${countField} + 1 ELSE 1 END, ${slotField} = ? WHERE id = ? AND epoch = ? AND ${generation} = ? AND ${sequence} < ? AND (${slotField} != ? OR ${countField} < 10) AND last_seen >= ? AND ${direction === "output" ? "output_active = 1" : "input_owner = ?"}`, value.seq, slot, slot, FIXED, agent.epoch, value.generation, value.seq, slot, now - HELPER_TTL, ...(direction === "input" ? [viewer.id] : []));
+  const reserveGate = audioGate(direction, agent.epoch, value.generation, viewerId, now);
+  const reserved = await run(env, `UPDATE desktop_audio_state SET ${sequence} = ?, ${countField} = CASE WHEN ${slotField} = ? THEN ${countField} + 1 ELSE 1 END, ${slotField} = ? WHERE ${sequence} < ? AND (${slotField} != ? OR ${countField} < 10) AND ${reserveGate.sql}`, value.seq, slot, slot, value.seq, slot, ...reserveGate.args);
   if (!changed(reserved)) fail(409, "Audio sequence, rate or generation changed");
   const key = `desktop-audio/${agent.epoch}/${direction}/${value.generation}/${value.seq}.pcm`;
   await env.BUCKET.put(key, pcm, { httpMetadata: { contentType: "application/octet-stream", cacheControl: "no-store" }, customMetadata: { generation: value.generation, seq: String(value.seq) } });
-  const refreshedAgent = await readAgent(env), latest = await syncAudio(env, refreshedAgent, Date.now()), fresh = audioHealth(refreshedAgent, latest, Date.now());
-  const allowed = refreshedAgent?.epoch === agent.epoch && latest?.[generation] === value.generation && (direction === "output" ? fresh.captureReady && latest.output_active : fresh.microphoneReady && latest.input_owner === viewer?.id);
-  if (!allowed) { await env.BUCKET.delete(key); return empty(req, 204); }
-  const published = await run(env, `INSERT OR REPLACE INTO desktop_audio_chunks (key, epoch, direction, generation, seq, created_at) SELECT ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM desktop_audio_state WHERE id = ? AND epoch = ? AND ${generation} = ? AND ${direction === "output" ? "output_active = 1" : "input_owner = ?"} AND last_seen >= ?) AND EXISTS (SELECT 1 FROM desktop_agent WHERE id = ? AND epoch = ? AND last_seen >= ? AND json_extract(status_json, '$.ready') = 1)`, key, agent.epoch, direction, value.generation, value.seq, now, FIXED, agent.epoch, value.generation, ...(direction === "input" ? [viewer.id] : []), Date.now() - HELPER_TTL, FIXED, agent.epoch, Date.now() - LIMITS.freshnessMs);
+  if (Date.now() - receivedAt > AUDIO_TTL) { await env.BUCKET.delete(key); return empty(req, 204); }
+  const publishGate = audioGate(direction, agent.epoch, value.generation, viewerId, Date.now());
+  const published = await run(env, `INSERT OR REPLACE INTO desktop_audio_chunks (key, epoch, direction, generation, seq, created_at) SELECT ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM desktop_audio_state WHERE ${publishGate.sql})`, key, agent.epoch, direction, value.generation, value.seq, receivedAt, ...publishGate.args);
   if (!changed(published)) { await env.BUCKET.delete(key); return empty(req, 204); }
   return json(req, { accepted: true, seq: value.seq, generation: value.generation });
 }
-async function readAudioChunks(req, env, agent, state, direction, generation, after, now, viewerId) {
+async function readAudioChunks(req, env, context, direction, generation, after, startedAt, viewerId) {
+  const { agent, state } = context;
   if (!Number.isSafeInteger(after) || after < 0) fail(400, "Valid audio sequence required");
-  if (generation && generation !== state[direction + "_generation"]) fail(409, "Audio generation changed");
-  const rows = await all(env, "SELECT * FROM desktop_audio_chunks WHERE epoch = ? AND direction = ? AND generation = ? AND seq > ? AND created_at >= ? ORDER BY seq DESC LIMIT 6", agent.epoch, direction, state[direction + "_generation"], after, now - AUDIO_TTL);
-  const chunks = [];
-  for (const row of rows.reverse()) {
+  requireAudio(context, direction, generation, viewerId);
+  const rows = await all(env, "SELECT * FROM desktop_audio_chunks WHERE epoch = ? AND direction = ? AND generation = ? AND seq > ? AND created_at >= ? ORDER BY seq DESC LIMIT 6", agent.epoch, direction, state[direction + "_generation"], after, Date.now() - AUDIO_TTL);
+  const payloads = await Promise.all(rows.reverse().map(async row => {
     const chunk = await env.BUCKET.get(row.key);
-    if (!chunk || chunk.customMetadata?.generation !== row.generation || chunk.customMetadata?.seq !== String(row.seq)) continue;
+    if (!chunk || chunk.customMetadata?.generation !== row.generation || chunk.customMetadata?.seq !== String(row.seq)) return null;
     const data = new Uint8Array(await new Response(chunk.body).arrayBuffer());
     const expected = direction === "output" ? 38400 : 6400;
-    if (data.length !== expected || Date.now() - row.created_at > AUDIO_TTL) continue;
+    if (data.length !== expected) return null;
     let binary = ""; for (const byte of data) binary += String.fromCharCode(byte);
-    chunks.push({ seq: row.seq, ageMs: Math.max(0, Date.now() - row.created_at), pcm: btoa(binary) });
-  }
+    return { row, pcm: btoa(binary) };
+  }));
   // A mute/lock while R2 reads were pending must invalidate the whole response.
-  const latestAgent = await readAgent(env), latest = await syncAudio(env, latestAgent, Date.now()), capability = audioHealth(latestAgent, latest, Date.now());
-  const allowed = latestAgent?.epoch === agent.epoch && latest?.[direction + "_generation"] === state[direction + "_generation"] && (direction === "output" ? capability.captureReady && latest.output_active : capability.microphoneReady && !!latest.input_owner);
-  if (!allowed) fail(409, "Audio stopped while reading");
-  if (viewerId && !(await requireViewer(env, viewerId, latestAgent, Date.now())).sound) fail(409, "Sound stopped while reading");
-  return json(req, streamResponse(agent, state, direction, chunks));
+  const latest = await readAudioContext(env);
+  if (latest.agent?.epoch !== agent.epoch) fail(409, "Producer epoch changed");
+  requireAudio(latest, direction, state[direction + "_generation"], viewerId);
+  const now = Date.now(), chunks = payloads.filter(value => value && now >= value.row.created_at && now - value.row.created_at <= AUDIO_TTL)
+    .map(({ row, pcm }) => ({ seq: row.seq, ageMs: now - row.created_at, pcm }));
+  return json(req, { ...streamResponse(agent, state, direction, chunks), processingMs: Math.max(0, now - startedAt) });
+}
+
+async function handleAudio(req, env, url, path, startedAt) {
+  if (path === "/agent/audio" || path === "/microphone") {
+    const output = path === "/agent/audio", value = await body(req, output ? 71680 : 16384);
+    if (!keys(value, [output ? "epoch" : "id", "generation", "seq", "sampleRate", "channels", "encoding", "pcm"])) fail(400, "Unknown audio field");
+    if (!output && !UUID.test(value.id || "")) fail(400, "Valid viewer id required");
+    const context = await readAudioContext(env);
+    if (output) requireEpoch(value.epoch, context.agent); else audioViewer(context, value.id);
+    return uploadAudio(req, env, context, value, output ? "output" : "input", startedAt, output ? undefined : value.id);
+  }
+  const output = path === "/audio", id = output ? url.searchParams.get("id") : undefined;
+  if (output && !UUID.test(id || "")) fail(400, "Valid viewer id required");
+  const context = await readAudioContext(env);
+  if (output) audioViewer(context, id); else requireEpoch(url.searchParams.get("epoch"), context.agent);
+  return readAudioChunks(req, env, context, output ? "output" : "input", url.searchParams.get("generation"), Number(url.searchParams.get("after") || 0), startedAt, id);
 }
 
 async function cleanup(env, now) {
@@ -201,21 +275,15 @@ async function handle(req, env) {
   if (!ROUTES.get(path).split(",").includes(req.method)) fail(405, "Method not allowed");
   const query = path === "/agent/poll" ? ["epoch", "after"] : path === "/agent/frame" ? ["epoch", "id"] : path === "/frame" ? ["id", "after"] : path === "/audio" ? ["id", "generation", "after"] : path === "/agent/microphone" ? ["epoch", "generation", "after"] : [];
   if ([...url.searchParams.keys()].some(k => !query.includes(k))) fail(400, "Unknown query parameter");
+  if (["/audio", "/agent/audio", "/microphone", "/agent/microphone"].includes(path)) return handleAudio(req, env, url, path, now);
+  if (path === "/agent/audio-state") return readAudioState(req, env);
   const { agent, count, audio } = await cleanup(env, now);
   if (path === "/health") return json(req, { ...health(agent, count, now, audio), audio: audioHealth(agent, audio, now) });
-  if (path === "/agent/audio-state") {
-    const video = health(agent, count, now), state = audio;
-    return json(req, { epoch: agent?.epoch || null, videoHealthy: video.available, videoReady: video.ready,
-      unlocked: video.ready && video.state === "ready", soundViewers: state?.output_active ? Number((await first(env, "SELECT COUNT(*) AS count FROM desktop_viewers WHERE epoch = ? AND expires_at >= ? AND sound = 1", agent.epoch, now))?.count || 0) : 0,
-      micActive: !!state?.input_owner, outputGeneration: state?.output_generation || null,
-      inputGeneration: state?.input_generation || null, outputSequence: state?.output_sequence || 0,
-      inputSequence: state?.input_sequence || 0, audio: audioHealth(agent, state, now) });
-  }
   if (path === "/agent/audio/status") {
     const v = await body(req); requireEpoch(v.epoch, agent);
     const s = v.status;
     if (!keys(v, ["epoch", "status"]) || !object(s) || !keys(s, ["captureReady", "microphoneReady", "virtualInputName", "message"]) || typeof s.captureReady !== "boolean" || typeof s.microphoneReady !== "boolean" || typeof s.virtualInputName !== "string" || s.virtualInputName.length > 80 || typeof s.message !== "string" || s.message.length > 240) fail(400, "Invalid audio helper status");
-    await run(env, "UPDATE desktop_audio_state SET status_json = ?, last_seen = ? WHERE id = ? AND epoch = ?", JSON.stringify(s), now, FIXED, agent.epoch);
+    await run(env, "UPDATE desktop_audio_state SET status_json = ?, last_seen = ? WHERE id = ? AND epoch = ?", JSON.stringify(s), Date.now(), FIXED, agent.epoch);
     const state = await syncAudio(env, await readAgent(env), now);
     return json(req, { epoch: agent.epoch, audio: audioHealth(agent, state, now) });
   }
@@ -232,26 +300,6 @@ async function handle(req, env) {
     return json(req, { epoch: agent.epoch, sound: !!current.sound, mic: !!current.mic, revision: current.audio_revision,
       outputGeneration: state.output_generation, inputGeneration: state.input_generation, audio: audioHealth(agent, state, now) });
   }
-  if (path === "/agent/audio") {
-    const v = await body(req, 71680); requireEpoch(v.epoch, agent);
-    if (!keys(v, ["epoch", "generation", "seq", "sampleRate", "channels", "encoding", "pcm"])) fail(400, "Unknown audio field");
-    return uploadAudio(req, env, agent, audio, v, "output", now);
-  }
-  if (path === "/microphone") {
-    const v = await body(req), viewer = await requireViewer(env, v.id, agent, now);
-    if (!keys(v, ["id", "generation", "seq", "sampleRate", "channels", "encoding", "pcm"])) fail(400, "Unknown microphone field");
-    return uploadAudio(req, env, agent, audio, v, "input", now, viewer);
-  }
-  if (path === "/audio") {
-    const viewer = await requireViewer(env, url.searchParams.get("id"), agent, now);
-    if (!viewer.sound || !audioHealth(agent, audio, now).captureReady) fail(409, "Sound is stopped");
-    return readAudioChunks(req, env, agent, audio, "output", url.searchParams.get("generation"), Number(url.searchParams.get("after") || 0), now, viewer.id);
-  }
-  if (path === "/agent/microphone") {
-    requireEpoch(url.searchParams.get("epoch"), agent);
-    if (!audio?.input_owner || !audioHealth(agent, audio, now).microphoneReady) fail(409, "Microphone is stopped");
-    return readAudioChunks(req, env, agent, audio, "input", url.searchParams.get("generation"), Number(url.searchParams.get("after") || 0), now);
-  }
 
   if (path === "/agent/connect") {
     const v = await body(req); if (!keys(v, ["epoch"]) || !UUID.test(v.epoch || "")) fail(400, "Valid epoch required");
@@ -260,7 +308,7 @@ async function handle(req, env) {
   }
   if (path === "/agent/status") {
     const v = await body(req); requireEpoch(v.epoch, agent); const s = normalizeStatus(v.status); if (!s) fail(400, "Invalid desktop status");
-    await run(env, "UPDATE desktop_agent SET status_json = ?, last_seen = ? WHERE id = ? AND epoch = ?", JSON.stringify({ ...JSON.parse(agent.status_json || "{}"), ...s }), now, FIXED, agent.epoch);
+    await run(env, "UPDATE desktop_agent SET status_json = ?, last_seen = ? WHERE id = ? AND epoch = ?", JSON.stringify({ ...JSON.parse(agent.status_json || "{}"), ...s }), Date.now(), FIXED, agent.epoch);
     if (!s.ready) { await clearFrame(env, agent); await run(env, "DELETE FROM desktop_events WHERE epoch = ?", agent.epoch); await syncAudio(env, await readAgent(env), now); }
     return json(req, { epoch: agent.epoch, viewers: count });
   }
