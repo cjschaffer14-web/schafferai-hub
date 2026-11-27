@@ -3,6 +3,8 @@
 const MAX_FRAME_BYTES = 2 * 1024 * 1024;
 const FRAME_FRESH_MS = 3000;
 const INPUT_LIMIT = 128;
+const FRAME_INTERVAL_MS = 125, INTERACTION_FRAME_MS = 60, INTERACTION_BOOST_MS = 1000;
+const INPUT_COALESCE_MS = 8;
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 export class HTTPDesktopTransport {
@@ -23,19 +25,21 @@ export class HTTPDesktopTransport {
     this._fetch = options.fetch || globalThis.fetch.bind(globalThis);
     this._setTimeout = options.setTimeout || globalThis.setTimeout.bind(globalThis);
     this._clearTimeout = options.clearTimeout || globalThis.clearTimeout.bind(globalThis);
+    this._queueMicrotask = options.queueMicrotask || globalThis.queueMicrotask.bind(globalThis);
     this._now = options.now || Date.now;
     this._epoch = 0; this._readinessEpoch = 0; this._id = null;
     this._requests = new Set(); this._frameTimer = null; this._pulseTimer = null;
+    this._frameBusy = false; this._lastFrameStartedAt = 0; this._interactionUntil = 0;
     this._status = {type: 'status', available: false, ready: false};
     this._lastFrameID = ''; this._lastFrameAt = 0; this._frameUsable = false;
-    this._inputQueue = []; this._inputBusy = false; this._inputTimer = null;
+    this._inputQueue = []; this._inputBusy = false; this._inputTimer = null; this._inputMicrotask = null;
     queueMicrotask(() => this._open());
   }
 
   get viewerId() { return this.readyState === HTTPDesktopTransport.OPEN ? this._id : null; }
 
   _isOpen(epoch = this._epoch) { return this.readyState === HTTPDesktopTransport.OPEN && epoch === this._epoch; }
-  _emit(name, event) { this[name]?.(event); }
+  _emit(name, event) { return this[name]?.(event); }
   _emitStatus(status = this._status) {
     if (this.readyState === HTTPDesktopTransport.OPEN) this._emit('onmessage', {data: JSON.stringify({...status, type: 'status'})});
   }
@@ -49,6 +53,7 @@ export class HTTPDesktopTransport {
       this._frameUsable = false;
       this._lastFrameAt = 0;
       this._inputQueue = [];
+      this._cancelInputFlush();
     }
     this._emitStatus();
   }
@@ -60,6 +65,7 @@ export class HTTPDesktopTransport {
     if (!this._frameUsable) return;
     this._frameUsable = false;
     this._inputQueue = [];
+    this._cancelInputFlush();
     this._emitStatus({...this._status, ready: false, message: 'Waiting for a fresh desktop frame…'});
   }
 
@@ -119,7 +125,9 @@ export class HTTPDesktopTransport {
   }
   async _pollFrame() {
     const epoch = this._epoch, readinessEpoch = this._readinessEpoch;
-    if (!this._isOpen(epoch)) return;
+    if (!this._isOpen(epoch) || this._frameBusy) return;
+    this._frameBusy = true; this._frameTimer = null;
+    this._lastFrameStartedAt = this._now();
     try {
       if (!this._status.available || !this._status.ready) return;
       const query = new URLSearchParams({id: this._id});
@@ -153,9 +161,40 @@ export class HTTPDesktopTransport {
       this._lastFrameAt = this._now();
       this._frameUsable = true;
       this._emitStatus(); // Readiness always precedes the JPEG it authorizes.
-      if (this._isOpen(epoch) && this._frameUsable) this._emit('onmessage', {data: frame.blob});
+      if (this._isOpen(epoch) && this._frameUsable) await this._emit('onmessage', {data: frame.blob});
     } catch (error) { if (this._isOpen(epoch)) this._fail(error.message || 'The desktop stream stopped'); }
-    finally { if (this._isOpen(epoch)) this._frameTimer = this._setTimeout(() => this._pollFrame(), 250); }
+    finally { this._frameBusy = false; if (this._isOpen(epoch)) this._scheduleFrame(); }
+  }
+  _scheduleFrame() {
+    if (!this._isOpen() || this._frameBusy) return;
+    this._clearTimeout(this._frameTimer);
+    const interval = this._now() < this._interactionUntil ? INTERACTION_FRAME_MS : FRAME_INTERVAL_MS;
+    const delay = Math.max(0, this._lastFrameStartedAt + interval - this._now());
+    this._frameTimer = this._setTimeout(() => { this._frameTimer = null; this._pollFrame(); }, delay);
+  }
+  _boostFrames() {
+    this._interactionUntil = this._now() + INTERACTION_BOOST_MS;
+    this._scheduleFrame();
+  }
+  _cancelInputFlush() {
+    this._clearTimeout(this._inputTimer); this._inputTimer = null;
+    this._inputMicrotask = null;
+  }
+  _scheduleInputs(critical) {
+    if (this._inputBusy) return;
+    if (critical) {
+      this._clearTimeout(this._inputTimer); this._inputTimer = null;
+      if (this._inputMicrotask !== null) return;
+      const token = {epoch: this._epoch}; this._inputMicrotask = token;
+      // One microtask preserves a synchronous shortcut chord as one batch.
+      this._queueMicrotask(() => {
+        if (this._inputMicrotask !== token) return;
+        this._inputMicrotask = null;
+        if (this._isOpen(token.epoch)) this._drainInputs();
+      });
+    } else if (this._inputTimer === null && this._inputMicrotask === null) {
+      this._inputTimer = this._setTimeout(() => { this._inputTimer = null; this._drainInputs(); }, INPUT_COALESCE_MS);
+    }
   }
 
   send(message) {
@@ -177,9 +216,9 @@ export class HTTPDesktopTransport {
       } else this._inputQueue.push(entry);
     }
     if (this._inputQueue.length > INPUT_LIMIT) { this._fail('Desktop input queue overflowed'); return false; }
-    if (!this._inputBusy && this._inputTimer === null) {
-      this._inputTimer = this._setTimeout(() => { this._inputTimer = null; this._drainInputs(); }, 10);
-    }
+    this._boostFrames();
+    const coalescible = event.type === 'scroll' || event.type === 'pointer' && event.action === 'move';
+    this._scheduleInputs(!coalescible);
     return true;
   }
   async _drainInputs() {
@@ -229,7 +268,7 @@ export class HTTPDesktopTransport {
     this.readyState = HTTPDesktopTransport.CLOSING;
     this._epoch++; this._readinessEpoch++;
     this._clearTimeout(this._frameTimer); this._clearTimeout(this._pulseTimer);
-    this._clearTimeout(this._inputTimer); this._inputTimer = null;
+    this._cancelInputFlush();
     for (const request of this._requests) request.abort();
     this._requests.clear(); this._inputQueue = []; this._frameUsable = false;
     this._closeLease(this._id);

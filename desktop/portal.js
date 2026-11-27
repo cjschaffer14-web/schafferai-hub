@@ -1,5 +1,5 @@
-import { HTTPDesktopTransport } from './http-transport.js';
-import { DesktopAudio } from './audio.js?v=20261127-sound';
+import { HTTPDesktopTransport } from './http-transport.js?v=20261127-interaction';
+import { DesktopAudio } from './audio.js?v=20261127-interaction';
 
 const $ = id => document.getElementById(id);
 const screen = $('screen'), desktop = $('desktop'), ctx = screen.getContext('2d', {alpha: false});
@@ -95,7 +95,7 @@ function connect() {
   ws.onopen = () => { if (socket !== ws) return; connecting = false; controls(true); if(transport === 'http') audio.setSession(relay,ws.viewerId,{available:false,ready:false}); status('Connected · waiting for desktop…'); };
   ws.onmessage = event => {
     if (socket !== ws) return;
-    if (event.data instanceof Blob) { if(agentReady) { currentFrame = event.data; drawFrames(); } return; }
+    if (event.data instanceof Blob) { if(agentReady) { currentFrame = event.data; return drawFrames(); } return; }
     let data; try { data = JSON.parse(event.data); } catch { return; }
     if (data.type === 'status' || data.type === 'hello') audio.updateStatus(data);
     if (data.type === 'status' && (data.available === false || data.ready === false)) {
@@ -147,7 +147,7 @@ screen.addEventListener('wheel',event => {
   if(wheelTimer === null) wheelTimer = setTimeout(()=>{
     wheelTimer = null; const deltaX=wheelX,deltaY=wheelY; wheelX=0;wheelY=0;
     send({type:'scroll',deltaX,deltaY});
-  },40);
+  },20);
 },{passive:false});
 function key(event,action) {
   if (!live) return; event.preventDefault();

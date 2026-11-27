@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const source = fs.readFileSync(path.join(__dirname, '..', 'portal.js'), 'utf8').replace("import { HTTPDesktopTransport } from './http-transport.js';", '').replace(/import \{ DesktopAudio \} from '\.\/audio\.js(?:\?[^']*)?';/, '');
+const source = fs.readFileSync(path.join(__dirname, '..', 'portal.js'), 'utf8').replace(/import \{ HTTPDesktopTransport \} from '\.\/http-transport\.js(?:\?[^']*)?';/, '').replace(/import \{ DesktopAudio \} from '\.\/audio\.js(?:\?[^']*)?';/, '');
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const settle = () => new Promise(resolve => setImmediate(resolve));
 function deferred() {
@@ -58,7 +58,7 @@ async function portal(options = {}) {
     static OPEN = 1;
     constructor(url) { this.url = url; this.readyState = 0; this.sent = []; sockets.push(this); }
     open() { this.readyState = 1; this.onopen?.(); }
-    receive(data) { this.onmessage?.({data}); }
+    receive(data) { return this.onmessage?.({data}); }
     send(data) { this.sent.push(JSON.parse(data)); }
     close(code, reason) { this.readyState = 3; this.closed = {code, reason}; }
     remoteClose() { this.readyState = 3; this.onclose?.(); }
@@ -135,6 +135,24 @@ test('hidden pages release keys then close the connection', async () => {
   assert.equal(h.el('screen').classList.contains('live'), false);
   const sent = ws.sent.length; attemptInput(h);
   assert.equal(ws.sent.length, sent);
+});
+
+test('hiding the page cancels queued wheel input before another connection can receive it', async () => {
+  const h = await portal(); const first = h.open(); await h.frame();
+  h.el('screen').emit('wheel'); h.advance(19); assert.deepEqual(mutations(first), []);
+  h.doc.hidden = true; h.doc.emit('visibilitychange'); h.advance(100);
+  assert.equal(first.closed.code, 1000); assert.deepEqual(mutations(first), []);
+  h.doc.hidden = false; const second = h.open(); await h.frame(second); h.advance(100);
+  assert.deepEqual(mutations(second), []);
+});
+
+test('the HTTP JPEG handler returns a promise that settles after bitmap decoding', async () => {
+  const pending = deferred(), h = await portal({transport: 'http', bitmap: () => pending.promise});
+  const ws = h.open(), rendering = ws.receive(new Blob(['pending JPEG'])); let finished = false;
+  assert.equal(typeof rendering?.then, 'function'); rendering.then(() => { finished = true; });
+  await settle(); assert.equal(finished, false); assert.equal(h.draws.length, 0);
+  pending.resolve({width: 1440, height: 930, close() {}}); await rendering;
+  assert.equal(finished, true); assert.equal(h.draws.length, 1); assert.equal(h.el('screen').classList.contains('live'), true);
 });
 
 test('a stale stream blocks every input path until a fresh frame arrives', async () => {
