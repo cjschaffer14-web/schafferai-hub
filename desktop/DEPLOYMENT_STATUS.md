@@ -3,18 +3,20 @@
 Permanent relay **deployed successfully**, without a provider sign-in or temporary tunnel. Portal production path: https://schafferai.com/desktop/.
 
 - Relay: https://schafferai-desktop-relay.cjschaffer14.chatgpt.site
-- Managed Site: appgprj_6b07433805f48191885008eebf0ebd90, version 5 (desktop latency improvements).
-- Source commit: 2bb0a34438103142db6264d5610b4b051d88825b.
-- Deployment: appgdep_6b09efb0c0008191808779a71fce96be, succeeded.
+- Managed Site: appgprj_6b07433805f48191885008eebf0ebd90, version 6 (streaming desktop frames).
+- Source commit: d7a68ead1229bc0f6dd7603e74677fa59bb64189.
+- Deployment: appgdep_6b09f8dbbad08191aa2dda8aa5f9c39c, succeeded.
 - Public `/health` returns HTTP 200 with no visitor credentials and the correct CORS policy.
 - Mac app is installed under the current user's Library/Application Support/SchafferDesktop and connected to the permanent relay.
 - Login job: com.schafferai.desktop-portal. Configuration is owner-readable only. No real producer key is stored in source or browser code.
 
 **Mac permissions approved:** the owner completed the local Touch ID approval, and Screen Recording plus Accessibility are enabled for the installed app. The restarted login job reports connected=true, ready=true, Screen Recording=true and Accessibility=true. A real production session displayed live 1440×930 Mac frames, and the portal Apps shortcut visibly opened Spotlight. Disconnect was verified to return the active viewer count to zero while leaving the Mac available. Further document text-entry testing was paused because another chat was controlling the same Mac; no input was retried into that other controller’s file dialog.
 
-Validated: 67 frontend/HTTP transport/audio/screen-fit tests, 23 managed HTTP/D1/R2 integration tests using real SQLite and generated migrations, native audio build/self-test (including stereo 44.1→48 kHz conversion) and strict signature verification, prior work-account authorization regressions, native input/configuration/HTTPS/idle-state tests, and successful managed publication. Earlier live browser validation corrected grid sizing that cropped the lower desktop: canvas dimensions preserve the native aspect ratio within the available container on resize, orientation change and fullscreen.
+Validated: 94 frontend/HTTP transport/audio/screen-fit tests, 34 managed HTTP/D1/R2 integration tests using real SQLite and generated migrations, native audio build/self-test (including stereo 44.1→48 kHz conversion) and strict signature verification, prior work-account authorization regressions, native input/configuration/HTTPS/idle-state tests, and successful managed publication. Earlier live browser validation corrected grid sizing that cropped the lower desktop: canvas dimensions preserve the native aspect ratio within the available container on resize, orientation change and fullscreen.
 
 **Click latency improved:** clicks, keys and text flush in a microtask, preserving each shortcut's ordered batch. Screen reads use a 125 ms request-start cadence with a brief 60 ms interaction boost and sequential decoding, replacing the former 250 ms pause after every request. Server input and frame reads use two D1 round trips; frame uploads use three. Bounded producer polling waits for incoming input or a viewer change. Successful CORS preflights are cached for ten minutes. Input age, lease expiry, lock and frame revision fences remain enforced; expired leases release held input once. A simulated 80 ms request plus 20 ms decode produced 330→125 ms idle frame intervals and 330→100 ms intervals after input. These are scheduler measurements, not end-to-end click latency. Both installed Mac app binaries are unchanged.
+
+**Frame streaming enabled:** each browser response now delivers successive fresh JPEGs for up to 1.8 seconds, with at most 12 object reads and 32 SQL snapshots. Live transport verification received 23 frames across three progressively flushed responses, with a median arrival interval of 229 ms and a median estimated transport time of 119 ms. This is a small transport sample, not end-to-end click timing. The Mac receives frame acceptance before background storage finishes; ordered publication and original-receipt age checks protect concurrent uploads. Empty native input polls now hold for up to two seconds with one aggregate snapshot per check, reducing the frequency of the installed app's fixed 200 ms gaps. Installed Mac binaries and sound settings are unchanged.
 
 **Audio setup completed:** Schaffer Desktop Audio v1.1 build 4 is installed with login job `com.schafferai.desktop-audio`. Its dedicated **System Audio Recording Only** permission is enabled in macOS. It uses a private CoreAudio process tap rather than requesting screen recording. The official signed BlackHole 2ch 0.7.1 driver is active without a restart. The existing video app's binary, signature and permissions were preserved.
 

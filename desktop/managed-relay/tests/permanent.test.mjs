@@ -73,12 +73,12 @@ async function fixture(t) {
   await DB.execute({ migrate: sql }); t.after(() => DB.close());
   const original = Date.now; let now = original(); Date.now = () => now; t.after(() => { Date.now = original; });
   const epoch = crypto.randomUUID();
-  async function call(path, method = "GET", value, auth = false, extra = {}) {
+  async function call(path, method = "GET", value, auth = false, extra = {}, context) {
     const binary = value instanceof Uint8Array;
     const request = new Request("https://relay.example" + path, { method,
       headers: { Origin: "https://schafferai.com", ...(value !== undefined ? { "Content-Type": binary ? "image/jpeg" : "application/json" } : {}), ...(auth ? { Authorization: "Bearer " + KEY } : {}), ...extra },
       ...(value !== undefined ? { body: binary ? value : JSON.stringify(value) } : {}) });
-    return worker.fetch(request, env);
+    return worker.fetch(request, env, context);
   }
   async function connect() { assert.equal((await call("/agent/connect", "POST", { epoch }, true)).status, 200); }
   async function ready(value = true) { assert.equal((await call("/agent/status", "POST", { epoch, status: { type: "status", ready: value, state: value ? "ready" : "locked", width: 1200, height: 800, screenRecording: value, accessibility: value } }, true)).status, 200); }
@@ -201,10 +201,10 @@ test("desktop hot routes use bounded round trips and preserve ordered acknowledg
   f.DB.calls = []; const frame = await f.call(`/frame?id=${id}`); assert.equal(frame.status, 200);
   assert.deepEqual(new Uint8Array(await frame.arrayBuffer()), jpeg); assert.equal(f.DB.calls.length, 2);
   f.DB.calls = []; const result = await f.poll(); assert.deepEqual(result.events.map(x => x.event.action), ["down", "up"]);
-  assert.equal(f.DB.calls.length, 2); assert.ok(result.events[0].id < result.events[1].id);
+  assert.equal(f.DB.calls.length, 1); assert.ok(result.events[0].id < result.events[1].id);
   f.DB.calls = []; assert.equal((await f.call(`/agent/frame?epoch=${f.epoch}`, "DELETE", undefined, true)).status, 200);
   assert.equal(f.DB.calls.length, 2);
-  f.DB.calls = []; assert.deepEqual((await f.poll(result.events[1].id)).events, []); assert.equal(f.DB.calls.length, 2);
+  f.DB.calls = []; assert.deepEqual((await f.poll(result.events[1].id)).events, []); assert.equal(f.DB.calls.length, 1);
   assert.equal((await f.DB.prepare("SELECT COUNT(*) AS count FROM desktop_events").first()).count, 0);
 });
 
@@ -278,6 +278,97 @@ test("stale housekeeping cannot clear a newer published frame", async t => {
   assert.equal((await f.call(`/agent/frame?epoch=${f.epoch}&id=${crypto.randomUUID()}`, "PUT", jpeg, true)).status, 204);
   assert.equal((await f.DB.prepare("SELECT frame_id FROM desktop_agent").first()).frame_id, replacement, "late expired upload cannot replace the pointer");
   assert.equal(f.BUCKET.objects.size, 1);
+});
+
+test("two-second event polling stays below fifty SQLite statements", async t => {
+  const f = await fixture(t); await f.connect(); await f.ready(); await f.open();
+  const jpeg = new Uint8Array([255, 216, 255, 217]);
+  assert.equal((await f.call(`/agent/frame?epoch=${f.epoch}&id=${crypto.randomUUID()}`, "PUT", jpeg, true)).status, 200);
+  f.DB.calls = []; const start = performance.now();
+  assert.deepEqual((await f.poll()).events, []);
+  const elapsed = performance.now() - start;
+  assert.ok(elapsed >= 1800 && elapsed < 2700, `bounded hold: ${elapsed}ms`);
+  const statements = f.DB.calls.reduce((sum, query) => sum + (query.batch?.length || 1), 0);
+  assert.ok(statements <= 49, `query budget: ${statements}`);
+  assert.ok(f.DB.calls.slice(1).every(query => query.batch?.length === 1));
+});
+
+function deferred() { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; }
+async function acceptFrame(f, jpeg) {
+  const tasks = [], id = crypto.randomUUID();
+  const response = await f.call(`/agent/frame?epoch=${f.epoch}&id=${id}`, "PUT", jpeg, true, {}, { waitUntil(task) { tasks.push(task); } });
+  assert.equal(response.status, 202); assert.equal((await response.json()).id, id); assert.equal(tasks.length, 1);
+  return { id, finished: tasks[0] };
+}
+
+test("async frame acceptance is fast and completion ordering cannot regress or starve", async t => {
+  const f = await fixture(t); await f.connect(); await f.ready(); const viewer = await f.open();
+  const jpeg = new Uint8Array([255, 216, 255, 217]);
+  const first = deferred(); f.BUCKET.beforePut = () => first.promise;
+  f.DB.calls = []; const a = await acceptFrame(f, jpeg);
+  assert.equal(f.DB.calls.length, 2, "202 does not wait for R2 or publication");
+  assert.equal(f.BUCKET.objects.size, 0);
+  const b = await acceptFrame(f, jpeg); await b.finished;
+  first.resolve(); await a.finished;
+  assert.equal((await f.DB.prepare("SELECT frame_id FROM desktop_agent").first()).frame_id, b.id);
+  assert.equal(f.BUCKET.objects.size, 1, "older completion cleans its own object");
+  const third = deferred(); f.BUCKET.beforePut = () => third.promise; const c = await acceptFrame(f, jpeg);
+  const fourth = deferred(); f.BUCKET.beforePut = () => fourth.promise; const d = await acceptFrame(f, jpeg);
+  third.resolve(); await c.finished;
+  assert.equal((await f.call(`/frame?id=${viewer}`)).headers.get("X-Frame-ID"), c.id, "newer reservation does not block an earlier fresh completion");
+  fourth.resolve(); await d.finished;
+  const state = await f.DB.prepare("SELECT frame_id, frame_reserved_sequence, frame_published_sequence FROM desktop_agent").first();
+  assert.equal(state.frame_id, d.id); assert.equal(state.frame_reserved_sequence, 4); assert.equal(state.frame_published_sequence, 4);
+  assert.equal(f.BUCKET.objects.size, 1);
+});
+
+test("async frame publication retains delete, lock and reconnect fences", async t => {
+  const f = await fixture(t); await f.connect(); await f.ready(); await f.open();
+  const jpeg = new Uint8Array([255, 216, 255, 217]);
+  const stops = [() => f.call(`/agent/frame?epoch=${f.epoch}`, "DELETE", undefined, true), () => f.ready(false), () => f.call("/agent/connect", "POST", { epoch: crypto.randomUUID() }, true)];
+  for (const stop of stops) {
+    await f.ready(); const gate = deferred(); f.BUCKET.beforePut = () => gate.promise;
+    const upload = await acceptFrame(f, jpeg); await stop(); gate.resolve(); await upload.finished;
+    assert.equal((await f.DB.prepare("SELECT frame_id FROM desktop_agent").first()).frame_id, "");
+    assert.equal(f.BUCKET.objects.size, 0);
+  }
+});
+
+test("async frame age uses original receipt and expired uploads cannot publish", async t => {
+  const f = await fixture(t); await f.connect(); await f.ready(); const viewer = await f.open();
+  const jpeg = new Uint8Array([255, 216, 255, 217]);
+  let gate = deferred(); f.BUCKET.beforePut = () => gate.promise;
+  const fresh = await acceptFrame(f, jpeg); f.advance(500); gate.resolve(); await fresh.finished;
+  assert.equal((await f.call(`/frame?id=${viewer}`)).headers.get("X-Frame-Age-Ms"), "500");
+  gate = deferred(); f.BUCKET.beforePut = () => gate.promise;
+  const stale = await acceptFrame(f, jpeg); f.advance(LIMITS.frameTtlMs + 1); gate.resolve(); await stale.finished;
+  assert.equal((await f.DB.prepare("SELECT frame_id FROM desktop_agent").first()).frame_id, fresh.id);
+  assert.equal((await f.call(`/frame?id=${viewer}`)).status, 204);
+  gate = deferred(); f.BUCKET.beforePut = () => gate.promise;
+  const expired = await acceptFrame(f, jpeg); f.advance(LIMITS.leaseMs + 1); gate.resolve(); await expired.finished;
+  assert.equal((await f.DB.prepare("SELECT frame_id FROM desktop_agent").first()).frame_id, fresh.id);
+  assert.equal(f.BUCKET.objects.size, 1, "expired background objects are removed");
+});
+
+test("background frame failures clean unpublished objects and preserve a confirmed replacement", async t => {
+  const f = await fixture(t); await f.connect(); await f.ready(); await f.open();
+  const jpeg = new Uint8Array([255, 216, 255, 217]), logs = [];
+  const originalLog = console.error; console.error = (...values) => logs.push(values); t.after(() => { console.error = originalLog; });
+  f.DB.beforeExecute = async query => {
+    if (!query.batch?.some(item => item.sql.includes("frame_published_sequence = ?"))) return;
+    f.DB.beforeExecute = null; throw new Error("Injected private object key must not be logged");
+  };
+  const failed = await acceptFrame(f, jpeg); await failed.finished;
+  assert.equal(f.BUCKET.objects.size, 0);
+  assert.equal((await f.DB.prepare("SELECT frame_id FROM desktop_agent").first()).frame_id, "");
+  const base = await acceptFrame(f, jpeg); await base.finished;
+  const oldKey = (await f.DB.prepare("SELECT frame_key FROM desktop_agent").first()).frame_key;
+  const remove = f.BUCKET.delete.bind(f.BUCKET);
+  f.BUCKET.delete = async key => { if (key === oldKey) throw new Error("Prior object deletion failed"); await remove(key); };
+  const replacement = await acceptFrame(f, jpeg); await replacement.finished;
+  const current = await f.DB.prepare("SELECT frame_id, frame_key FROM desktop_agent").first();
+  assert.equal(current.frame_id, replacement.id); assert.ok(f.BUCKET.objects.has(current.frame_key));
+  assert.deepEqual(logs, [["Desktop frame background publication failed"], ["Desktop frame background publication failed"]]);
 });
 
 async function audioFixture(t, options = {}) {
@@ -466,4 +557,84 @@ test("audio state polling is one read round trip and never advertises expired ca
   assert.equal(value.epoch, newEpoch); assert.equal(value.audio.available, false);
   assert.equal(value.soundViewers, 0); assert.equal(value.micActive, false);
   assert.equal(value.outputGeneration, null); assert.equal(value.inputGeneration, null, "an old producer epoch cannot supply capture generations");
+});
+
+async function framePackets(response) {
+  const reader = response.body.getReader(); let buffer = new Uint8Array();
+  async function take(size) {
+    while (buffer.length < size) {
+      const next = await reader.read(); if (next.done) throw new Error('Truncated stream');
+      const joined = new Uint8Array(buffer.length + next.value.length);
+      joined.set(buffer); joined.set(next.value, buffer.length); buffer = joined;
+    }
+    const value = buffer.slice(0, size); buffer = buffer.slice(size); return value;
+  }
+  return { cancel: () => reader.cancel(), async next() {
+    const prefix = await take(4), size = new DataView(prefix.buffer).getUint32(0);
+    if (!size) return null;
+    assert.ok(size <= 1024); const header = JSON.parse(new TextDecoder().decode(await take(size)));
+    return { header, jpeg: await take(header.byteLength) };
+  } };
+}
+
+test('frame stream pushes successive JPEGs in one bounded response without a history cache', async t => {
+  const f = await fixture(t); await f.connect(); await f.ready(); const id = await f.open();
+  const jpeg = new Uint8Array([255, 216, 1, 255, 217]), a = crypto.randomUUID(), b = crypto.randomUUID();
+  const put = frameId => f.call(`/agent/frame?epoch=${f.epoch}&id=${frameId}`, 'PUT', jpeg, true);
+  await put(a); f.DB.calls = [];
+  const response = await f.call(`/frames?id=${id}`); assert.equal(response.status, 200);
+  assert.equal(response.headers.get('Content-Type'), 'application/x-schaffer-frames');
+  const packets = await framePackets(response), first = await packets.next();
+  assert.equal(first.header.type, 'frame'); assert.equal(first.header.id, a); assert.deepEqual(first.jpeg, jpeg);
+  assert.equal(first.header.ageMs, 0); assert.equal(first.header.offsetMs, 0);
+  assert.equal(f.DB.calls.length, 2, 'one lookup before and one after object retrieval');
+  await put(b); const second = await packets.next(); assert.equal(second.header.id, b);
+  assert.deepEqual(second.jpeg, jpeg); assert.equal(f.BUCKET.objects.size, 1);
+  await packets.cancel();
+});
+
+test('frame stream reports a lock before sending any later image', async t => {
+  const f = await fixture(t); await f.connect(); await f.ready(); const id = await f.open();
+  const packets = await framePackets(await f.call(`/frames?id=${id}`));
+  const pending = packets.next(); await new Promise(resolve => setTimeout(resolve, 35)); await f.ready(false);
+  const value = await pending; assert.equal(value.header.type, 'status'); assert.equal(value.header.ready, false);
+  assert.equal(value.jpeg.length, 0); assert.equal(await packets.next(), null);
+});
+
+test('frame stream rechecks the viewer after the response opens', async t => {
+  const f = await fixture(t); await f.connect(); await f.ready(); const id = await f.open();
+  const response = await f.call(`/frames?id=${id}`);
+  await f.call('/viewer/close', 'POST', { id });
+  const packets = await framePackets(response); await assert.rejects(packets.next(), /stream stopped/);
+  assert.equal((await f.call(`/frames?id=${id}`)).status, 410);
+});
+
+test('frame stream fences a JPEG fetched across DELETE and delivers its fresh replacement', async t => {
+  const f = await fixture(t); await f.connect(); await f.ready(); const id = await f.open();
+  const jpeg = new Uint8Array([255, 216, 255, 217]), old = crypto.randomUUID(), next = crypto.randomUUID();
+  const put = frameId => f.call(`/agent/frame?epoch=${f.epoch}&id=${frameId}`, 'PUT', jpeg, true);
+  await put(old);
+  f.BUCKET.afterGet = async () => { await f.call(`/agent/frame?epoch=${f.epoch}`, 'DELETE', undefined, true); await put(next); };
+  const packets = await framePackets(await f.call(`/frames?id=${id}`));
+  assert.equal((await packets.next()).header.id, next); await packets.cancel();
+});
+
+test('an empty frame stream ends within a strict SQL budget', async t => {
+  const f = await fixture(t); await f.connect(); await f.ready(); const id = await f.open(); f.DB.calls = [];
+  const started = performance.now(), packets = await framePackets(await f.call(`/frames?id=${id}`));
+  assert.equal(await packets.next(), null);
+  assert.ok(f.DB.calls.length <= 32); assert.ok(performance.now() - started < 2500);
+});
+
+test('missing stream objects still count against the object-read budget', async t => {
+  const f = await fixture(t); await f.connect(); await f.ready(); const id = await f.open();
+  await f.call(`/agent/frame?epoch=${f.epoch}&id=${crypto.randomUUID()}`, 'PUT', new Uint8Array([255, 216, 255, 217]), true);
+  let attempts = 0;
+  f.BUCKET.get = async () => {
+    attempts++;
+    await f.DB.prepare('UPDATE desktop_agent SET frame_id = ?').bind(crypto.randomUUID()).run();
+    return null;
+  };
+  const packets = await framePackets(await f.call(`/frames?id=${id}`));
+  assert.equal(await packets.next(), null); assert.equal(attempts, 12);
 });
