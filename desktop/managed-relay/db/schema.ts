@@ -5,6 +5,8 @@ export const agent = sqliteTable("desktop_agent", {
   frameAt: integer("frame_at").notNull().default(0), frameId: text("frame_id").notNull().default(""),
   frameKey: text("frame_key").notNull().default(""), framesSlot: integer("frames_slot").notNull().default(0),
   frameRevision: integer("frame_revision").notNull().default(0),
+  frameReservedSequence: integer("frame_reserved_sequence").notNull().default(0),
+  framePublishedSequence: integer("frame_published_sequence").notNull().default(0),
   framesCount: integer("frames_count").notNull().default(0),
 });
 export const viewers = sqliteTable("desktop_viewers", {
