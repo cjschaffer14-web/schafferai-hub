@@ -156,6 +156,25 @@ test('unavailable desktop status blocks input and discards an in-flight old fram
   attemptInput(h); assert.deepEqual(mutations(ws), []);
 });
 
+test('ready recovery clears an earlier unlock message while input waits for live video', async () => {
+  const h = await portal(); const ws = h.open(); await h.frame();
+  ws.receive(JSON.stringify({type: 'status', available: true, ready: false,
+    state: 'locked', message: 'Mac is locked. Unlock it locally to resume desktop sharing.'}));
+  assert.match(h.el('empty-copy').textContent, /Unlock it locally/);
+  ws.receive(JSON.stringify({type: 'status', available: true, ready: true, state: 'ready'}));
+  assert.equal(h.el('empty-title').textContent, 'Mac is ready');
+  assert.equal(h.el('empty-copy').textContent, 'Waiting for the live desktop…');
+  assert.doesNotMatch(h.el('status').textContent, /locked|Unlock/);
+  assert.equal(h.el('placeholder').hidden, false);
+  assert.equal(h.el('screen').classList.contains('live'), false);
+  assert.equal(h.el('apps').disabled, true);
+  attemptInput(h); assert.deepEqual(mutations(ws), []);
+  await h.frame();
+  assert.equal(h.el('placeholder').hidden, true);
+  assert.equal(h.el('screen').classList.contains('live'), true);
+  assert.equal(h.el('apps').disabled, false);
+});
+
 test('old socket frames and input are not replayed after reconnect', async () => {
   const h = await portal(); const first = h.open(); await h.frame();
   h.el('screen').emit('keydown'); h.el('disconnect').emit('click');
