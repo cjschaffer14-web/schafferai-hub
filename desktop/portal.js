@@ -103,6 +103,11 @@ function connect() {
       status(data.message || 'Desktop unavailable');
     } else if ((data.type === 'status' || data.type === 'hello') && data.ready === true) {
       agentReady = true;
+      if (!screen.classList.contains('live')) {
+        $('empty-title').textContent = 'Mac is ready';
+        $('empty-copy').textContent = 'Waiting for the live desktop…';
+        status('Mac ready · waiting for live desktop…');
+      }
     } else if (data.type === 'error') status(data.message || 'Desktop connection error');
   };
   ws.onerror = () => { if (socket === ws) status('Desktop connection failed'); };
